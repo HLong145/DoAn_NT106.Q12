@@ -19,161 +19,176 @@
         {
             playersPanel = new Panel();
             player1Panel = new Panel();
-            player2Panel = new Panel();
             player1NameLabel = new Label();
             player1StatusLabel = new Label();
+            player2Panel = new Panel();
             player2NameLabel = new Label();
             player2StatusLabel = new Label();
             roomCodePanel = new Panel();
             roomCodeTitleLabel = new Label();
             roomCodeValueLabel = new Label();
             copyCodeButton = new Button();
-
             chatPanel = new Panel();
             chatMessagesPanel = new Panel();
             chatTitleLabel = new Label();
             sendButton = new Button();
             messageTextBox = new TextBox();
-
             controlsPanel = new Panel();
             leaveRoomButton = new Button();
             startGameButton = new Button();
             notReadyButton = new Button();
-
             gameInfoPanel = new Panel();
             timeLabel = new Label();
             nodeLabel = new Label();
             mapLabel = new Label();
-
+            playersPanel.SuspendLayout();
+            player1Panel.SuspendLayout();
+            player2Panel.SuspendLayout();
+            roomCodePanel.SuspendLayout();
+            chatPanel.SuspendLayout();
+            controlsPanel.SuspendLayout();
+            gameInfoPanel.SuspendLayout();
             SuspendLayout();
-
             // 
             // playersPanel
             // 
             playersPanel.BackColor = Color.FromArgb(160, 82, 45);
-            playersPanel.Location = new Point(14, 16);
-            playersPanel.Size = new Size(251, 360);
             playersPanel.Controls.Add(player1Panel);
             playersPanel.Controls.Add(player2Panel);
             playersPanel.Controls.Add(roomCodePanel);
             playersPanel.Controls.Add(copyCodeButton);
+            playersPanel.Location = new Point(14, 16);
+            playersPanel.Name = "playersPanel";
+            playersPanel.Size = new Size(251, 360);
+            playersPanel.TabIndex = 3;
             playersPanel.Paint += Panel_Paint;
-
             // 
             // player1Panel
             // 
             player1Panel.BackColor = Color.FromArgb(101, 67, 51);
             player1Panel.BorderStyle = BorderStyle.FixedSingle;
-            player1Panel.Location = new Point(10, 15);
-            player1Panel.Size = new Size(230, 45);
             player1Panel.Controls.Add(player1NameLabel);
             player1Panel.Controls.Add(player1StatusLabel);
-
+            player1Panel.Location = new Point(10, 15);
+            player1Panel.Name = "player1Panel";
+            player1Panel.Size = new Size(230, 45);
+            player1Panel.TabIndex = 0;
             // 
             // player1NameLabel
             // 
-            player1NameLabel.Text = "Player 1";
+            player1NameLabel.Font = new Font("Courier New", 11F, FontStyle.Bold);
             player1NameLabel.ForeColor = Color.Gold;
-            player1NameLabel.Font = new Font("Courier New", 11, FontStyle.Bold);
             player1NameLabel.Location = new Point(5, 10);
+            player1NameLabel.Name = "player1NameLabel";
             player1NameLabel.Size = new Size(120, 25);
-
+            player1NameLabel.TabIndex = 0;
+            player1NameLabel.Text = "Player 1";
             // 
             // player1StatusLabel
             // 
-            player1StatusLabel.Text = "#Ready";
+            player1StatusLabel.Font = new Font("Courier New", 11F, FontStyle.Bold);
             player1StatusLabel.ForeColor = Color.LimeGreen;
-            player1StatusLabel.Font = new Font("Courier New", 11, FontStyle.Bold);
             player1StatusLabel.Location = new Point(130, 10);
+            player1StatusLabel.Name = "player1StatusLabel";
             player1StatusLabel.Size = new Size(90, 25);
+            player1StatusLabel.TabIndex = 1;
+            player1StatusLabel.Text = "#Ready";
             player1StatusLabel.TextAlign = ContentAlignment.MiddleRight;
-
             // 
             // player2Panel
             // 
             player2Panel.BackColor = Color.FromArgb(101, 67, 51);
             player2Panel.BorderStyle = BorderStyle.FixedSingle;
-            player2Panel.Location = new Point(10, 70);
-            player2Panel.Size = new Size(230, 45);
             player2Panel.Controls.Add(player2NameLabel);
             player2Panel.Controls.Add(player2StatusLabel);
-
+            player2Panel.Location = new Point(10, 70);
+            player2Panel.Name = "player2Panel";
+            player2Panel.Size = new Size(230, 45);
+            player2Panel.TabIndex = 1;
             // 
             // player2NameLabel
             // 
-            player2NameLabel.Text = "Player 2";
+            player2NameLabel.Font = new Font("Courier New", 11F, FontStyle.Bold);
             player2NameLabel.ForeColor = Color.Gold;
-            player2NameLabel.Font = new Font("Courier New", 11, FontStyle.Bold);
             player2NameLabel.Location = new Point(5, 10);
+            player2NameLabel.Name = "player2NameLabel";
             player2NameLabel.Size = new Size(120, 25);
-
+            player2NameLabel.TabIndex = 0;
+            player2NameLabel.Text = "Player 2";
             // 
             // player2StatusLabel
             // 
-            player2StatusLabel.Text = "#Not Ready";
+            player2StatusLabel.Font = new Font("Courier New", 11F, FontStyle.Bold);
             player2StatusLabel.ForeColor = Color.Red;
-            player2StatusLabel.Font = new Font("Courier New", 11, FontStyle.Bold);
             player2StatusLabel.Location = new Point(130, 10);
+            player2StatusLabel.Name = "player2StatusLabel";
             player2StatusLabel.Size = new Size(90, 25);
+            player2StatusLabel.TabIndex = 1;
+            player2StatusLabel.Text = "#Not Ready";
             player2StatusLabel.TextAlign = ContentAlignment.MiddleRight;
-
             // 
             // roomCodePanel
             // 
             roomCodePanel.BackColor = Color.FromArgb(101, 67, 51);
             roomCodePanel.BorderStyle = BorderStyle.FixedSingle;
-            roomCodePanel.Location = new Point(10, 130);
-            roomCodePanel.Size = new Size(230, 70);
             roomCodePanel.Controls.Add(roomCodeTitleLabel);
             roomCodePanel.Controls.Add(roomCodeValueLabel);
+            roomCodePanel.Location = new Point(10, 130);
+            roomCodePanel.Name = "roomCodePanel";
+            roomCodePanel.Size = new Size(230, 70);
+            roomCodePanel.TabIndex = 2;
             roomCodePanel.Paint += Panel_Paint;
-
             // 
             // roomCodeTitleLabel
             // 
-            roomCodeTitleLabel.Text = "ROOM CODE";
+            roomCodeTitleLabel.Font = new Font("Courier New", 10F, FontStyle.Bold);
             roomCodeTitleLabel.ForeColor = Color.Gold;
-            roomCodeTitleLabel.Font = new Font("Courier New", 10, FontStyle.Bold);
             roomCodeTitleLabel.Location = new Point(5, 5);
+            roomCodeTitleLabel.Name = "roomCodeTitleLabel";
             roomCodeTitleLabel.Size = new Size(220, 25);
+            roomCodeTitleLabel.TabIndex = 0;
+            roomCodeTitleLabel.Text = "ROOM CODE";
             roomCodeTitleLabel.TextAlign = ContentAlignment.MiddleCenter;
-
             // 
             // roomCodeValueLabel
             // 
-            roomCodeValueLabel.Text = "ABC123";
-            roomCodeValueLabel.ForeColor = Color.White;
             roomCodeValueLabel.BackColor = Color.FromArgb(80, 60, 40);
-            roomCodeValueLabel.Font = new Font("Courier New", 14, FontStyle.Bold);
+            roomCodeValueLabel.Font = new Font("Courier New", 14F, FontStyle.Bold);
+            roomCodeValueLabel.ForeColor = Color.White;
             roomCodeValueLabel.Location = new Point(5, 35);
+            roomCodeValueLabel.Name = "roomCodeValueLabel";
             roomCodeValueLabel.Size = new Size(220, 25);
+            roomCodeValueLabel.TabIndex = 1;
+            roomCodeValueLabel.Text = "ABC123";
             roomCodeValueLabel.TextAlign = ContentAlignment.MiddleCenter;
-
             // 
             // copyCodeButton
             // 
-            copyCodeButton.Text = "COPY CODE";
             copyCodeButton.BackColor = Color.FromArgb(139, 69, 19);
             copyCodeButton.FlatStyle = FlatStyle.Flat;
-            copyCodeButton.Font = new Font("Courier New", 12, FontStyle.Bold);
+            copyCodeButton.Font = new Font("Courier New", 12F, FontStyle.Bold);
             copyCodeButton.ForeColor = Color.Gold;
-            copyCodeButton.Location = new Point(10, 210);
+            copyCodeButton.Location = new Point(10, 217);
+            copyCodeButton.Name = "copyCodeButton";
             copyCodeButton.Size = new Size(230, 35);
+            copyCodeButton.TabIndex = 3;
+            copyCodeButton.Text = "COPY CODE";
+            copyCodeButton.UseVisualStyleBackColor = false;
             copyCodeButton.Click += CopyCodeButton_Click;
             copyCodeButton.Paint += Button_Paint;
-
             // 
             // chatPanel
             // 
             chatPanel.BackColor = Color.FromArgb(160, 82, 45);
-            chatPanel.Location = new Point(286, 16);
-            chatPanel.Size = new Size(400, 533);
             chatPanel.Controls.Add(chatMessagesPanel);
             chatPanel.Controls.Add(chatTitleLabel);
             chatPanel.Controls.Add(sendButton);
             chatPanel.Controls.Add(messageTextBox);
+            chatPanel.Location = new Point(286, 16);
+            chatPanel.Name = "chatPanel";
+            chatPanel.Size = new Size(400, 533);
+            chatPanel.TabIndex = 2;
             chatPanel.Paint += Panel_Paint;
-
             // 
             // chatMessagesPanel
             // 
@@ -181,18 +196,20 @@
             chatMessagesPanel.BackColor = Color.FromArgb(101, 67, 51);
             chatMessagesPanel.Font = new Font("Segoe UI", 10.2F);
             chatMessagesPanel.Location = new Point(11, 60);
+            chatMessagesPanel.Name = "chatMessagesPanel";
             chatMessagesPanel.Size = new Size(371, 400);
+            chatMessagesPanel.TabIndex = 0;
             chatMessagesPanel.Paint += Panel_Paint;
-
             // 
             // chatTitleLabel
             // 
             chatTitleLabel.Font = new Font("Courier New", 12F, FontStyle.Bold);
             chatTitleLabel.ForeColor = Color.Gold;
             chatTitleLabel.Location = new Point(11, 13);
+            chatTitleLabel.Name = "chatTitleLabel";
             chatTitleLabel.Size = new Size(114, 33);
+            chatTitleLabel.TabIndex = 1;
             chatTitleLabel.Text = "CHAT";
-
             // 
             // sendButton
             // 
@@ -201,11 +218,13 @@
             sendButton.Font = new Font("Courier New", 9F, FontStyle.Bold);
             sendButton.ForeColor = Color.Gold;
             sendButton.Location = new Point(309, 473);
+            sendButton.Name = "sendButton";
             sendButton.Size = new Size(74, 33);
+            sendButton.TabIndex = 2;
             sendButton.Text = "SEND";
+            sendButton.UseVisualStyleBackColor = false;
             sendButton.Click += sendButton_Click;
             sendButton.Paint += Button_Paint;
-
             // 
             // messageTextBox
             // 
@@ -213,47 +232,23 @@
             messageTextBox.Font = new Font("Courier New", 12F, FontStyle.Bold);
             messageTextBox.ForeColor = Color.Gold;
             messageTextBox.Location = new Point(11, 473);
+            messageTextBox.Name = "messageTextBox";
             messageTextBox.PlaceholderText = "Type message...";
             messageTextBox.Size = new Size(285, 30);
+            messageTextBox.TabIndex = 3;
             messageTextBox.KeyPress += messageTextBox_KeyPress;
-
             // 
             // controlsPanel
             // 
             controlsPanel.BackColor = Color.FromArgb(160, 82, 45);
-            controlsPanel.Location = new Point(14, 384);
-            controlsPanel.Size = new Size(251, 168);
             controlsPanel.Controls.Add(leaveRoomButton);
             controlsPanel.Controls.Add(startGameButton);
             controlsPanel.Controls.Add(notReadyButton);
+            controlsPanel.Location = new Point(14, 384);
+            controlsPanel.Name = "controlsPanel";
+            controlsPanel.Size = new Size(251, 168);
+            controlsPanel.TabIndex = 1;
             controlsPanel.Paint += Panel_Paint;
-
-            // 
-            // notReadyButton
-            // 
-            notReadyButton.BackColor = Color.FromArgb(139, 69, 19);
-            notReadyButton.FlatStyle = FlatStyle.Flat;
-            notReadyButton.Font = new Font("Goudy Stout", 10.8F, FontStyle.Bold);
-            notReadyButton.ForeColor = Color.Gold;
-            notReadyButton.Location = new Point(11, 18);
-            notReadyButton.Size = new Size(229, 40);
-            notReadyButton.Text = "NOT READY";
-            notReadyButton.Click += notReadyButton_Click;
-            notReadyButton.Paint += Button_Paint;
-
-            // 
-            // startGameButton
-            // 
-            startGameButton.BackColor = Color.FromArgb(139, 69, 19);
-            startGameButton.FlatStyle = FlatStyle.Flat;
-            startGameButton.Font = new Font("Goudy Stout", 10.8F, FontStyle.Bold);
-            startGameButton.ForeColor = Color.Gold;
-            startGameButton.Location = new Point(11, 66);
-            startGameButton.Size = new Size(229, 40);
-            startGameButton.Text = "START GAME";
-            startGameButton.Click += startGameButton_Click;
-            startGameButton.Paint += Button_Paint;
-
             // 
             // leaveRoomButton
             // 
@@ -262,43 +257,85 @@
             leaveRoomButton.Font = new Font("Goudy Stout", 10.8F, FontStyle.Bold);
             leaveRoomButton.ForeColor = Color.Gold;
             leaveRoomButton.Location = new Point(11, 114);
+            leaveRoomButton.Name = "leaveRoomButton";
             leaveRoomButton.Size = new Size(229, 40);
+            leaveRoomButton.TabIndex = 0;
             leaveRoomButton.Text = "LEAVE ROOM";
+            leaveRoomButton.UseVisualStyleBackColor = false;
             leaveRoomButton.Click += leaveRoomButton_Click;
             leaveRoomButton.Paint += Button_Paint;
-
+            // 
+            // startGameButton
+            // 
+            startGameButton.BackColor = Color.FromArgb(139, 69, 19);
+            startGameButton.FlatStyle = FlatStyle.Flat;
+            startGameButton.Font = new Font("Goudy Stout", 10.8F, FontStyle.Bold);
+            startGameButton.ForeColor = Color.Gold;
+            startGameButton.Location = new Point(11, 66);
+            startGameButton.Name = "startGameButton";
+            startGameButton.Size = new Size(229, 40);
+            startGameButton.TabIndex = 1;
+            startGameButton.Text = "START GAME";
+            startGameButton.UseVisualStyleBackColor = false;
+            startGameButton.Click += startGameButton_Click;
+            startGameButton.Paint += Button_Paint;
+            // 
+            // notReadyButton
+            // 
+            notReadyButton.BackColor = Color.FromArgb(139, 69, 19);
+            notReadyButton.FlatStyle = FlatStyle.Flat;
+            notReadyButton.Font = new Font("Goudy Stout", 10.8F, FontStyle.Bold);
+            notReadyButton.ForeColor = Color.Gold;
+            notReadyButton.Location = new Point(11, 18);
+            notReadyButton.Name = "notReadyButton";
+            notReadyButton.Size = new Size(229, 40);
+            notReadyButton.TabIndex = 2;
+            notReadyButton.Text = "NOT READY";
+            notReadyButton.UseVisualStyleBackColor = false;
+            notReadyButton.Click += notReadyButton_Click;
+            notReadyButton.Paint += Button_Paint;
             // 
             // gameInfoPanel
             // 
             gameInfoPanel.BackColor = Color.FromArgb(160, 82, 45);
-            gameInfoPanel.Location = new Point(14, 560);
-            gameInfoPanel.Size = new Size(672, 67);
             gameInfoPanel.Controls.Add(timeLabel);
             gameInfoPanel.Controls.Add(nodeLabel);
             gameInfoPanel.Controls.Add(mapLabel);
+            gameInfoPanel.Location = new Point(14, 560);
+            gameInfoPanel.Name = "gameInfoPanel";
+            gameInfoPanel.Size = new Size(672, 67);
+            gameInfoPanel.TabIndex = 0;
             gameInfoPanel.Paint += Panel_Paint;
-
             // 
-            // mapLabel / nodeLabel / timeLabel
+            // timeLabel
+            // 
+            timeLabel.Font = new Font("Courier New", 9F, FontStyle.Bold);
+            timeLabel.ForeColor = Color.Gold;
+            timeLabel.Location = new Point(457, 20);
+            timeLabel.Name = "timeLabel";
+            timeLabel.Size = new Size(206, 27);
+            timeLabel.TabIndex = 0;
+            timeLabel.Text = "Time: 10:00";
+            // 
+            // nodeLabel
+            // 
+            nodeLabel.Font = new Font("Courier New", 9F, FontStyle.Bold);
+            nodeLabel.ForeColor = Color.Gold;
+            nodeLabel.Location = new Point(229, 20);
+            nodeLabel.Name = "nodeLabel";
+            nodeLabel.Size = new Size(206, 27);
+            nodeLabel.TabIndex = 1;
+            nodeLabel.Text = "Node: Battle Royale";
+            // 
+            // mapLabel
             // 
             mapLabel.Font = new Font("Courier New", 9F, FontStyle.Bold);
             mapLabel.ForeColor = Color.Gold;
             mapLabel.Location = new Point(11, 20);
+            mapLabel.Name = "mapLabel";
             mapLabel.Size = new Size(206, 27);
+            mapLabel.TabIndex = 2;
             mapLabel.Text = "Map: Forest Arena";
-
-            nodeLabel.Font = new Font("Courier New", 9F, FontStyle.Bold);
-            nodeLabel.ForeColor = Color.Gold;
-            nodeLabel.Location = new Point(229, 20);
-            nodeLabel.Size = new Size(206, 27);
-            nodeLabel.Text = "Node: Battle Royale";
-
-            timeLabel.Font = new Font("Courier New", 9F, FontStyle.Bold);
-            timeLabel.ForeColor = Color.Gold;
-            timeLabel.Location = new Point(457, 20);
-            timeLabel.Size = new Size(206, 27);
-            timeLabel.Text = "Time: 10:00";
-
             // 
             // GameLobbyForm
             // 
@@ -316,6 +353,14 @@
             Name = "GameLobbyForm";
             StartPosition = FormStartPosition.CenterScreen;
             Text = "Game Lobby";
+            playersPanel.ResumeLayout(false);
+            player1Panel.ResumeLayout(false);
+            player2Panel.ResumeLayout(false);
+            roomCodePanel.ResumeLayout(false);
+            chatPanel.ResumeLayout(false);
+            chatPanel.PerformLayout();
+            controlsPanel.ResumeLayout(false);
+            gameInfoPanel.ResumeLayout(false);
             ResumeLayout(false);
         }
 

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using DoAn_NT106;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
@@ -10,8 +11,10 @@ namespace PixelGameLobby
         private List<ChatMessage> messages = new List<ChatMessage>();
         private List<Player> players = new List<Player>();
         private string roomCode;
+        private string username;
+        private string token;
 
-        // Màu sắc chính xác từ ảnh gốc
+        // Màu sắc
         private Color primaryBrown = Color.FromArgb(160, 82, 45);    // #a0522d
         private Color darkBrown = Color.FromArgb(101, 67, 51);       // #654321
         private Color darkerBrown = Color.FromArgb(74, 50, 25);      // #4a3219
@@ -20,17 +23,22 @@ namespace PixelGameLobby
         private Color readyColor = Color.FromArgb(100, 200, 100);    // Xanh lá - Ready
         private Color notReadyColor = Color.FromArgb(255, 0, 0);     // Đỏ - Not Ready
 
-        public GameLobbyForm(string roomCode = null)
+        public GameLobbyForm(string roomCode, string username, string token)
         {
             InitializeComponent();
             this.roomCode = roomCode ?? GenerateRoomCode();
+            this.username = username;
+            this.token = token;
             InitializeData();
             SetupPixelStyling();
         }
 
+        public GameLobbyForm(string roomCode = null) : this(roomCode, "Guest", "")
+        {
+        }
+
         private string GenerateRoomCode()
         {
-            // Tạo mã phòng ngẫu nhiên 6 ký tự
             const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
             var random = new Random();
             var code = new char[6];
@@ -43,150 +51,99 @@ namespace PixelGameLobby
 
         private void InitializeData()
         {
-            // CHỈ có 2 người chơi, không có slot trống
-            players.Add(new Player { Id = 1, Name = "Player 1", Status = "Ready", IsReady = true });
-            players.Add(new Player { Id = 2, Name = "Player 2", Status = "Not Ready", IsReady = false });
+            // Sử dụng username thực tế
+            players.Add(new Player { Id = 1, Name = username, Status = "Ready", IsReady = true });
+            players.Add(new Player { Id = 2, Name = "Waiting for player...", Status = "Not Ready", IsReady = false });
 
-            messages.Add(new ChatMessage { Id = 1, Player = "Player 1", Message = "Hello everyone!", Time = "10:30" });
-            messages.Add(new ChatMessage { Id = 2, Player = "Player 2", Message = "Ready to start!", Time = "10:31" });
             messages.Add(new ChatMessage
             {
-                Id = 3,
+                Id = 1,
+                Player = "System",
+                Message = $"Welcome {username} to the lobby!",
+                Time = DateTime.Now.ToString("HH:mm")
+            });
+            messages.Add(new ChatMessage
+            {
+                Id = 2,
                 Player = "System",
                 Message = $"Room created! Code: {roomCode}",
-                Time = "10:32"
+                Time = DateTime.Now.ToString("HH:mm")
             });
 
             UpdatePlayersDisplay();
             UpdateChatDisplay();
+            AddTestButton();
+        }
+
+        private void AddTestButton()
+        {
+            var btnTest = new Button
+            {
+                Text = "TEST: Add Opponent",
+                Size = new Size(230, 35),
+                Location = new Point(10, 265),
+                BackColor = Color.Orange,
+                ForeColor = Color.Black,
+                Font = new Font("Courier New", 8, FontStyle.Bold)
+            };
+
+            btnTest.Click += (s, e) =>
+            {
+                if (players.Count >= 2 && players[1].Name == "Waiting for player...")
+                {
+                    players[1].Name = "AI_Opponent";
+                    players[1].IsReady = true;
+                    players[1].Status = "Ready";
+
+                    messages.Add(new ChatMessage
+                    {
+                        Id = messages.Count + 1,
+                        Player = "System",
+                        Message = "AI_Opponent has joined and is ready!",
+                        Time = DateTime.Now.ToString("HH:mm")
+                    });
+
+                    UpdatePlayersDisplay();
+                    UpdateChatDisplay();
+
+                    MessageBox.Show("AI Opponent đã tham gia và sẵn sàng!", "Test");
+                }
+            };
+
+            this.Controls.Add(btnTest); // Thêm trực tiếp vào Form thay vì playersPanel
+            btnTest.BringToFront(); // Đưa lên trên cùng
         }
 
         private void SetupPixelStyling()
         {
-            // Font pixelated
             this.Font = new Font("Courier New", 10, FontStyle.Bold);
             this.BackColor = primaryBrown;
-            this.Text = $"Game Lobby - Room: {roomCode}"; // Hiển thị mã phòng trên title bar
+            this.Text = $"Game Lobby - Room: {roomCode}";
+
+            // Cập nhật room code label
+            roomCodeValueLabel.Text = roomCode;
+            player1NameLabel.Text = username;
         }
 
         private void UpdatePlayersDisplay()
         {
-            playersPanel.Controls.Clear();
-
-            // Tiêu đề PLAYERS với số lượng 2/2
-            var playersTitle = new Label
+            // Cập nhật thông tin người chơi
+            if (players.Count > 0)
             {
-                Text = "PLAYERS (2/2)",
-                ForeColor = goldColor,
-                Font = new Font("Courier New", 11, FontStyle.Bold),
-                Size = new Size(200, 25),
-                Location = new Point(10, 10),
-                TextAlign = ContentAlignment.MiddleLeft
-            };
-            playersPanel.Controls.Add(playersTitle);
-
-            // CHỈ hiển thị 2 người chơi
-            for (int i = 0; i < players.Count; i++)
-            {
-                var player = players[i];
-
-                var playerPanel = new Panel
-                {
-                    Size = new Size(200, 40),
-                    Location = new Point(10, 40 + i * 45),
-                    BackColor = darkBrown,
-                    BorderStyle = BorderStyle.FixedSingle
-                };
-
-
-                var playerName = new Label
-                {
-                    Text = player.Name,
-                    ForeColor = goldColor,
-                    Font = new Font("Courier New", 11, FontStyle.Bold),
-                    Location = new Point(5, 5),
-                    Size = new Size(120, 20),
-                    TextAlign = ContentAlignment.MiddleLeft
-                };
-
-                // Status với màu sắc tương ứng
-                var playerStatus = new Label
-                {
-                    Text = player.IsReady ? "#Ready" : "#Not Ready",
-                    ForeColor = player.IsReady ? readyColor : notReadyColor,
-                    Font = new Font("Courier New", 11, FontStyle.Bold),
-                    Location = new Point(130, 5),
-                    Size = new Size(65, 20),
-                    TextAlign = ContentAlignment.MiddleRight
-                };
-
-                playerPanel.Controls.Add(playerName);
-                playerPanel.Controls.Add(playerStatus);
-                playersPanel.Controls.Add(playerPanel);
+                player1NameLabel.Text = players[0].Name;
+                player1StatusLabel.Text = players[0].IsReady ? "#Ready" : "#Not Ready";
+                player1StatusLabel.ForeColor = players[0].IsReady ? readyColor : notReadyColor;
             }
 
-            // Thêm thông tin room code
-            var roomCodePanel = new Panel
+            if (players.Count > 1)
             {
-                Size = new Size(200, 60),
-                Location = new Point(10, 140),
-                BackColor = darkBrown,
-                BorderStyle = BorderStyle.FixedSingle
-            };
-            roomCodePanel.Paint += Panel_Paint;
+                player2NameLabel.Text = players[1].Name;
+                player2StatusLabel.Text = players[1].IsReady ? "#Ready" : "#Not Ready";
+                player2StatusLabel.ForeColor = players[1].IsReady ? readyColor : notReadyColor;
+            }
 
-            var roomCodeTitle = new Label
-            {
-                Text = "ROOM CODE",
-                ForeColor = goldColor,
-                Font = new Font("Courier New", 11, FontStyle.Bold),
-                Location = new Point(5, 8),
-                Size = new Size(190, 20),
-                TextAlign = ContentAlignment.MiddleCenter
-            };
-
-            var roomCodeLabel = new Label
-            {
-                Text = roomCode,
-                ForeColor = Color.White,
-                Font = new Font("Courier New", 14, FontStyle.Bold),
-                Location = new Point(5, 30),
-                Size = new Size(190, 25),
-                TextAlign = ContentAlignment.MiddleCenter,
-                BackColor = Color.FromArgb(80, 60, 40)
-            };
-
-            roomCodePanel.Controls.Add(roomCodeTitle);
-            roomCodePanel.Controls.Add(roomCodeLabel);
-            playersPanel.Controls.Add(roomCodePanel);
-
-            // Thêm nút copy room code
-            var copyCodeButton = new Button
-            {
-                Text = "COPY CODE",
-                Size = new Size(200, 30),
-                Location = new Point(11, 210),
-                BackColor = darkGold,
-                ForeColor = goldColor,
-                Font = new Font("Courier New", 12, FontStyle.Bold),
-                FlatStyle = FlatStyle.Flat
-            };
-            copyCodeButton.Click += CopyCodeButton_Click;
-            copyCodeButton.Paint += Button_Paint;
-            playersPanel.Controls.Add(copyCodeButton);
-        }
-
-        private void CopyCodeButton_Click(object sender, EventArgs e)
-        {
-            Clipboard.SetText(roomCode);
-            messages.Add(new ChatMessage
-            {
-                Id = messages.Count + 1,
-                Player = "System",
-                Message = "Room code copied to clipboard!",
-                Time = DateTime.Now.ToString("HH:mm")
-            });
-            UpdateChatDisplay();
+            // Cập nhật room code
+            roomCodeValueLabel.Text = roomCode;
         }
 
         private void UpdateChatDisplay()
@@ -235,7 +192,6 @@ namespace PixelGameLobby
 
         private void notReadyButton_Click(object sender, EventArgs e)
         {
-            // Thay đổi trạng thái button và cập nhật màu sắc
             if (notReadyButton.Text == "NOT READY")
             {
                 notReadyButton.Text = "READY";
@@ -243,9 +199,11 @@ namespace PixelGameLobby
                 notReadyButton.ForeColor = Color.Black;
 
                 // Cập nhật trạng thái người chơi
-                var currentPlayer = players[0]; // Giả sử đây là người chơi hiện tại
-                currentPlayer.IsReady = true;
-                currentPlayer.Status = "Ready";
+                if (players.Count > 0)
+                {
+                    players[0].IsReady = true;
+                    players[0].Status = "Ready";
+                }
             }
             else
             {
@@ -254,9 +212,11 @@ namespace PixelGameLobby
                 notReadyButton.ForeColor = Color.White;
 
                 // Cập nhật trạng thái người chơi
-                var currentPlayer = players[0]; // Giả sử đây là người chơi hiện tại
-                currentPlayer.IsReady = false;
-                currentPlayer.Status = "Not Ready";
+                if (players.Count > 0)
+                {
+                    players[0].IsReady = false;
+                    players[0].Status = "Not Ready";
+                }
             }
 
             UpdatePlayersDisplay();
@@ -264,7 +224,6 @@ namespace PixelGameLobby
 
         private void startGameButton_Click(object sender, EventArgs e)
         {
-            // Kiểm tra tất cả người chơi đã ready chưa
             bool allReady = true;
             foreach (var player in players)
             {
@@ -277,7 +236,19 @@ namespace PixelGameLobby
 
             if (allReady)
             {
-                MessageBox.Show("Starting game...", "Game Start", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                string opponentName = "Opponent";
+                foreach (var player in players)
+                {
+                    if (player.Name != username)
+                    {
+                        opponentName = player.Name;
+                        break;
+                    }
+                }
+
+                BattleForm battleForm = new BattleForm(username, token, opponentName);
+                battleForm.Show();
+                this.Hide();
             }
             else
             {
@@ -303,13 +274,25 @@ namespace PixelGameLobby
             }
         }
 
-        // Custom painting cho các panel để tạo hiệu ứng border pixelated
+        private void CopyCodeButton_Click(object sender, EventArgs e)
+        {
+            Clipboard.SetText(roomCode);
+            messages.Add(new ChatMessage
+            {
+                Id = messages.Count + 1,
+                Player = "System",
+                Message = "Room code copied to clipboard!",
+                Time = DateTime.Now.ToString("HH:mm")
+            });
+            UpdateChatDisplay();
+        }
+
+        // Custom painting
         private void Panel_Paint(object sender, PaintEventArgs e)
         {
             Control panel = sender as Control;
             if (panel == null) return;
 
-            // Vẽ border dày giống pixel art
             using (Pen darkPen = new Pen(darkerBrown, 4))
             using (Pen lightPen = new Pen(Color.FromArgb(120, 60, 30), 2))
             {
@@ -323,26 +306,21 @@ namespace PixelGameLobby
             Button button = sender as Button;
             if (button == null) return;
 
-            // Xác định màu nền dựa trên trạng thái
             Color backgroundColor = darkGold;
             if (button == notReadyButton)
             {
                 backgroundColor = button.Text == "READY" ? readyColor : notReadyColor;
             }
 
-            // Tạo hiệu ứng button pixelated với shadow
             e.Graphics.FillRectangle(new SolidBrush(backgroundColor), 0, 0, button.Width, button.Height);
 
-            // Vẽ text
             Color textColor = button == notReadyButton && button.Text == "NOT READY" ? Color.White : goldColor;
             TextRenderer.DrawText(e.Graphics, button.Text, button.Font,
                 new Rectangle(0, 0, button.Width, button.Height), textColor,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
 
-            // Border pixelated
             e.Graphics.DrawRectangle(new Pen(darkerBrown, 2), 0, 0, button.Width - 1, button.Height - 1);
         }
-
     }
 
     public class ChatMessage
