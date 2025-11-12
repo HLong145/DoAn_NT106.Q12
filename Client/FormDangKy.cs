@@ -258,7 +258,12 @@ namespace DoAn_NT106
                 MessageBox.Show("🎉 Registration Successful!\n\nWelcome, " + username + "!",
                     "✓ Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
-                this.Close();
+                // Stop animations before switching
+                StopAnimations();
+                var loginForm = new FormDangNhap();
+                loginForm.FormClosed += (s, args) => this.Close();
+                loginForm.Show();
+                this.Hide();
             }
             else
             {
