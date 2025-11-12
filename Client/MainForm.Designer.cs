@@ -23,9 +23,7 @@ namespace DoAn_NT106
             panelSidebar = new Panel();
             pbAvatar = new PictureBox();
             lblUserName = new Label();
-            lblUserStatus = new Label();
-            btn_createroom = new Btn_Pixel();
-            btn_joinroom = new Btn_Pixel();
+            btn_play = new Btn_Pixel();
             btnLogout = new Btn_Pixel();
             panelMainContent = new Panel();
             label5 = new Label();
@@ -63,9 +61,7 @@ namespace DoAn_NT106
             panelSidebar.BackColor = Color.FromArgb(180, 83, 9);
             panelSidebar.Controls.Add(pbAvatar);
             panelSidebar.Controls.Add(lblUserName);
-            panelSidebar.Controls.Add(lblUserStatus);
-            panelSidebar.Controls.Add(btn_createroom);
-            panelSidebar.Controls.Add(btn_joinroom);
+            panelSidebar.Controls.Add(btn_play);
             panelSidebar.Controls.Add(btnLogout);
             panelSidebar.Dock = DockStyle.Left;
             panelSidebar.Location = new Point(0, 0);
@@ -99,40 +95,18 @@ namespace DoAn_NT106
             lblUserName.TabIndex = 2;
             lblUserName.Text = "HERO NAME HERE";
             // 
-            // lblUserStatus
+            // btn_play
             // 
-            lblUserStatus.AutoSize = true;
-            lblUserStatus.ForeColor = Color.Silver;
-            lblUserStatus.Location = new Point(29, 323);
-            lblUserStatus.Margin = new Padding(4, 0, 4, 0);
-            lblUserStatus.Name = "lblUserStatus";
-            lblUserStatus.Size = new Size(236, 20);
-            lblUserStatus.TabIndex = 1;
-            lblUserStatus.Text = "Status: Connected to Server Realm";
-            // 
-            // btn_createroom
-            // 
-            btn_createroom.BtnColor = Color.FromArgb(34, 139, 34);
-            btn_createroom.FlatStyle = FlatStyle.Flat;
-            btn_createroom.Font = new Font("Courier New", 10F, FontStyle.Bold);
-            btn_createroom.ForeColor = Color.White;
-            btn_createroom.Location = new Point(12, 410);
-            btn_createroom.Name = "btn_createroom";
-            btn_createroom.Size = new Size(314, 45);
-            btn_createroom.TabIndex = 7;
-            btn_createroom.Text = "▶ CREATR ROOM ◀";
-            // 
-            // btn_joinroom
-            // 
-            btn_joinroom.BtnColor = Color.FromArgb(34, 139, 34);
-            btn_joinroom.FlatStyle = FlatStyle.Flat;
-            btn_joinroom.Font = new Font("Courier New", 10F, FontStyle.Bold);
-            btn_joinroom.ForeColor = Color.White;
-            btn_joinroom.Location = new Point(12, 487);
-            btn_joinroom.Name = "btn_joinroom";
-            btn_joinroom.Size = new Size(314, 45);
-            btn_joinroom.TabIndex = 8;
-            btn_joinroom.Text = "▶ JOIN ROOM ◀";
+            btn_play.BtnColor = Color.FromArgb(34, 139, 34);
+            btn_play.FlatStyle = FlatStyle.Flat;
+            btn_play.Font = new Font("Courier New", 13.8F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            btn_play.ForeColor = Color.White;
+            btn_play.Location = new Point(12, 454);
+            btn_play.Name = "btn_play";
+            btn_play.Size = new Size(314, 66);
+            btn_play.TabIndex = 8;
+            btn_play.Text = "▶ PLAY NOW ◀";
+            btn_play.Click += btn_play_Click;
             // 
             // btnLogout
             // 
@@ -405,7 +379,7 @@ namespace DoAn_NT106
         private System.Windows.Forms.Label lblWelcome;
         private System.Windows.Forms.RichTextBox tbQuestLog;
         private Btn_Pixel btn_createroom;
-        private Btn_Pixel btn_joinroom;
+        private Btn_Pixel btn_play;
         private Btn_Pixel btnLogout;
         private PictureBox pictureBox4;
         private PictureBox pictureBox3;

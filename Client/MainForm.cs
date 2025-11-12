@@ -1,4 +1,5 @@
 ﻿using DoAn_NT106.Services;
+using PixelGameLobby;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -363,6 +364,13 @@ namespace DoAn_NT106
             {
                 MessageBox.Show($"Logout error: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        private void btn_play_Click(object sender, EventArgs e)
+        {
+            JoinRoomForm joinForm = new JoinRoomForm(username, token);
+            joinForm.Show();
+            this.Hide();
         }
 
         public string CurrentUsername
