@@ -263,6 +263,16 @@ namespace DoAn_NT106.Properties {
         /// <summary>
         ///   Looks up a localized resource of type System.Byte[].
         /// </summary>
+        internal static byte[] girlknight_parry {
+            get {
+                object obj = ResourceManager.GetObject("girlknight_parry", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
         internal static byte[] girlknight_stand {
             get {
                 object obj = ResourceManager.GetObject("girlknight_stand", resourceCulture);
@@ -378,6 +388,16 @@ namespace DoAn_NT106.Properties {
                 object obj = ResourceManager.GetObject("png-transparent-sword-weapon-pixel-art-pixelation-pixel-angle-katana-8bit-color-t" +
                         "humbnail", resourceCulture);
                 return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] Shield_Up_KG_1_1 {
+            get {
+                object obj = ResourceManager.GetObject("Shield_Up_KG_1.1", resourceCulture);
+                return ((byte[])(obj));
             }
         }
         
