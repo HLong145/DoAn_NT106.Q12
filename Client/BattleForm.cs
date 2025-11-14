@@ -21,6 +21,7 @@ namespace DoAn_NT106
         private int player1Y;
         private int player2X = 600;
         private int player2Y;
+        private int playerSpeed = 14;
 
         // Kích thước background và viewport
         private int backgroundWidth = 2000;
@@ -562,13 +563,30 @@ namespace DoAn_NT106
         {
             int screenX = x - viewportX;
 
+            // nếu off-screen, bỏ qua
             if (screenX + PLAYER_WIDTH < 0 || screenX > this.ClientSize.Width)
                 return;
 
+            // Nếu có ảnh animation hiện tại
             if (animations.ContainsKey(animation) && animations[animation] != null)
             {
                 Image characterImage = animations[animation];
 
+                // Tính kích thước hiển thị dựa trên PLAYER_HEIGHT để giữ tỷ lệ ảnh gốc
+                int drawHeight = PLAYER_HEIGHT; // chiều cao đích = PLAYER_HEIGHT (để chân đứng đúng)
+                                                // tránh chia cho 0
+                int imgW = Math.Max(1, characterImage.Width);
+                int imgH = Math.Max(1, characterImage.Height);
+                int drawWidth = Math.Max(1, (int)(drawHeight * (float)imgW / imgH));
+
+                // Vị trí vẽ: sao cho "chân" sprite align với hitbox (y đã là top của sprite)
+                int destX = screenX; // mặc định căn trái
+                int destY = y; // top coordinate (đã bằng ground - PLAYER_HEIGHT)
+
+                // Nếu muốn căn tâm/center thay vì căn trái, điều chỉnh destX:
+                // destX = screenX + (PLAYER_WIDTH - drawWidth) / 2;
+
+                // Lưu trạng thái đồ họa
                 var prevInterpolation = g.InterpolationMode;
                 var prevSmoothing = g.SmoothingMode;
                 var prevPixelOffset = g.PixelOffsetMode;
@@ -583,23 +601,25 @@ namespace DoAn_NT106
 
                     if (facing == "left")
                     {
+                        // Flip horizontally: vẽ với negative width, nhưng phải đặt destX thành destX + drawWidth
                         g.DrawImage(
                             characterImage,
-                            new Rectangle(screenX + PLAYER_WIDTH, y, -PLAYER_WIDTH, PLAYER_HEIGHT),
-                            new Rectangle(0, 0, characterImage.Width, characterImage.Height),
+                            new Rectangle(destX + drawWidth, destY, -drawWidth, drawHeight),
+                            new Rectangle(0, 0, imgW, imgH),
                             GraphicsUnit.Pixel);
                     }
                     else
                     {
                         g.DrawImage(
                             characterImage,
-                            new Rectangle(screenX, y, PLAYER_WIDTH, PLAYER_HEIGHT),
-                            new Rectangle(0, 0, characterImage.Width, characterImage.Height),
+                            new Rectangle(destX, destY, drawWidth, drawHeight),
+                            new Rectangle(0, 0, imgW, imgH),
                             GraphicsUnit.Pixel);
                     }
                 }
                 finally
                 {
+                    // Restore
                     g.InterpolationMode = prevInterpolation;
                     g.SmoothingMode = prevSmoothing;
                     g.PixelOffsetMode = prevPixelOffset;
@@ -608,6 +628,7 @@ namespace DoAn_NT106
             }
             else
             {
+                // fallback: vẽ hộp màu nếu không có ảnh
                 using (var brush = new SolidBrush(Color.Magenta))
                 {
                     g.FillRectangle(brush, screenX, y, PLAYER_WIDTH, PLAYER_HEIGHT);
@@ -882,14 +903,14 @@ namespace DoAn_NT106
             }
             if (aPressed)
             {
-                player1X -= 7;
+                player1X -= playerSpeed;
                 player1Facing = "left";
                 player1Walking = true;
                 if (!player1Parrying) player1CurrentAnimation = "walk";
             }
             if (dPressed)
             {
-                player1X += 7;
+                player1X += playerSpeed;
                 player1Facing = "right";
                 player1Walking = true;
                 if (!player1Parrying) player1CurrentAnimation = "walk";
@@ -897,14 +918,14 @@ namespace DoAn_NT106
 
             if (leftPressed)
             {
-                player2X -= 7;
+                player2X -= playerSpeed;
                 player2Facing = "left";
                 player2Walking = true;
                 if (!player2Parrying) player2CurrentAnimation = "walk";
             }
             if (rightPressed)
             {
-                player2X += 7;
+                player2X += playerSpeed;
                 player2Facing = "right";
                 player2Walking = true;
                 if (!player2Parrying) player2CurrentAnimation = "walk";
