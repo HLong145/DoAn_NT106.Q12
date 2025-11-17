@@ -232,4 +232,28 @@
   <data name="girlknight_parry" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\Shield_Up_KG_1.1.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
+  <data name="Bringer_of_Death_Attack_1" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Bringer-of-Death_Attack_1.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="Bringer-of-Death_Cast_6" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Bringer-of-Death_Cast_6.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="Bringer-of-Death_Death_1" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Bringer-of-Death_Death_1.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="Bringer-of-Death_Hurt_1" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Bringer-of-Death_Hurt_1.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="Bringer-of-Death_Idle_1" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Bringer-of-Death_Idle_1.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="Bringer-of-Death_Parry_1" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Bringer-of-Death_Parry_1.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="Bringer-of-Death_Spell_1" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Bringer-of-Death_Spell_1.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="Bringer-of-Death_Walk_1" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Bringer-of-Death_Walk_1.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
 </root>

@@ -181,6 +181,86 @@ namespace DoAn_NT106.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] Bringer_of_Death_Attack_1 {
+            get {
+                object obj = ResourceManager.GetObject("Bringer_of_Death_Attack_1", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] Bringer_of_Death_Cast_6 {
+            get {
+                object obj = ResourceManager.GetObject("Bringer-of-Death_Cast_6", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] Bringer_of_Death_Death_1 {
+            get {
+                object obj = ResourceManager.GetObject("Bringer-of-Death_Death_1", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] Bringer_of_Death_Hurt_1 {
+            get {
+                object obj = ResourceManager.GetObject("Bringer-of-Death_Hurt_1", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] Bringer_of_Death_Idle_1 {
+            get {
+                object obj = ResourceManager.GetObject("Bringer-of-Death_Idle_1", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] Bringer_of_Death_Parry_1 {
+            get {
+                object obj = ResourceManager.GetObject("Bringer-of-Death_Parry_1", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] Bringer_of_Death_Spell_1 {
+            get {
+                object obj = ResourceManager.GetObject("Bringer-of-Death_Spell_1", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] Bringer_of_Death_Walk_1 {
+            get {
+                object obj = ResourceManager.GetObject("Bringer-of-Death_Walk_1", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized resource of type System.Drawing.Bitmap.
         /// </summary>
         internal static System.Drawing.Bitmap c6d82a81_54de_43be_a1c7_439b407ae76c {
