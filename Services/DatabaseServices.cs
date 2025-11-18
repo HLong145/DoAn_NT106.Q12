@@ -26,7 +26,7 @@ namespace DoAn_NT106.Services
                     // ✅ FIX: Sử dụng parameterized query an toàn
                     string query = @"
                         SELECT COUNT(*) 
-                        FROM NGUOIDUNG 
+                        FROM PLAYERS 
                         WHERE USERNAME = @Username 
                            OR (@Email IS NOT NULL AND EMAIL = @Email)
                            OR (@Phone IS NOT NULL AND PHONE = @Phone)";
@@ -51,7 +51,7 @@ namespace DoAn_NT106.Services
             }
         }
 
-        // ✅ LƯU USER VÀO DATABASE - BẢN ĐÃ SỬA
+        // ✅ LƯU USER VÀO DATABASE 
         public bool SaveUserToDatabase(string username, string email, string phone, string hash, string salt)
         {
             try
@@ -66,7 +66,7 @@ namespace DoAn_NT106.Services
                         try
                         {
                             string query = @"
-                                INSERT INTO NGUOIDUNG (USERNAME, EMAIL, PHONE, PASSWORDHASH, SALT) 
+                                INSERT INTO PLAYERS (USERNAME, EMAIL, PHONE, PASSWORDHASH, SALT) 
                                 VALUES (@Username, @Email, @Phone, @Hash, @Salt)";
 
                             using (var command = new SqlCommand(query, connection, transaction))
@@ -129,7 +129,7 @@ namespace DoAn_NT106.Services
                 using (var connection = new SqlConnection(connectionString))
                 {
                     connection.Open();
-                    string query = "SELECT PASSWORDHASH, SALT FROM NGUOIDUNG WHERE USERNAME = @Username";
+                    string query = "SELECT PASSWORDHASH, SALT FROM PLAYERS WHERE USERNAME = @Username";
 
                     using (var command = new SqlCommand(query, connection))
                     {
@@ -169,8 +169,8 @@ namespace DoAn_NT106.Services
                 {
                     connection.Open();
                     string query = isEmail
-                        ? "SELECT USERNAME FROM NGUOIDUNG WHERE EMAIL = @Contact"
-                        : "SELECT USERNAME FROM NGUOIDUNG WHERE PHONE = @Contact";
+                        ? "SELECT USERNAME FROM PLAYERS WHERE EMAIL = @Contact"
+                        : "SELECT USERNAME FROM PLAYERS WHERE PHONE = @Contact";
 
                     using (var command = new SqlCommand(query, connection))
                     {
@@ -205,7 +205,7 @@ namespace DoAn_NT106.Services
                         try
                         {
                             string query = @"
-                                UPDATE NGUOIDUNG 
+                                UPDATE PLAYERS 
                                 SET PASSWORDHASH = @Hash, SALT = @Salt 
                                 WHERE USERNAME = @Username";
 
@@ -250,14 +250,14 @@ namespace DoAn_NT106.Services
                     string checkTableQuery = @"
                         SELECT COUNT(*) 
                         FROM INFORMATION_SCHEMA.TABLES 
-                        WHERE TABLE_NAME = 'NGUOIDUNG'";
+                        WHERE TABLE_NAME = 'PLAYERS'";
 
                     using (var command = new SqlCommand(checkTableQuery, connection))
                     {
                         int tableExists = Convert.ToInt32(command.ExecuteScalar());
                         if (tableExists == 0)
                         {
-                            Console.WriteLine("❌ Table NGUOIDUNG does not exist!");
+                            Console.WriteLine("❌ Table PLAYERS does not exist!");
                             return false;
                         }
                     }
@@ -266,13 +266,13 @@ namespace DoAn_NT106.Services
                     string checkColumnsQuery = @"
                         SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE 
                         FROM INFORMATION_SCHEMA.COLUMNS 
-                        WHERE TABLE_NAME = 'NGUOIDUNG'
+                        WHERE TABLE_NAME = 'PLAYERS'
                         ORDER BY ORDINAL_POSITION";
 
                     using (var command = new SqlCommand(checkColumnsQuery, connection))
                     using (var reader = command.ExecuteReader())
                     {
-                        Console.WriteLine("📋 Table NGUOIDUNG structure:");
+                        Console.WriteLine("📋 Table PLAYERS structure:");
                         while (reader.Read())
                         {
                             Console.WriteLine($"  {reader["COLUMN_NAME"]} - {reader["DATA_TYPE"]} - {reader["IS_NULLABLE"]}");
@@ -344,7 +344,7 @@ namespace DoAn_NT106.Services
                 using (var connection = new SqlConnection(connectionString))
                 {
                     connection.Open();
-                    string query = "SELECT COUNT(*) FROM NGUOIDUNG WHERE USERNAME = @Username";
+                    string query = "SELECT COUNT(*) FROM PLAYERS WHERE USERNAME = @Username";
                     using (var command = new SqlCommand(query, connection))
                     {
                         command.Parameters.AddWithValue("@Username", username);
