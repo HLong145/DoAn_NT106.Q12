@@ -246,8 +246,16 @@ namespace PixelGameLobby
                     }
                 }
 
-                BattleForm battleForm = new BattleForm(username, token, opponentName);
-                battleForm.Show();
+                // Mở form chọn tướng thay vì vào thẳng BattleForm
+                CharacterSelectForm selectForm = new CharacterSelectForm(username, token, roomCode, opponentName, true);
+                selectForm.FormClosed += (s, args) =>
+                {
+                    if (selectForm.DialogResult != DialogResult.OK)
+                    {
+                        this.Show();
+                    }
+                };
+                selectForm.Show();
                 this.Hide();
             }
             else
