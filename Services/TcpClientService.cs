@@ -205,6 +205,107 @@ namespace DoAn_NT106.Services
         // Sync wrapper
         public ServerResponse Logout(string token, string logoutType = "normal")
             => LogoutAsync(token, logoutType).GetAwaiter().GetResult();
+
+        // ==========================
+        // 🟢 ROOM MANAGEMENT - ASYNC
+        // ==========================
+        public Task<ServerResponse> CreateRoomAsync(string roomName, string password, string username)
+        {
+            var requestData = new Dictionary<string, object>
+            {
+                { "roomName", roomName },
+                { "password", password ?? "" },
+                { "username", username }
+            };
+            return SendRequestAsync("CREATE_ROOM", requestData);
+        }
+
+        public Task<ServerResponse> JoinRoomAsync(string roomCode, string password, string username)
+        {
+            var requestData = new Dictionary<string, object>
+            {
+                { "roomCode", roomCode },
+                { "password", password ?? "" },
+                { "username", username }
+            };
+            return SendRequestAsync("JOIN_ROOM", requestData);
+        }
+
+        public Task<ServerResponse> GetRoomsAsync()
+        {
+            return SendRequestAsync("GET_ROOMS", new Dictionary<string, object>());
+        }
+
+        public Task<ServerResponse> StartGameAsync(string roomCode)
+        {
+            var requestData = new Dictionary<string, object>
+            {
+                { "roomCode", roomCode }
+            };
+            return SendRequestAsync("START_GAME", requestData);
+        }
+
+        public Task<ServerResponse> SendGameActionAsync(
+            string roomCode,
+            string username,
+            string actionType,
+            int x = 0,
+            int y = 0,
+            string actionName = null)
+        {
+            var requestData = new Dictionary<string, object>
+            {
+                { "roomCode", roomCode },
+                { "username", username },
+                { "type", actionType },
+                { "x", x },
+                { "y", y }
+            };
+
+            if (!string.IsNullOrEmpty(actionName))
+            {
+                requestData["actionName"] = actionName;
+            }
+
+            return SendRequestAsync("GAME_ACTION", requestData);
+        }
+
+        public Task<ServerResponse> LeaveRoomAsync(string roomCode, string username)
+        {
+            var requestData = new Dictionary<string, object>
+            {
+                { "roomCode", roomCode },
+                { "username", username }
+            };
+            return SendRequestAsync("LEAVE_ROOM", requestData);
+        }
+
+        // ==========================
+        // 🟠 ROOM MANAGEMENT - SYNC WRAPPER
+        // ==========================
+        public ServerResponse CreateRoom(string roomName, string password, string username)
+            => CreateRoomAsync(roomName, password, username).GetAwaiter().GetResult();
+
+        public ServerResponse JoinRoom(string roomCode, string password, string username)
+            => JoinRoomAsync(roomCode, password, username).GetAwaiter().GetResult();
+
+        public ServerResponse GetRooms()
+            => GetRoomsAsync().GetAwaiter().GetResult();
+
+        public ServerResponse StartGame(string roomCode)
+            => StartGameAsync(roomCode).GetAwaiter().GetResult();
+
+        public ServerResponse SendGameAction(
+            string roomCode,
+            string username,
+            string actionType,
+            int x = 0,
+            int y = 0,
+            string actionName = null)
+            => SendGameActionAsync(roomCode, username, actionType, x, y, actionName).GetAwaiter().GetResult();
+
+        public ServerResponse LeaveRoom(string roomCode, string username)
+            => LeaveRoomAsync(roomCode, username).GetAwaiter().GetResult();
     }
 
     // ==========================

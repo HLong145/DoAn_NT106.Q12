@@ -17,8 +17,11 @@ namespace DoAn_NT106.Server
         private ValidationService validationService;
         private SecurityService securityService;
 
-        private Task _acceptTask;                     // 💡 Giữ task AcceptClients
-        private CancellationTokenSource cts;          // 💡 Dùng để hủy mềm
+        // ✅ THÊM ROOM MANAGER
+        private RoomManager roomManager;
+
+        private Task _acceptTask;
+        private CancellationTokenSource cts;
 
         public event Action<string> OnLog;
         public bool IsRunning => isRunning;
@@ -29,7 +32,13 @@ namespace DoAn_NT106.Server
             tokenManager = new TokenManager();
             validationService = new ValidationService();
             securityService = new SecurityService();
+
+            // ✅ KHỞI TẠO ROOM MANAGER
+            roomManager = new RoomManager();
+            roomManager.OnLog += LogMessage;
         }
+
+        // ... (Giữ nguyên Start, Stop, AcceptClients từ code cũ) ...
 
         public void Start(int port)
         {
@@ -48,7 +57,7 @@ namespace DoAn_NT106.Server
 
                 Log($"✅ Server started on port {port}");
 
-                _acceptTask = Task.Run(() => AcceptClients(cts.Token)); // 💡 truyền token hủy
+                _acceptTask = Task.Run(() => AcceptClients(cts.Token));
             }
             catch (Exception ex)
             {
@@ -56,6 +65,7 @@ namespace DoAn_NT106.Server
                 throw;
             }
         }
+
         public async Task Stop()
         {
             if (!isRunning)
@@ -67,10 +77,9 @@ namespace DoAn_NT106.Server
             try
             {
                 isRunning = false;
-                cts.Cancel(); // 💡 yêu cầu dừng AcceptClients()
+                cts.Cancel();
                 listener?.Stop();
 
-                // 💡 Đóng tất cả client an toàn
                 foreach (var client in connectedClients.ToArray())
                 {
                     try
@@ -84,7 +93,6 @@ namespace DoAn_NT106.Server
                 }
                 connectedClients.Clear();
 
-                // 💡 Đợi vòng AcceptClients kết thúc
                 if (_acceptTask != null)
                 {
                     await _acceptTask;
@@ -103,6 +111,7 @@ namespace DoAn_NT106.Server
                 isRunning = false;
             }
         }
+
         private async Task AcceptClients(CancellationToken token)
         {
             try
@@ -116,19 +125,23 @@ namespace DoAn_NT106.Server
                     }
                     catch (ObjectDisposedException)
                     {
-                        // 💡 Listener bị dừng khi Stop() gọi -> thoát vòng
                         break;
                     }
                     catch (InvalidOperationException)
                     {
-                        // 💡 Listener đã bị dispose
                         break;
                     }
 
                     if (client == null) break;
 
-                    var clientHandler = new ClientHandler(client, this, dbService, tokenManager,
-                                                          validationService, securityService);
+                    var clientHandler = new ClientHandler(
+                        client,
+                        this,
+                        dbService,
+                        tokenManager,
+                        validationService,
+                        securityService,
+                        roomManager); // ✅ TRUYỀN ROOM MANAGER
 
                     lock (connectedClients)
                     {
@@ -137,7 +150,6 @@ namespace DoAn_NT106.Server
 
                     Log($"📱 New client connected. Total: {connectedClients.Count}");
 
-                    // 💡 Xử lý client trong luồng riêng
                     _ = Task.Run(() => clientHandler.Handle());
                 }
             }
@@ -166,8 +178,16 @@ namespace DoAn_NT106.Server
             string logMessage = $"[{DateTime.Now:HH:mm:ss}] {message}";
             OnLog?.Invoke(logMessage);
         }
+
+        private void LogMessage(string message)
+        {
+            Log(message);
+        }
     }
 
+    // ===========================
+    // CLIENT HANDLER - ĐÃ CẬP NHẬT
+    // ===========================
     public class ClientHandler
     {
         private TcpClient tcpClient;
@@ -179,10 +199,21 @@ namespace DoAn_NT106.Server
         private ValidationService validationService;
         private SecurityService securityService;
 
+        // ✅ THÊM ROOM MANAGER
+        private RoomManager roomManager;
+        private string currentUsername;
+        private string currentRoomCode;
+
         private bool isNormalLogout = false;
-        public ClientHandler(TcpClient client, TcpServer server, DatabaseService dbService,
-                      TokenManager tokenManager, ValidationService validationService,
-                      SecurityService securityService)
+
+        public ClientHandler(
+            TcpClient client,
+            TcpServer server,
+            DatabaseService dbService,
+            TokenManager tokenManager,
+            ValidationService validationService,
+            SecurityService securityService,
+            RoomManager roomManager) // ✅ THÊM THAM SỐ
         {
             tcpClient = client;
             this.server = server;
@@ -191,11 +222,14 @@ namespace DoAn_NT106.Server
             stream = client.GetStream();
             this.validationService = validationService;
             this.securityService = securityService;
+            this.roomManager = roomManager; // ✅ LƯU ROOM MANAGER
         }
+
         public void SetNormalLogout()
         {
             isNormalLogout = true;
         }
+
         public async Task Handle()
         {
             try
@@ -229,6 +263,24 @@ namespace DoAn_NT106.Server
                 Close();
             }
         }
+
+        // ✅ GỬI MESSAGE TỚI CLIENT (PUBLIC METHOD)
+        public void SendMessage(string json)
+        {
+            try
+            {
+                if (tcpClient == null || !tcpClient.Connected)
+                    return;
+
+                byte[] data = Encoding.UTF8.GetBytes(json);
+                stream.Write(data, 0, data.Length);
+            }
+            catch (Exception ex)
+            {
+                server.Log($"❌ SendMessage error: {ex.Message}");
+            }
+        }
+
         private string HideSensitiveData(string json)
         {
             try
@@ -253,7 +305,7 @@ namespace DoAn_NT106.Server
                     {
                         if (property.Name.ToLower().Contains("password"))
                         {
-                            writer.WriteString(property.Name, "***HIDDEN***"); // Ẩn password
+                            writer.WriteString(property.Name, "***HIDDEN***");
                         }
                         else
                         {
@@ -271,10 +323,13 @@ namespace DoAn_NT106.Server
             }
             catch
             {
-                // Nếu có lỗi parse JSON, trả về string đã được xử lý đơn giản
                 return Regex.Replace(json, @"""password""\s*:\s*""[^""]*""", @"""password"":""***HIDDEN***""", RegexOptions.IgnoreCase);
             }
         }
+
+        // ===========================
+        // ✅ PROCESS REQUEST - ĐÃ THÊM CÁC ACTION PHÒNG
+        // ===========================
         private string ProcessRequest(string requestJson)
         {
             try
@@ -288,27 +343,37 @@ namespace DoAn_NT106.Server
 
                 switch (request.Action?.ToUpper())
                 {
+                    // ===== CÁC ACTION CŨ =====
                     case "REGISTER":
                         return HandleRegister(request);
-
                     case "LOGIN":
                         return HandleLogin(request);
-
                     case "VERIFY_TOKEN":
                         return HandleVerifyToken(request);
-
                     case "GENERATE_OTP":
                         return HandleGenerateOTP(request);
-
                     case "VERIFY_OTP":
                         return HandleVerifyOTP(request);
-
                     case "RESET_PASSWORD":
                         return HandleResetPassword(request);
-
                     case "GET_USER_BY_CONTACT":
                         return HandleGetUserByContact(request);
+                    case "LOGOUT":
+                        return HandleLogout(request);
 
+                    // ===== ✅ CÁC ACTION MỚI - PHÒNG CHƠI =====
+                    case "CREATE_ROOM":
+                        return HandleCreateRoom(request);
+                    case "JOIN_ROOM":
+                        return HandleJoinRoom(request);
+                    case "GET_ROOMS":
+                        return HandleGetRooms(request);
+                    case "START_GAME":
+                        return HandleStartGame(request);
+                    case "GAME_ACTION":
+                        return HandleGameAction(request);
+                    case "LEAVE_ROOM":
+                        return HandleLeaveRoom(request);
 
                     default:
                         return CreateResponse(false, "Unknown action");
@@ -321,6 +386,200 @@ namespace DoAn_NT106.Server
             }
         }
 
+        // ===========================
+        // ✅ XỬ LÝ TẠO PHÒNG
+        // ===========================
+        private string HandleCreateRoom(Request request)
+        {
+            try
+            {
+                var roomName = request.Data?["roomName"]?.ToString();
+                var password = request.Data?.ContainsKey("password") == true
+                    ? request.Data["password"]?.ToString()
+                    : null;
+                var username = request.Data?["username"]?.ToString();
+
+                if (string.IsNullOrEmpty(roomName) || string.IsNullOrEmpty(username))
+                {
+                    return CreateResponse(false, "Room name and username are required");
+                }
+
+                currentUsername = username;
+
+                var result = roomManager.CreateRoom(roomName, password, username, this);
+
+                if (result.Success)
+                {
+                    currentRoomCode = result.RoomCode;
+
+                    return CreateResponse(true, result.Message, new Dictionary<string, object>
+                    {
+                        { "roomCode", result.RoomCode },
+                        { "roomName", roomName }
+                    });
+                }
+
+                return CreateResponse(false, result.Message);
+            }
+            catch (Exception ex)
+            {
+                return CreateResponse(false, $"Create room error: {ex.Message}");
+            }
+        }
+
+        // ===========================
+        // ✅ XỬ LÝ THAM GIA PHÒNG
+        // ===========================
+        private string HandleJoinRoom(Request request)
+        {
+            try
+            {
+                var roomCode = request.Data?["roomCode"]?.ToString();
+                var password = request.Data?.ContainsKey("password") == true
+                    ? request.Data["password"]?.ToString()
+                    : null;
+                var username = request.Data?["username"]?.ToString();
+
+                if (string.IsNullOrEmpty(roomCode) || string.IsNullOrEmpty(username))
+                {
+                    return CreateResponse(false, "Room code and username are required");
+                }
+
+                currentUsername = username;
+
+                var result = roomManager.JoinRoom(roomCode, password, username, this);
+
+                if (result.Success)
+                {
+                    currentRoomCode = roomCode;
+
+                    return CreateResponse(true, result.Message, new Dictionary<string, object>
+                    {
+                        { "roomCode", roomCode },
+                        { "player1", result.Room.Player1Username },
+                        { "player2", result.Room.Player2Username }
+                    });
+                }
+
+                return CreateResponse(false, result.Message);
+            }
+            catch (Exception ex)
+            {
+                return CreateResponse(false, $"Join room error: {ex.Message}");
+            }
+        }
+
+        // ===========================
+        // ✅ LẤY DANH SÁCH PHÒNG
+        // ===========================
+        private string HandleGetRooms(Request request)
+        {
+            try
+            {
+                var rooms = roomManager.GetAvailableRooms();
+
+                return CreateResponse(true, "Rooms retrieved", new Dictionary<string, object>
+                {
+                    { "rooms", rooms }
+                });
+            }
+            catch (Exception ex)
+            {
+                return CreateResponse(false, $"Get rooms error: {ex.Message}");
+            }
+        }
+
+        // ===========================
+        // ✅ BẮT ĐẦU GAME
+        // ===========================
+        private string HandleStartGame(Request request)
+        {
+            try
+            {
+                var roomCode = request.Data?["roomCode"]?.ToString();
+
+                if (string.IsNullOrEmpty(roomCode))
+                {
+                    return CreateResponse(false, "Room code is required");
+                }
+
+                bool success = roomManager.StartGame(roomCode);
+
+                if (success)
+                {
+                    return CreateResponse(true, "Game started");
+                }
+
+                return CreateResponse(false, "Cannot start game");
+            }
+            catch (Exception ex)
+            {
+                return CreateResponse(false, $"Start game error: {ex.Message}");
+            }
+        }
+
+        // ===========================
+        // ✅ XỬ LÝ HÀNH ĐỘNG GAME (VỊ TRÍ/ACTION)
+        // ===========================
+        private string HandleGameAction(Request request)
+        {
+            try
+            {
+                var roomCode = request.Data?["roomCode"]?.ToString();
+                var username = request.Data?["username"]?.ToString();
+                var actionType = request.Data?["type"]?.ToString();
+
+                if (string.IsNullOrEmpty(roomCode) || string.IsNullOrEmpty(username))
+                {
+                    return CreateResponse(false, "Missing required data");
+                }
+
+                var action = new GameAction
+                {
+                    Type = actionType,
+                    X = request.Data.ContainsKey("x") ? Convert.ToInt32(request.Data["x"]) : 0,
+                    Y = request.Data.ContainsKey("y") ? Convert.ToInt32(request.Data["y"]) : 0,
+                    ActionName = request.Data.ContainsKey("actionName")
+                        ? request.Data["actionName"]?.ToString()
+                        : null
+                };
+
+                // Cập nhật state và broadcast
+                roomManager.UpdateGameState(roomCode, username, action);
+
+                return CreateResponse(true, "Action processed");
+            }
+            catch (Exception ex)
+            {
+                return CreateResponse(false, $"Game action error: {ex.Message}");
+            }
+        }
+
+        // ===========================
+        // ✅ RỜI PHÒNG
+        // ===========================
+        private string HandleLeaveRoom(Request request)
+        {
+            try
+            {
+                var roomCode = request.Data?["roomCode"]?.ToString();
+                var username = request.Data?["username"]?.ToString();
+
+                if (!string.IsNullOrEmpty(roomCode) && !string.IsNullOrEmpty(username))
+                {
+                    roomManager.LeaveRoom(roomCode, username);
+                }
+
+                return CreateResponse(true, "Left room");
+            }
+            catch (Exception ex)
+            {
+                return CreateResponse(false, $"Leave room error: {ex.Message}");
+            }
+        }
+
+        // ... (Giữ nguyên các HandleXXX khác từ code cũ) ...
+
         private string HandleRegister(Request request)
         {
             try
@@ -330,10 +589,8 @@ namespace DoAn_NT106.Server
                 var phone = request.Data.ContainsKey("phone") ? request.Data["phone"]?.ToString() : null;
                 var password = request.Data?["password"]?.ToString();
 
-                // ✅ THÊM LOG CHI TIẾT
                 server.Log($"🔍 Register attempt: Username='{username}', Email='{email}', Phone='{phone}'");
 
-                // ✅ VALIDATE INPUT
                 var validationResult = validationService.ValidateRegistration(username, email, phone, password);
                 if (!validationResult.IsValid)
                 {
@@ -341,7 +598,6 @@ namespace DoAn_NT106.Server
                     return CreateResponse(false, validationResult.Message);
                 }
 
-                // ✅ CHECK EXISTING USER
                 server.Log($"🔍 Checking if user exists: {username}");
                 bool userExists = dbService.IsUserExists(username, email, phone);
                 server.Log($"🔍 User exists result: {userExists}");
@@ -382,7 +638,6 @@ namespace DoAn_NT106.Server
                     return CreateResponse(false, "Username and password are required");
                 }
 
-                // ✅ CHECK BRUTE-FORCE
                 if (!securityService.CheckLoginAttempts(username))
                 {
                     int remainingMinutes = securityService.GetLockoutMinutes(username);
@@ -391,17 +646,17 @@ namespace DoAn_NT106.Server
 
                 bool loginSuccess = dbService.VerifyUserLogin(username, password);
 
-                // ✅ RECORD ATTEMPT
                 securityService.RecordLoginAttempt(username, loginSuccess);
 
                 if (loginSuccess)
                 {
-                    string token = tokenManager.GenerateToken(username); // ✅ Server tạo token
+                    string token = tokenManager.GenerateToken(username);
                     currentToken = token;
+                    currentUsername = username;
 
                     return CreateResponse(true, "Login successful", new Dictionary<string, object>
                     {
-                          { "token", token }, // ✅ Trả token về client
+                          { "token", token },
                            { "username", username }
                       });
                 }
@@ -550,6 +805,35 @@ namespace DoAn_NT106.Server
             }
         }
 
+        private string HandleLogout(Request request)
+        {
+            try
+            {
+                var token = request.Data?["token"]?.ToString();
+                var logoutType = request.Data?["logoutType"]?.ToString();
+
+                if (string.IsNullOrEmpty(token))
+                {
+                    return CreateResponse(false, "Token is required for logout");
+                }
+
+                if (logoutType == "normal")
+                {
+                    SetNormalLogout();
+                    return CreateResponse(true, "Logout successful (token preserved)");
+                }
+                else
+                {
+                    tokenManager.RevokeToken(token);
+                    return CreateResponse(true, "Logout successful (token revoked)");
+                }
+            }
+            catch (Exception ex)
+            {
+                return CreateResponse(false, $"Logout error: {ex.Message}");
+            }
+        }
+
         private string CreateResponse(bool success, string message, Dictionary<string, object> data = null)
         {
             var response = new Response
@@ -566,6 +850,12 @@ namespace DoAn_NT106.Server
         {
             try
             {
+                // ✅ Rời phòng nếu đang trong phòng
+                if (!string.IsNullOrEmpty(currentRoomCode) && !string.IsNullOrEmpty(currentUsername))
+                {
+                    roomManager.LeaveRoom(currentRoomCode, currentUsername);
+                }
+
                 if (!string.IsNullOrEmpty(currentToken))
                 {
                     tokenManager.RevokeToken(currentToken);
@@ -576,36 +866,6 @@ namespace DoAn_NT106.Server
                 server.RemoveClient(this);
             }
             catch { }
-        }
-        private string HandleLogout(Request request)
-        {
-            try
-            {
-                var token = request.Data?["token"]?.ToString();
-                var logoutType = request.Data?["logoutType"]?.ToString(); // "normal" hoặc "complete"
-
-                if (string.IsNullOrEmpty(token))
-                {
-                    return CreateResponse(false, "Token is required for logout");
-                }
-
-                // ✅ Nếu là logout bình thường (giữ remember me), không revoke token
-                if (logoutType == "normal")
-                {
-                    SetNormalLogout(); // Đánh dấu không revoke token khi đóng kết nối
-                    return CreateResponse(true, "Logout successful (token preserved)");
-                }
-                else
-                {
-                    // ✅ Logout hoàn toàn - revoke token
-                    tokenManager.RevokeToken(token);
-                    return CreateResponse(true, "Logout successful (token revoked)");
-                }
-            }
-            catch (Exception ex)
-            {
-                return CreateResponse(false, $"Logout error: {ex.Message}");
-            }
         }
     }
 
