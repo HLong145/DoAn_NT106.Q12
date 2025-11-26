@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 namespace DoAn_NT106
 {
     internal class CalculateXP
+    {    
         private const int WIN_XP = 100;
         private const int LOSE_XP = 40;
         private const int NO_ROUND_LOSS_BONUS = 50;
