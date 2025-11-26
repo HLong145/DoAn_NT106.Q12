@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
+using DoAn_NT106.Services;
+using System.Threading.Tasks;
 
 namespace PixelGameLobby
 {
@@ -20,6 +22,7 @@ namespace PixelGameLobby
         private readonly Color goldColor = Color.FromArgb(255, 215, 0);
         private readonly Color darkGold = Color.FromArgb(139, 69, 19);
         private readonly Color hoverBrown = Color.FromArgb(120, 60, 30);
+        private GlobalChatClient globalChatClient;
 
         // Constructor mới nhận tham số
         public JoinRoomForm(string username, string token)
@@ -32,7 +35,9 @@ namespace PixelGameLobby
             SetupEventHandlers();
             InitializeSampleRooms();
 
-            // Cập nhật title với username
+            // Kết nối Global Chat khi form load
+            this.Load += async (s, e) => await ConnectGlobalChatAsync();
+
             this.Text = $"Pixel Game Lobby - Welcome {username}";
         }
 
@@ -47,6 +52,12 @@ namespace PixelGameLobby
         {
             Font = new Font("Courier New", 12, FontStyle.Bold);
             BackColor = primaryBrown;
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            globalChatClient?.Dispose();
+            base.OnFormClosing(e);
         }
 
         private void SetupEventHandlers()
@@ -429,7 +440,233 @@ namespace PixelGameLobby
             mainForm.Show();
             this.Close();
         }
+
+        #region Global Chat Logic
+
+        /// <summary>
+        /// Kết nối đến Global Chat server
+        /// </summary>
+        private async Task ConnectGlobalChatAsync()
+        {
+            try
+            {
+                globalChatClient = new GlobalChatClient("127.0.0.1", 8080);
+
+                // Subscribe events
+                globalChatClient.OnChatMessage += GlobalChat_OnChatMessage;
+                globalChatClient.OnOnlineCountUpdate += GlobalChat_OnOnlineCountUpdate;
+                globalChatClient.OnError += GlobalChat_OnError;
+                globalChatClient.OnDisconnected += GlobalChat_OnDisconnected;
+
+                // Kết nối và join
+                var result = await globalChatClient.ConnectAndJoinAsync(username, token);
+
+                if (result.Success)
+                {
+                    UpdateOnlineCount(result.OnlineCount);
+
+                    // Hiển thị chat history
+                    if (result.History != null)
+                    {
+                        foreach (var msg in result.History)
+                        {
+                            AddChatMessageToUI(msg);
+                        }
+                    }
+
+                    AddSystemMessage($"Chào mừng {username} đến Global Chat!");
+                }
+                else
+                {
+                    AddSystemMessage("❌ Không thể kết nối Global Chat");
+                }
+            }
+            catch (Exception ex)
+            {
+                AddSystemMessage($"❌ Lỗi: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Xử lý khi nhận được tin nhắn mới
+        /// </summary>
+        private void GlobalChat_OnChatMessage(ChatMessageData message)
+        {
+            if (this.InvokeRequired)
+            {
+                this.Invoke(new Action<ChatMessageData>(GlobalChat_OnChatMessage), message);
+                return;
+            }
+            AddChatMessageToUI(message);
+        }
+
+        /// <summary>
+        /// Xử lý cập nhật số người online
+        /// </summary>
+        private void GlobalChat_OnOnlineCountUpdate(int count)
+        {
+            if (this.InvokeRequired)
+            {
+                this.Invoke(new Action<int>(GlobalChat_OnOnlineCountUpdate), count);
+                return;
+            }
+            UpdateOnlineCount(count);
+        }
+
+        /// <summary>
+        /// Xử lý lỗi từ Global Chat
+        /// </summary>
+        private void GlobalChat_OnError(string error)
+        {
+            if (this.InvokeRequired)
+            {
+                this.Invoke(new Action<string>(GlobalChat_OnError), error);
+                return;
+            }
+            AddSystemMessage($"⚠️ {error}");
+        }
+
+        /// <summary>
+        /// Xử lý khi bị ngắt kết nối
+        /// </summary>
+        private void GlobalChat_OnDisconnected()
+        {
+            if (this.InvokeRequired)
+            {
+                this.Invoke(new Action(GlobalChat_OnDisconnected));
+                return;
+            }
+            AddSystemMessage("🔌 Đã ngắt kết nối Global Chat");
+            UpdateOnlineCount(0);
+        }
+
+        /// <summary>
+        /// Cập nhật hiển thị số người online
+        /// </summary>
+        private void UpdateOnlineCount(int count)
+        {
+            lblOnlineCount.Text = $"🟢 {count} online";
+        }
+
+        /// <summary>
+        /// Thêm tin nhắn vào UI
+        /// </summary>
+        private void AddChatMessageToUI(ChatMessageData message)
+        {
+            var msgPanel = new Panel
+            {
+                Width = pnlChatMessages.Width - 25,
+                AutoSize = true,
+                MinimumSize = new Size(pnlChatMessages.Width - 25, 30),
+                BackColor = Color.Transparent,
+                Padding = new Padding(5, 3, 5, 3)
+            };
+
+            var lblHeader = new Label
+            {
+                Text = message.Type == "system"
+                    ? $"[{message.Timestamp}] 🔔"
+                    : $"[{message.Timestamp}] {message.Username}:",
+                Font = new Font("Courier New", 8, FontStyle.Bold),
+                ForeColor = message.Type == "system" ? Color.Orange
+                          : message.Username == username ? Color.LimeGreen
+                          : goldColor,
+                AutoSize = true,
+                Location = new Point(5, 3),
+                MaximumSize = new Size(pnlChatMessages.Width - 30, 0)
+            };
+
+            var lblContent = new Label
+            {
+                Text = message.Message,
+                Font = new Font("Courier New", 9),
+                ForeColor = message.Type == "system" ? Color.Orange : Color.White,
+                AutoSize = true,
+                Location = new Point(5, lblHeader.Height + 5),
+                MaximumSize = new Size(pnlChatMessages.Width - 30, 0)
+            };
+
+            msgPanel.Controls.Add(lblHeader);
+            msgPanel.Controls.Add(lblContent);
+            msgPanel.Height = lblHeader.Height + lblContent.Height + 10;
+
+            // Tính vị trí Y
+            int yPos = 5;
+            foreach (Control ctrl in pnlChatMessages.Controls)
+            {
+                yPos = Math.Max(yPos, ctrl.Bottom + 5);
+            }
+            msgPanel.Location = new Point(5, yPos);
+
+            pnlChatMessages.Controls.Add(msgPanel);
+            pnlChatMessages.ScrollControlIntoView(msgPanel);
+        }
+
+        /// <summary>
+        /// Thêm tin nhắn hệ thống
+        /// </summary>
+        private void AddSystemMessage(string message)
+        {
+            AddChatMessageToUI(new ChatMessageData
+            {
+                Id = Guid.NewGuid().ToString(),
+                Username = "System",
+                Message = message,
+                Timestamp = DateTime.Now.ToString("HH:mm:ss"),
+                Type = "system"
+            });
+        }
+
+        /// <summary>
+        /// Xử lý click nút Gửi
+        /// </summary>
+        private async void BtnSendChat_Click(object sender, EventArgs e)
+        {
+            await SendChatMessageAsync();
+        }
+
+        /// <summary>
+        /// Xử lý nhấn Enter trong ô chat
+        /// </summary>
+        private async void TxtChatInput_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            if (e.KeyChar == (char)Keys.Enter)
+            {
+                e.Handled = true;
+                await SendChatMessageAsync();
+            }
+        }
+
+        /// <summary>
+        /// Gửi tin nhắn đến server
+        /// </summary>
+        private async Task SendChatMessageAsync()
+        {
+            string message = txtChatInput.Text.Trim();
+
+            if (string.IsNullOrEmpty(message))
+                return;
+
+            if (globalChatClient == null || !globalChatClient.IsConnected)
+            {
+                AddSystemMessage("❌ Chưa kết nối Global Chat");
+                return;
+            }
+
+            bool success = await globalChatClient.SendMessageAsync(message);
+
+            if (success)
+            {
+                txtChatInput.Clear();
+                txtChatInput.Focus();
+            }
+        }
+
+        #endregion
+
     }
+
+
 
     // ===============================
     // Data Models

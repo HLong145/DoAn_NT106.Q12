@@ -17,8 +17,10 @@ namespace DoAn_NT106.Server
         private ValidationService validationService;
         private SecurityService securityService;
 
-        // ✅ THÊM ROOM MANAGER
+        //Roomanager quản lý tạo phòng
         private RoomManager roomManager;
+        //Quản lý chat global ở lobby form
+        private GlobalChatManager globalChatManager;
 
         private Task _acceptTask;
         private CancellationTokenSource cts;
@@ -36,6 +38,8 @@ namespace DoAn_NT106.Server
             // ✅ KHỞI TẠO ROOM MANAGER
             roomManager = new RoomManager();
             roomManager.OnLog += LogMessage;
+            globalChatManager = new GlobalChatManager();
+            globalChatManager.OnLog += LogMessage;
         }
 
         // ... (Giữ nguyên Start, Stop, AcceptClients từ code cũ) ...
@@ -141,7 +145,8 @@ namespace DoAn_NT106.Server
                         tokenManager,
                         validationService,
                         securityService,
-                        roomManager); // ✅ TRUYỀN ROOM MANAGER
+                        roomManager,
+                        globalChatManager);
 
                     lock (connectedClients)
                     {
@@ -204,6 +209,9 @@ namespace DoAn_NT106.Server
         private string currentUsername;
         private string currentRoomCode;
 
+        private GlobalChatManager globalChatManager;
+        private string globalChatUsername;
+
         private bool isNormalLogout = false;
 
         public ClientHandler(
@@ -213,7 +221,8 @@ namespace DoAn_NT106.Server
             TokenManager tokenManager,
             ValidationService validationService,
             SecurityService securityService,
-            RoomManager roomManager) // ✅ THÊM THAM SỐ
+            RoomManager roomManager,
+            GlobalChatManager globalChatManager)
         {
             tcpClient = client;
             this.server = server;
@@ -222,7 +231,8 @@ namespace DoAn_NT106.Server
             stream = client.GetStream();
             this.validationService = validationService;
             this.securityService = securityService;
-            this.roomManager = roomManager; // ✅ LƯU ROOM MANAGER
+            this.roomManager = roomManager;
+            this.globalChatManager = globalChatManager;
         }
 
         public void SetNormalLogout()
@@ -260,6 +270,11 @@ namespace DoAn_NT106.Server
             }
             finally
             {
+                if (!string.IsNullOrEmpty(globalChatUsername))
+                {
+                    globalChatManager.LeaveGlobalChat(globalChatUsername);
+                }
+
                 Close();
             }
         }
@@ -375,6 +390,21 @@ namespace DoAn_NT106.Server
                     case "LEAVE_ROOM":
                         return HandleLeaveRoom(request);
 
+                    //Các action global chat
+                    case "GLOBAL_CHAT_JOIN":
+                        return HandleGlobalChatJoin(request);
+
+                    case "GLOBAL_CHAT_LEAVE":
+                        return HandleGlobalChatLeave(request);
+
+                    case "GLOBAL_CHAT_SEND":
+                        return HandleGlobalChatSend(request);
+
+                    case "GLOBAL_CHAT_GET_HISTORY":
+                        return HandleGlobalChatGetHistory(request);
+
+                    case "GLOBAL_CHAT_GET_ONLINE":
+                        return HandleGlobalChatGetOnline(request);
                     default:
                         return CreateResponse(false, "Unknown action");
                 }
@@ -843,6 +873,177 @@ namespace DoAn_NT106.Server
                 Data = data ?? new Dictionary<string, object>()
             };
 
+            return JsonSerializer.Serialize(response);
+        }
+
+        private string HandleGlobalChatJoin(Request request)
+        {
+            try
+            {
+                var username = request.Data?["username"]?.ToString();
+                var token = request.Data?["token"]?.ToString();
+
+                // Verify token
+                if (string.IsNullOrEmpty(token) || !tokenManager.ValidateToken(token))
+                {
+                    return CreateResponse(false, "Invalid token");
+                }
+
+                if (string.IsNullOrEmpty(username))
+                {
+                    return CreateResponse(false, "Username is required");
+                }
+
+                // Lưu username để cleanup khi disconnect
+                globalChatUsername = username;
+
+                var result = globalChatManager.JoinGlobalChat(username, this);
+
+                if (result.Success)
+                {
+                    // Lấy chat history để gửi cho user mới
+                    var history = globalChatManager.GetChatHistory(30);
+                    var historyData = history.Select(h => new
+                    {
+                        id = h.Id,
+                        username = h.Username,
+                        message = h.Message,
+                        timestamp = h.Timestamp.ToString("HH:mm:ss"),
+                        type = h.Type
+                    }).ToList();
+
+                    return CreateResponseWithData(true, result.Message, new Dictionary<string, object>
+            {
+                { "onlineCount", result.OnlineCount },
+                { "history", historyData }
+            });
+                }
+
+                return CreateResponse(false, result.Message);
+            }
+            catch (Exception ex)
+            {
+                server.Log($"❌ HandleGlobalChatJoin error: {ex.Message}");
+                return CreateResponse(false, $"Error: {ex.Message}");
+            }
+        }
+
+        private string HandleGlobalChatLeave(Request request)
+        {
+            try
+            {
+                var username = request.Data?["username"]?.ToString();
+
+                if (string.IsNullOrEmpty(username))
+                {
+                    return CreateResponse(false, "Username is required");
+                }
+
+                var result = globalChatManager.LeaveGlobalChat(username);
+                globalChatUsername = null;
+
+                return CreateResponseWithData(true, "Left Global Chat", new Dictionary<string, object>
+        {
+            { "onlineCount", result.OnlineCount }
+        });
+            }
+            catch (Exception ex)
+            {
+                server.Log($"❌ HandleGlobalChatLeave error: {ex.Message}");
+                return CreateResponse(false, $"Error: {ex.Message}");
+            }
+        }
+
+        private string HandleGlobalChatSend(Request request)
+        {
+            try
+            {
+                var username = request.Data?["username"]?.ToString();
+                var message = request.Data?["message"]?.ToString();
+                var token = request.Data?["token"]?.ToString();
+
+                // Verify token
+                if (string.IsNullOrEmpty(token) || !tokenManager.ValidateToken(token))
+                {
+                    return CreateResponse(false, "Invalid token");
+                }
+
+                if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(message))
+                {
+                    return CreateResponse(false, "Username and message are required");
+                }
+
+                var result = globalChatManager.SendChatMessage(username, message);
+
+                return CreateResponse(result.Success, result.Message);
+            }
+            catch (Exception ex)
+            {
+                server.Log($"❌ HandleGlobalChatSend error: {ex.Message}");
+                return CreateResponse(false, $"Error: {ex.Message}");
+            }
+        }
+
+        private string HandleGlobalChatGetHistory(Request request)
+        {
+            try
+            {
+                int count = 30;
+                if (request.Data?.ContainsKey("count") == true)
+                {
+                    count = Convert.ToInt32(request.Data["count"]);
+                }
+
+                var history = globalChatManager.GetChatHistory(count);
+                var historyData = history.Select(h => new
+                {
+                    id = h.Id,
+                    username = h.Username,
+                    message = h.Message,
+                    timestamp = h.Timestamp.ToString("HH:mm:ss"),
+                    type = h.Type
+                }).ToList();
+
+                return CreateResponseWithData(true, "OK", new Dictionary<string, object>
+        {
+            { "history", historyData }
+        });
+            }
+            catch (Exception ex)
+            {
+                return CreateResponse(false, $"Error: {ex.Message}");
+            }
+        }
+
+        private string HandleGlobalChatGetOnline(Request request)
+        {
+            try
+            {
+                var onlineCount = globalChatManager.GetOnlineCount();
+                var onlineUsers = globalChatManager.GetOnlineUsers();
+
+                return CreateResponseWithData(true, "OK", new Dictionary<string, object>
+        {
+            { "onlineCount", onlineCount },
+            { "onlineUsers", onlineUsers }
+        });
+            }
+            catch (Exception ex)
+            {
+                return CreateResponse(false, $"Error: {ex.Message}");
+            }
+        }
+
+        // ✅ BƯỚC 8: Helper method để tạo response với data
+        // ------------------------------------------------------------
+        private string CreateResponseWithData(bool success, string message, Dictionary<string, object> data)
+        {
+            var response = new
+            {
+                Success = success,
+                Message = message,
+                Data = data
+            };
             return JsonSerializer.Serialize(response);
         }
 

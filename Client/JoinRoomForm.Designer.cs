@@ -27,6 +27,14 @@ namespace PixelGameLobby
         private Panel roomPanel3;
         private Panel pnlHelp;
         private Label lblHelp;
+        private Panel pnlGlobalChat;
+        private Panel pnlChatHeader;
+        private Panel pnlChatMessages;
+        private Panel pnlChatInput;
+        private Label lblChatTitle;
+        private Label lblOnlineCount;
+        private TextBox txtChatInput;
+        private Button btnSendChat;
 
         protected override void Dispose(bool disposing)
         {
@@ -336,6 +344,132 @@ namespace PixelGameLobby
             pnlHelp.PerformLayout();
             ResumeLayout(false);
             PerformLayout();
+        }
+
+        private void InitializeGlobalChatComponents()
+        {
+            this.pnlGlobalChat = new Panel();
+            this.pnlChatHeader = new Panel();
+            this.pnlChatMessages = new Panel();
+            this.pnlChatInput = new Panel();
+            this.lblChatTitle = new Label();
+            this.lblOnlineCount = new Label();
+            this.txtChatInput = new TextBox();
+            this.btnSendChat = new Button();
+
+            // 
+            // pnlGlobalChat - Panel chính
+            // 
+            this.pnlGlobalChat.BackColor = Color.FromArgb(74, 50, 25);
+            this.pnlGlobalChat.BorderStyle = BorderStyle.FixedSingle;
+            this.pnlGlobalChat.Controls.Add(this.pnlChatInput);
+            this.pnlGlobalChat.Controls.Add(this.pnlChatMessages);
+            this.pnlGlobalChat.Controls.Add(this.pnlChatHeader);
+            this.pnlGlobalChat.Location = new Point(1080, 110);
+            this.pnlGlobalChat.Name = "pnlGlobalChat";
+            this.pnlGlobalChat.Size = new Size(280, 500);
+            this.pnlGlobalChat.TabIndex = 10;
+
+            // 
+            // pnlChatHeader
+            // 
+            this.pnlChatHeader.BackColor = Color.FromArgb(101, 67, 51);
+            this.pnlChatHeader.Controls.Add(this.lblOnlineCount);
+            this.pnlChatHeader.Controls.Add(this.lblChatTitle);
+            this.pnlChatHeader.Dock = DockStyle.Top;
+            this.pnlChatHeader.Location = new Point(0, 0);
+            this.pnlChatHeader.Name = "pnlChatHeader";
+            this.pnlChatHeader.Size = new Size(278, 50);
+            this.pnlChatHeader.TabIndex = 0;
+
+            // 
+            // lblChatTitle
+            // 
+            this.lblChatTitle.AutoSize = true;
+            this.lblChatTitle.Font = new Font("Courier New", 11F, FontStyle.Bold);
+            this.lblChatTitle.ForeColor = Color.Gold;
+            this.lblChatTitle.Location = new Point(10, 8);
+            this.lblChatTitle.Name = "lblChatTitle";
+            this.lblChatTitle.Size = new Size(142, 21);
+            this.lblChatTitle.TabIndex = 0;
+            this.lblChatTitle.Text = "💬 GLOBAL CHAT";
+
+            // 
+            // lblOnlineCount
+            // 
+            this.lblOnlineCount.AutoSize = true;
+            this.lblOnlineCount.Font = new Font("Courier New", 9F, FontStyle.Bold);
+            this.lblOnlineCount.ForeColor = Color.LimeGreen;
+            this.lblOnlineCount.Location = new Point(10, 28);
+            this.lblOnlineCount.Name = "lblOnlineCount";
+            this.lblOnlineCount.Size = new Size(89, 18);
+            this.lblOnlineCount.TabIndex = 1;
+            this.lblOnlineCount.Text = "🟢 0 online";
+
+            // 
+            // pnlChatMessages
+            // 
+            this.pnlChatMessages.AutoScroll = true;
+            this.pnlChatMessages.BackColor = Color.FromArgb(74, 50, 25);
+            this.pnlChatMessages.Location = new Point(0, 50);
+            this.pnlChatMessages.Name = "pnlChatMessages";
+            this.pnlChatMessages.Size = new Size(278, 392);
+            this.pnlChatMessages.TabIndex = 1;
+
+            // 
+            // pnlChatInput
+            // 
+            this.pnlChatInput.BackColor = Color.FromArgb(101, 67, 51);
+            this.pnlChatInput.Controls.Add(this.btnSendChat);
+            this.pnlChatInput.Controls.Add(this.txtChatInput);
+            this.pnlChatInput.Dock = DockStyle.Bottom;
+            this.pnlChatInput.Location = new Point(0, 442);
+            this.pnlChatInput.Name = "pnlChatInput";
+            this.pnlChatInput.Size = new Size(278, 56);
+            this.pnlChatInput.TabIndex = 2;
+
+            // 
+            // txtChatInput
+            // 
+            this.txtChatInput.BackColor = Color.FromArgb(74, 50, 25);
+            this.txtChatInput.BorderStyle = BorderStyle.FixedSingle;
+            this.txtChatInput.Font = new Font("Courier New", 10F, FontStyle.Bold);
+            this.txtChatInput.ForeColor = Color.Gold;
+            this.txtChatInput.Location = new Point(5, 13);
+            this.txtChatInput.MaxLength = 1000;
+            this.txtChatInput.Name = "txtChatInput";
+            this.txtChatInput.PlaceholderText = "Nhập tin nhắn...";
+            this.txtChatInput.Size = new Size(200, 27);
+            this.txtChatInput.TabIndex = 0;
+            this.txtChatInput.KeyPress += new KeyPressEventHandler(this.TxtChatInput_KeyPress);
+
+            // 
+            // btnSendChat
+            // 
+            this.btnSendChat.BackColor = Color.FromArgb(139, 69, 19);
+            this.btnSendChat.Cursor = Cursors.Hand;
+            this.btnSendChat.FlatStyle = FlatStyle.Flat;
+            this.btnSendChat.Font = new Font("Courier New", 9F, FontStyle.Bold);
+            this.btnSendChat.ForeColor = Color.Gold;
+            this.btnSendChat.Location = new Point(208, 12);
+            this.btnSendChat.Name = "btnSendChat";
+            this.btnSendChat.Size = new Size(65, 30);
+            this.btnSendChat.TabIndex = 1;
+            this.btnSendChat.Text = "GỬI";
+            this.btnSendChat.UseVisualStyleBackColor = false;
+            this.btnSendChat.Click += new EventHandler(this.BtnSendChat_Click);
+            this.btnSendChat.Paint += new PaintEventHandler(this.Button_Paint);
+
+            // 
+            // Thêm pnlGlobalChat vào Form
+            // 
+            this.Controls.Add(this.pnlGlobalChat);
+
+            // ✅ Điều chỉnh layout các panel khác
+            // Thu nhỏ để nhường chỗ cho Global Chat
+            this.pnlRoomList.Size = new Size(960, 430);
+            this.pnlSearch.Size = new Size(960, 80);
+            this.pnlHelp.Size = new Size(960, 60);
         }
 
         // ===== UTILITY =====
