@@ -1,10 +1,10 @@
 ﻿using DoAn_NT106;
+using DoAn_NT106.Services;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Windows.Forms;
-using DoAn_NT106.Services;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 
 namespace PixelGameLobby
 {
@@ -12,7 +12,6 @@ namespace PixelGameLobby
     {
         private string username;
         private string token;
-        private string actionType;
         private readonly List<Room> rooms = new List<Room>();
 
         // Color palette
@@ -22,9 +21,10 @@ namespace PixelGameLobby
         private readonly Color goldColor = Color.FromArgb(255, 215, 0);
         private readonly Color darkGold = Color.FromArgb(139, 69, 19);
         private readonly Color hoverBrown = Color.FromArgb(120, 60, 30);
+
+        // Global Chat
         private GlobalChatClient globalChatClient;
 
-        // Constructor mới nhận tham số
         public JoinRoomForm(string username, string token)
         {
             InitializeComponent();
@@ -34,17 +34,15 @@ namespace PixelGameLobby
             SetupPixelStyling();
             SetupEventHandlers();
             InitializeSampleRooms();
-
-            // Kết nối Global Chat khi form load
-            this.Load += async (s, e) => await ConnectGlobalChatAsync();
+            SetupGlobalChatEvents();
 
             this.Text = $"Pixel Game Lobby - Welcome {username}";
         }
 
-        // Constructor cũ để tương thích
         public JoinRoomForm() : this("Guest", "")
         {
         }
+
         // ===============================
         // Initialization
         // ===============================
@@ -52,12 +50,7 @@ namespace PixelGameLobby
         {
             Font = new Font("Courier New", 12, FontStyle.Bold);
             BackColor = primaryBrown;
-        }
-
-        protected override void OnFormClosing(FormClosingEventArgs e)
-        {
-            globalChatClient?.Dispose();
-            base.OnFormClosing(e);
+            lblWelcome.Text = $"Welcome, {username}!";
         }
 
         private void SetupEventHandlers()
@@ -67,7 +60,6 @@ namespace PixelGameLobby
             btnSearchJoin.MouseEnter += Button_MouseEnter;
             btnSearchJoin.MouseLeave += Button_MouseLeave;
             btnSearchJoin.Paint += Button_Paint;
-
 
             // Panels
             foreach (var panel in new[] { pnlRoomList, pnlSearch, pnlHelp, headerPanel, roomsPanel })
@@ -114,7 +106,6 @@ namespace PixelGameLobby
         {
             var roomPanel = new Panel
             {
-                Dock = DockStyle.None,
                 Width = roomsPanel.ClientSize.Width - 40,
                 Height = 60,
                 BackColor = darkBrown,
@@ -122,7 +113,6 @@ namespace PixelGameLobby
                 BorderStyle = BorderStyle.FixedSingle,
             };
 
-            // Tên phòng
             var lblName = new Label
             {
                 Text = room.Name,
@@ -133,7 +123,6 @@ namespace PixelGameLobby
                 BackColor = Color.Transparent
             };
 
-            // Mã phòng
             var lblCode = new Label
             {
                 Text = $"Code: {room.Code}",
@@ -144,7 +133,6 @@ namespace PixelGameLobby
                 BackColor = Color.Transparent
             };
 
-            // Số người
             var lblPlayers = new Label
             {
                 Text = room.Players,
@@ -155,7 +143,6 @@ namespace PixelGameLobby
                 BackColor = Color.Transparent
             };
 
-            // Biểu tượng khóa
             var lblLock = new Label
             {
                 Text = room.IsLocked ? "🔒" : "🔓",
@@ -164,7 +151,6 @@ namespace PixelGameLobby
                 BackColor = Color.Transparent
             };
 
-            // Nút thao tác
             var btnAction = new Button
             {
                 Text = room.IsLocked ? "WATCH" : "JOIN",
@@ -177,14 +163,12 @@ namespace PixelGameLobby
                 Tag = room.Code
             };
 
-            // Canh phải tự động (thay vì toạ độ cố định)
             roomPanel.Resize += (s, e) =>
             {
                 lblLock.Location = new Point(roomPanel.Width - 180, 15);
                 btnAction.Location = new Point(roomPanel.Width - 130, 10);
             };
 
-            // Sự kiện
             btnAction.Click += RoomActionButton_Click;
             btnAction.Paint += Button_Paint;
             btnAction.MouseEnter += Button_MouseEnter;
@@ -254,7 +238,7 @@ namespace PixelGameLobby
                 using (var passForm = new PasswordForm(room.Name))
                 {
                     if (passForm.ShowDialog() != DialogResult.OK)
-                        return; // Người dùng bấm Cancel
+                        return;
 
                     var password = passForm.Password;
                     if (string.IsNullOrEmpty(password))
@@ -263,7 +247,6 @@ namespace PixelGameLobby
                         return;
                     }
 
-                    // Giả sử mật khẩu đúng là 123456 (bạn có thể thay thành dữ liệu thật)
                     if (password != "123456")
                     {
                         ShowMessage("Incorrect password!");
@@ -279,7 +262,7 @@ namespace PixelGameLobby
             }
 
             ShowMessage($"Joining room: {room.Name}");
-            var lobbyForm = new GameLobbyForm(room.Code);
+            var lobbyForm = new GameLobbyForm(room.Code, username, token);
             lobbyForm.Show();
             Hide();
         }
@@ -310,128 +293,59 @@ namespace PixelGameLobby
         private void TextBox_Enter(object sender, EventArgs e)
         {
             if (sender is TextBox tb)
-            {
-                tb.BackColor = Color.FromArgb(120, 80, 60);
-                tb.ForeColor = Color.White;
-            }
+                tb.BackColor = Color.FromArgb(90, 60, 30);
         }
 
         private void TextBox_Leave(object sender, EventArgs e)
         {
             if (sender is TextBox tb)
-            {
-                tb.BackColor = darkBrown;
-                tb.ForeColor = goldColor;
-            }
+                tb.BackColor = darkerBrown;
         }
 
         private void TextBox_KeyPress(object sender, KeyPressEventArgs e)
         {
             if (e.KeyChar == (char)Keys.Enter)
             {
-                BtnSearchJoin_Click(sender, e);
                 e.Handled = true;
+                BtnSearchJoin_Click(sender, e);
             }
-        }
-
-        // ===============================
-        // Custom Painting
-        // ===============================
-        private void Panel_Paint(object sender, PaintEventArgs e)
-        {
-            if (sender is not Control panel) return;
-
-            using Pen darkPen = new(darkerBrown, 4);
-            using Pen lightPen = new(Color.FromArgb(180, 140, 100), 2);
-
-            e.Graphics.DrawRectangle(darkPen, 0, 0, panel.Width - 1, panel.Height - 1);
-            e.Graphics.DrawRectangle(lightPen, 2, 2, panel.Width - 5, panel.Height - 5);
         }
 
         private void Button_Paint(object sender, PaintEventArgs e)
         {
-            if (sender is not Button button) return;
+            if (sender is Button btn)
+            {
+                using (var pen = new Pen(darkerBrown, 3))
+                {
+                    e.Graphics.DrawRectangle(pen, 0, 0, btn.Width - 1, btn.Height - 1);
+                }
+            }
+        }
 
-            e.Graphics.FillRectangle(new SolidBrush(button.BackColor), 0, 0, button.Width, button.Height);
-            TextRenderer.DrawText(e.Graphics, button.Text, button.Font,
-                new Rectangle(0, 0, button.Width, button.Height), button.ForeColor,
-                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
-
-            e.Graphics.DrawRectangle(new Pen(darkerBrown, 2), 0, 0, button.Width - 1, button.Height - 1);
+        private void Panel_Paint(object sender, PaintEventArgs e)
+        {
+            if (sender is Panel panel)
+            {
+                using (var pen = new Pen(darkerBrown, 3))
+                {
+                    e.Graphics.DrawRectangle(pen, 0, 0, panel.Width - 1, panel.Height - 1);
+                }
+            }
         }
 
         private void Label_Paint(object sender, PaintEventArgs e)
         {
-            if (sender is Label lbl)
-            {
-                using Pen goldPen = new(goldColor, 2);
-                e.Graphics.DrawRectangle(goldPen, 0, 0, lbl.Width - 1, lbl.Height - 1);
-            }
+            // Custom label painting if needed
         }
 
-        // ===============================
-        // Utility
-        // ===============================
         private void ShowMessage(string message)
         {
-            MessageBox.Show(message, "Message", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
-
-        private string ShowPasswordDialog()
-        {
-            using var prompt = new Form
-            {
-                Width = 300,
-                Height = 150,
-                FormBorderStyle = FormBorderStyle.FixedDialog,
-                Text = "Enter Password",
-                StartPosition = FormStartPosition.CenterScreen,
-                BackColor = primaryBrown
-            };
-
-            var lbl = new Label
-            {
-                Left = 20,
-                Top = 20,
-                Text = "Room password:",
-                ForeColor = goldColor,
-                Font = new Font("Courier New", 9, FontStyle.Bold)
-            };
-
-            var tb = new TextBox
-            {
-                Left = 20,
-                Top = 50,
-                Width = 240,
-                UseSystemPasswordChar = true,
-                BackColor = darkBrown,
-                ForeColor = goldColor,
-                Font = new Font("Courier New", 9, FontStyle.Bold)
-            };
-
-            var btn = new Button
-            {
-                Text = "OK",
-                Left = 120,
-                Width = 80,
-                Top = 80,
-                DialogResult = DialogResult.OK,
-                BackColor = darkGold,
-                ForeColor = goldColor,
-                Font = new Font("Courier New", 8, FontStyle.Bold)
-            };
-
-            btn.Click += (_, _) => prompt.Close();
-
-            prompt.Controls.AddRange(new Control[] { lbl, tb, btn });
-            prompt.AcceptButton = btn;
-
-            return prompt.ShowDialog() == DialogResult.OK ? tb.Text : string.Empty;
+            MessageBox.Show(message, "Notification", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private void btn_refresh_Click(object sender, EventArgs e)
         {
-            //Chưa xây dựng logic hàm này
+            InitializeSampleRooms();
         }
 
         private void btnBack_Click(object sender, EventArgs e)
@@ -441,31 +355,57 @@ namespace PixelGameLobby
             this.Close();
         }
 
+        // ===============================
+        // GLOBAL CHAT
+        // ===============================
+
         #region Global Chat Logic
 
-        /// <summary>
-        /// Kết nối đến Global Chat server
-        /// </summary>
+        private void SetupGlobalChatEvents()
+        {
+            if (txtChatInput != null)
+            {
+                txtChatInput.KeyPress += TxtChatInput_KeyPress;
+            }
+
+            if (btnSendChat != null)
+            {
+                btnSendChat.Click += BtnSendChat_Click;
+                btnSendChat.Paint += Button_Paint;
+                btnSendChat.MouseEnter += Button_MouseEnter;
+                btnSendChat.MouseLeave += (s, e) =>
+                {
+                    if (s is Button btn) btn.BackColor = darkGold;
+                };
+            }
+
+            // Kết nối Global Chat khi form load
+            this.Load += async (s, e) => await ConnectGlobalChatAsync();
+        }
+
         private async Task ConnectGlobalChatAsync()
         {
+            if (pnlChatMessages == null)
+            {
+                await Task.Delay(100);
+                if (pnlChatMessages == null) return;
+            }
+
             try
             {
                 globalChatClient = new GlobalChatClient("127.0.0.1", 8080);
 
-                // Subscribe events
                 globalChatClient.OnChatMessage += GlobalChat_OnChatMessage;
                 globalChatClient.OnOnlineCountUpdate += GlobalChat_OnOnlineCountUpdate;
                 globalChatClient.OnError += GlobalChat_OnError;
                 globalChatClient.OnDisconnected += GlobalChat_OnDisconnected;
 
-                // Kết nối và join
                 var result = await globalChatClient.ConnectAndJoinAsync(username, token);
 
                 if (result.Success)
                 {
                     UpdateOnlineCount(result.OnlineCount);
 
-                    // Hiển thị chat history
                     if (result.History != null)
                     {
                         foreach (var msg in result.History)
@@ -473,23 +413,17 @@ namespace PixelGameLobby
                             AddChatMessageToUI(msg);
                         }
                     }
-
-                    AddSystemMessage($"Chào mừng {username} đến Global Chat!");
+                    // ✅ BỎ DÒNG AddSystemMessage ở đây
                 }
-                else
-                {
-                    AddSystemMessage("❌ Không thể kết nối Global Chat");
-                }
+                // ✅ BỎ LUÔN else AddSystemMessage lỗi
             }
             catch (Exception ex)
             {
-                AddSystemMessage($"❌ Lỗi: {ex.Message}");
+                // Chỉ log lỗi, không hiển thị
+                Console.WriteLine($"Global Chat Error: {ex.Message}");
             }
         }
 
-        /// <summary>
-        /// Xử lý khi nhận được tin nhắn mới
-        /// </summary>
         private void GlobalChat_OnChatMessage(ChatMessageData message)
         {
             if (this.InvokeRequired)
@@ -500,9 +434,6 @@ namespace PixelGameLobby
             AddChatMessageToUI(message);
         }
 
-        /// <summary>
-        /// Xử lý cập nhật số người online
-        /// </summary>
         private void GlobalChat_OnOnlineCountUpdate(int count)
         {
             if (this.InvokeRequired)
@@ -513,9 +444,6 @@ namespace PixelGameLobby
             UpdateOnlineCount(count);
         }
 
-        /// <summary>
-        /// Xử lý lỗi từ Global Chat
-        /// </summary>
         private void GlobalChat_OnError(string error)
         {
             if (this.InvokeRequired)
@@ -526,9 +454,6 @@ namespace PixelGameLobby
             AddSystemMessage($"⚠️ {error}");
         }
 
-        /// <summary>
-        /// Xử lý khi bị ngắt kết nối
-        /// </summary>
         private void GlobalChat_OnDisconnected()
         {
             if (this.InvokeRequired)
@@ -540,26 +465,26 @@ namespace PixelGameLobby
             UpdateOnlineCount(0);
         }
 
-        /// <summary>
-        /// Cập nhật hiển thị số người online
-        /// </summary>
         private void UpdateOnlineCount(int count)
         {
-            lblOnlineCount.Text = $"🟢 {count} online";
+            if (lblOnlineCount != null)
+            {
+                lblOnlineCount.Text = $"🟢 {count} online";
+            }
         }
 
-        /// <summary>
-        /// Thêm tin nhắn vào UI
-        /// </summary>
         private void AddChatMessageToUI(ChatMessageData message)
         {
+            if (pnlChatMessages == null || message == null)
+                return;
+
             var msgPanel = new Panel
             {
                 Width = pnlChatMessages.Width - 25,
                 AutoSize = true,
-                MinimumSize = new Size(pnlChatMessages.Width - 25, 30),
+                MinimumSize = new Size(pnlChatMessages.Width - 25, 20),
                 BackColor = Color.Transparent,
-                Padding = new Padding(5, 3, 5, 3)
+                Padding = new Padding(3, 2, 3, 2)
             };
 
             var lblHeader = new Label
@@ -572,8 +497,7 @@ namespace PixelGameLobby
                           : message.Username == username ? Color.LimeGreen
                           : goldColor,
                 AutoSize = true,
-                Location = new Point(5, 3),
-                MaximumSize = new Size(pnlChatMessages.Width - 30, 0)
+                Location = new Point(3, 2)
             };
 
             var lblContent = new Label
@@ -582,31 +506,29 @@ namespace PixelGameLobby
                 Font = new Font("Courier New", 9),
                 ForeColor = message.Type == "system" ? Color.Orange : Color.White,
                 AutoSize = true,
-                Location = new Point(5, lblHeader.Height + 5),
-                MaximumSize = new Size(pnlChatMessages.Width - 30, 0)
+                Location = new Point(3, lblHeader.Height + 3)
             };
 
             msgPanel.Controls.Add(lblHeader);
             msgPanel.Controls.Add(lblContent);
-            msgPanel.Height = lblHeader.Height + lblContent.Height + 10;
+            msgPanel.Height = lblHeader.Height + lblContent.Height + 8;
 
-            // Tính vị trí Y
             int yPos = 5;
             foreach (Control ctrl in pnlChatMessages.Controls)
             {
-                yPos = Math.Max(yPos, ctrl.Bottom + 5);
+                yPos = Math.Max(yPos, ctrl.Bottom + 3);
             }
-            msgPanel.Location = new Point(5, yPos);
+            msgPanel.Location = new Point(3, yPos);
 
             pnlChatMessages.Controls.Add(msgPanel);
             pnlChatMessages.ScrollControlIntoView(msgPanel);
         }
 
-        /// <summary>
-        /// Thêm tin nhắn hệ thống
-        /// </summary>
         private void AddSystemMessage(string message)
         {
+            if (pnlChatMessages == null)
+                return;
+
             AddChatMessageToUI(new ChatMessageData
             {
                 Id = Guid.NewGuid().ToString(),
@@ -617,17 +539,11 @@ namespace PixelGameLobby
             });
         }
 
-        /// <summary>
-        /// Xử lý click nút Gửi
-        /// </summary>
         private async void BtnSendChat_Click(object sender, EventArgs e)
         {
             await SendChatMessageAsync();
         }
 
-        /// <summary>
-        /// Xử lý nhấn Enter trong ô chat
-        /// </summary>
         private async void TxtChatInput_KeyPress(object sender, KeyPressEventArgs e)
         {
             if (e.KeyChar == (char)Keys.Enter)
@@ -637,36 +553,35 @@ namespace PixelGameLobby
             }
         }
 
-        /// <summary>
-        /// Gửi tin nhắn đến server
-        /// </summary>
         private async Task SendChatMessageAsync()
         {
+            if (txtChatInput == null)
+                return;
+
             string message = txtChatInput.Text.Trim();
 
             if (string.IsNullOrEmpty(message))
                 return;
 
-            if (globalChatClient == null || !globalChatClient.IsConnected)
-            {
-                AddSystemMessage("❌ Chưa kết nối Global Chat");
-                return;
-            }
+            // ✅ Xóa tin nhắn trong khung nhập TRƯỚC
+            txtChatInput.Clear();
+            txtChatInput.Focus();
 
-            bool success = await globalChatClient.SendMessageAsync(message);
-
-            if (success)
+            // Gửi lên server (nếu có kết nối)
+            if (globalChatClient != null && globalChatClient.IsConnected)
             {
-                txtChatInput.Clear();
-                txtChatInput.Focus();
+                await globalChatClient.SendMessageAsync(message);
             }
         }
 
         #endregion
 
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            globalChatClient?.Dispose();
+            base.OnFormClosing(e);
+        }
     }
-
-
 
     // ===============================
     // Data Models
