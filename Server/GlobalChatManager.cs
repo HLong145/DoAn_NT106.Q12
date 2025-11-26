@@ -35,14 +35,10 @@ namespace DoAn_NT106.Server
                 if (string.IsNullOrEmpty(username))
                     return (false, "Username is required", 0);
 
-                // Nếu user đã online, cập nhật client mới
                 onlineUsers.AddOrUpdate(username, client, (key, oldClient) => client);
 
                 int onlineCount = onlineUsers.Count;
                 Log($"✅ {username} joined Global Chat. Online: {onlineCount}");
-
-                // Broadcast thông báo user join
-                BroadcastSystemMessage($"{username} đã tham gia chat", username);
 
                 return (true, "Joined Global Chat", onlineCount);
             }

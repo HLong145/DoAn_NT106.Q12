@@ -883,12 +883,6 @@ namespace DoAn_NT106.Server
                 var username = request.Data?["username"]?.ToString();
                 var token = request.Data?["token"]?.ToString();
 
-                // Verify token
-                if (string.IsNullOrEmpty(token) || !tokenManager.ValidateToken(token))
-                {
-                    return CreateResponse(false, "Invalid token");
-                }
-
                 if (string.IsNullOrEmpty(username))
                 {
                     return CreateResponse(false, "Username is required");
@@ -962,11 +956,6 @@ namespace DoAn_NT106.Server
                 var message = request.Data?["message"]?.ToString();
                 var token = request.Data?["token"]?.ToString();
 
-                // Verify token
-                if (string.IsNullOrEmpty(token) || !tokenManager.ValidateToken(token))
-                {
-                    return CreateResponse(false, "Invalid token");
-                }
 
                 if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(message))
                 {
