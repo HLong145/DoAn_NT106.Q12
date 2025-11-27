@@ -5,6 +5,7 @@ using System.Text;
 using System.Linq;
 using Microsoft.Data.SqlClient;
 using System.Data;
+using DoAn_NT106.Server;
 
 namespace DoAn_NT106.Services
 {
@@ -421,5 +422,367 @@ namespace DoAn_NT106.Services
                 otps.TryRemove(key, out _);
             }
         }
+
+        public class RoomDbInfo
+        {
+            public int RoomId { get; set; }
+            public string RoomCode { get; set; }
+            public string RoomName { get; set; }
+            public string Password { get; set; }
+            public string Player1Username { get; set; }
+            public string Player2Username { get; set; }
+            public string Player1Character { get; set; }
+            public string Player2Character { get; set; }
+            public string Status { get; set; }
+            public DateTime CreatedAt { get; set; }
+            public DateTime LastActivity { get; set; }
+        }
+
+        #region ROOM MANAGEMENT
+
+        /// <summary>
+        /// Kiểm tra room code đã tồn tại trong database chưa
+        /// </summary>
+        public bool IsRoomCodeExists(string roomCode)
+        {
+            try
+            {
+                using (var connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    string query = "EXEC SP_CHECK_ROOM_CODE_EXISTS @RoomCode";
+
+                    using (var command = new SqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@RoomCode", roomCode);
+                        var result = command.ExecuteScalar();
+                        return Convert.ToInt32(result) == 1;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ IsRoomCodeExists error: {ex.Message}");
+                return true; // Trả về true để tránh tạo room trùng khi có lỗi
+            }
+        }
+
+        /// <summary>
+        /// Tạo room mới trong database
+        /// </summary>
+        public (bool Success, string Message, int? RoomId) CreateRoom(
+            string roomCode,
+            string roomName,
+            string password,
+            string player1Username)
+        {
+            try
+            {
+                using (var connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    string query = "EXEC SP_CREATE_ROOM @RoomCode, @RoomName, @RoomPassword, @Player1Username";
+
+                    using (var command = new SqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@RoomCode", roomCode);
+                        command.Parameters.AddWithValue("@RoomName", roomName);
+                        command.Parameters.AddWithValue("@RoomPassword",
+                            string.IsNullOrEmpty(password) ? DBNull.Value : (object)password);
+                        command.Parameters.AddWithValue("@Player1Username", player1Username);
+
+                        using (var reader = command.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                bool success = Convert.ToInt32(reader["Success"]) == 1;
+                                string message = reader["Message"].ToString();
+                                int? roomId = reader["RoomId"] != DBNull.Value
+                                    ? Convert.ToInt32(reader["RoomId"])
+                                    : (int?)null;
+
+                                Console.WriteLine($"✅ CreateRoom: {roomCode} - {message}");
+                                return (success, message, roomId);
+                            }
+                        }
+                    }
+                }
+                return (false, "Unknown error", null);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ CreateRoom error: {ex.Message}");
+                return (false, ex.Message, null);
+            }
+        }
+
+        /// <summary>
+        /// Tham gia room
+        /// </summary>
+        public (bool Success, string Message) JoinRoom(string roomCode, string password, string username)
+        {
+            try
+            {
+                using (var connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    string query = "EXEC SP_JOIN_ROOM @RoomCode, @Password, @Username";
+
+                    using (var command = new SqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@RoomCode", roomCode);
+                        command.Parameters.AddWithValue("@Password",
+                            string.IsNullOrEmpty(password) ? DBNull.Value : (object)password);
+                        command.Parameters.AddWithValue("@Username", username);
+
+                        using (var reader = command.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                bool success = Convert.ToInt32(reader["Success"]) == 1;
+                                string message = reader["Message"].ToString();
+                                return (success, message);
+                            }
+                        }
+                    }
+                }
+                return (false, "Unknown error");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ JoinRoom error: {ex.Message}");
+                return (false, ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Rời khỏi room
+        /// </summary>
+        public (bool Success, string Message) LeaveRoom(string roomCode, string username)
+        {
+            try
+            {
+                using (var connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    string query = "EXEC SP_LEAVE_ROOM @RoomCode, @Username";
+
+                    using (var command = new SqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@RoomCode", roomCode);
+                        command.Parameters.AddWithValue("@Username", username);
+
+                        using (var reader = command.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                bool success = Convert.ToInt32(reader["Success"]) == 1;
+                                string message = reader["Message"].ToString();
+                                return (success, message);
+                            }
+                        }
+                    }
+                }
+                return (false, "Unknown error");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ LeaveRoom error: {ex.Message}");
+                return (false, ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Lấy danh sách room đang chờ người chơi
+        /// </summary>
+        public List<RoomInfo> GetAvailableRooms()
+        {
+            var rooms = new List<RoomInfo>();
+
+            try
+            {
+                using (var connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    string query = "EXEC SP_GET_AVAILABLE_ROOMS";
+
+                    using (var command = new SqlCommand(query, connection))
+                    using (var reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            rooms.Add(new RoomInfo
+                            {
+                                RoomCode = reader["RoomCode"].ToString(),
+                                RoomName = reader["RoomName"].ToString(),
+                                HasPassword = Convert.ToInt32(reader["HasPassword"]) == 1,
+                                PlayerCount = Convert.ToInt32(reader["PlayerCount"]),
+                                Status = reader["Status"].ToString()
+                            });
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ GetAvailableRooms error: {ex.Message}");
+            }
+
+            return rooms;
+        }
+
+        /// <summary>
+        /// Lấy thông tin room theo code
+        /// </summary>
+        public RoomDbInfo GetRoomByCode(string roomCode)
+        {
+            try
+            {
+                using (var connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    string query = @"
+                SELECT ROOM_ID, ROOM_CODE, ROOM_NAME, ROOM_PASSWORD,
+                       PLAYER1_USERNAME, PLAYER2_USERNAME,
+                       PLAYER1_CHARACTER, PLAYER2_CHARACTER,
+                       ROOM_STATUS, CREATED_AT, LAST_ACTIVITY
+                FROM ROOMS 
+                WHERE ROOM_CODE = @RoomCode";
+
+                    using (var command = new SqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@RoomCode", roomCode);
+
+                        using (var reader = command.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                return new RoomDbInfo
+                                {
+                                    RoomId = Convert.ToInt32(reader["ROOM_ID"]),
+                                    RoomCode = reader["ROOM_CODE"].ToString(),
+                                    RoomName = reader["ROOM_NAME"].ToString(),
+                                    Password = reader["ROOM_PASSWORD"]?.ToString(),
+                                    Player1Username = reader["PLAYER1_USERNAME"]?.ToString(),
+                                    Player2Username = reader["PLAYER2_USERNAME"]?.ToString(),
+                                    Player1Character = reader["PLAYER1_CHARACTER"]?.ToString(),
+                                    Player2Character = reader["PLAYER2_CHARACTER"]?.ToString(),
+                                    Status = reader["ROOM_STATUS"].ToString(),
+                                    CreatedAt = Convert.ToDateTime(reader["CREATED_AT"]),
+                                    LastActivity = reader["LAST_ACTIVITY"] != DBNull.Value
+                                        ? Convert.ToDateTime(reader["LAST_ACTIVITY"])
+                                        : DateTime.Now
+                                };
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ GetRoomByCode error: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Cập nhật thời gian hoạt động cuối cùng của room
+        /// </summary>
+        public bool UpdateRoomActivity(string roomCode)
+        {
+            try
+            {
+                using (var connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    string query = "UPDATE ROOMS SET LAST_ACTIVITY = GETDATE() WHERE ROOM_CODE = @RoomCode";
+
+                    using (var command = new SqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@RoomCode", roomCode);
+                        return command.ExecuteNonQuery() > 0;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ UpdateRoomActivity error: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Cập nhật trạng thái room
+        /// </summary>
+        public bool UpdateRoomStatus(string roomCode, string status)
+        {
+            try
+            {
+                using (var connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    string query = @"
+                UPDATE ROOMS 
+                SET ROOM_STATUS = @Status, LAST_ACTIVITY = GETDATE() 
+                WHERE ROOM_CODE = @RoomCode";
+
+                    using (var command = new SqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@RoomCode", roomCode);
+                        command.Parameters.AddWithValue("@Status", status);
+                        return command.ExecuteNonQuery() > 0;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ UpdateRoomStatus error: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Dọn dẹp các room không hoạt động (gọi định kỳ)
+        /// </summary>
+        public int CleanupInactiveRooms()
+        {
+            try
+            {
+                using (var connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    string query = "EXEC SP_CLEANUP_INACTIVE_ROOMS";
+
+                    using (var command = new SqlCommand(query, connection))
+                    {
+                        using (var reader = command.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                int deleted = Convert.ToInt32(reader["DeletedRooms"]);
+                                Console.WriteLine($"🗑️ Cleaned up {deleted} inactive rooms");
+                                return deleted;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ CleanupInactiveRooms error: {ex.Message}");
+            }
+            return 0;
+        }
+
+        #endregion
+
+        // =============================================
+        // DATA CLASS CHO ROOM (thêm vào cuối file, ngoài class DatabaseService)
+        // =============================================
     }
+
+    /// <summary>
+    /// Thông tin room từ database
+    /// </summary>
 }
