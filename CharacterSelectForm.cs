@@ -96,7 +96,7 @@ namespace DoAn_NT106
                 Stamina = 90,
                 Mana = 110,
                 SkillDescription = "Dark Reaper - High damage with life steal",
-                PreviewImage = SafeLoadImage(Properties.Resources.bringerofdeath_Idle)
+                PreviewImage = SafeLoadImage(Properties.Resources.BringerofDeath_Idle)
             });
         }
 
@@ -453,16 +453,16 @@ namespace DoAn_NT106
             SelectedCharacter = characters[selectedIndex].Name;
             this.DialogResult = DialogResult.OK;
 
-            // ✅ OPPONENT MẶC ĐỊNH (sau này lấy từ server)
+            // ✅ OPPONENT MẶC ĐỊNH là girlknight (sau này lấy từ server)
             string opponentCharacter = "girlknight";
 
-            // ✅ TRUYỀN ĐẦY ĐỦ 5 THAM SỐ
+            // ✅ TRUYỀN ĐẦY ĐỦ 5 THAM SỐ với character đã chọn
             var battleForm = new BattleForm(
                 username,              // Player 1 username
                 token,                 // Token
                 opponentName,          // Opponent username
-                SelectedCharacter,     // ✅ Player 1 character (đã chọn)
-                opponentCharacter      // ✅ Player 2 character (mặc định)
+                SelectedCharacter,     // ✅ Player 1 character (người chơi đã chọn)
+                opponentCharacter      // ✅ Player 2 character (mặc định girlknight)
             );
 
             battleForm.FormClosed += (s, args) =>

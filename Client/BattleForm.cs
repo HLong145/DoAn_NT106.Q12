@@ -16,20 +16,21 @@ namespace DoAn_NT106
         private Image fireball;
         private List<string> backgroundImages = new List<string>();
 
-        // Player positions
+        // Player positions (x = left, y = top)
         private int player1X = 300;
         private int player1Y;
         private int player2X = 600;
         private int player2Y;
         private int playerSpeed = 14;
 
-        // Background và viewport
+        // Kích thước background và viewport
         private int backgroundWidth = 2000;
         private int viewportX = 0;
-        private int groundLevel = 520;
-        private int groundOffset = 150;
-        private List<System.IO.Stream> resourceStreams = new List<System.IO.Stream>();
+        private int groundLevel = 520;            // cập nhật động theo kích thước form
+        private int groundOffset = 150;           // khoảng cách từ đáy cửa sổ tới "mặt đất" (tùy chỉnh theo background)
+        private List<System.IO.Stream> resourceStreams = new List<System.IO.Stream>(); // giữ stream cho GIF nếu cần
 
+        // groundOffset tùy thuộc vào background đã chọn
         private Dictionary<string, int> backgroundGroundOffsets = new Dictionary<string, int>{
             {"battleground1", 140},
             {"battleground2", 160},
@@ -54,8 +55,8 @@ namespace DoAn_NT106
         private int player2Mana = 100;
 
         // Animation system
-        private Dictionary<string, Image> player1Animations = new Dictionary<string, Image>();
-        private Dictionary<string, Image> player2Animations = new Dictionary<string, Image>();
+        private CharacterAnimationManager player1AnimationManager;
+        private CharacterAnimationManager player2AnimationManager;
         private string player1CurrentAnimation = "stand";
         private string player2CurrentAnimation = "stand";
         private string player1Facing = "right";
@@ -66,31 +67,29 @@ namespace DoAn_NT106
         private bool player2Attacking = false;
         private System.Windows.Forms.Timer walkAnimationTimer;
 
-        // Progress bars
+        // Progress bars (assume GameProgressBar exists in project)
         private GameProgressBar healthBar1, healthBar2;
         private GameProgressBar staminaBar1, staminaBar2;
         private GameProgressBar manaBar1, manaBar2;
         private Label lblPlayer1Name, lblPlayer2Name;
         private Label lblControlsInfo;
-
-        // Parry
+        // Parry (đỡ)
         private bool player1Parrying = false;
         private bool player2Parrying = false;
         private bool player1ParryOnCooldown = false;
         private bool player2ParryOnCooldown = false;
-        private int parryWindowMs = 300;
-        private int parryCooldownMs = 900;
-        private int parryStaminaCost = 10;
+        private int parryWindowMs = 300;      // cửa sổ parry (ms)
+        private int parryCooldownMs = 900;    // cooldown sau khi parry (ms)
+        private int parryStaminaCost = 10;    // tốn stamina khi bật parry
         private System.Windows.Forms.Timer p1ParryTimer;
         private System.Windows.Forms.Timer p1ParryCooldownTimer;
         private System.Windows.Forms.Timer p2ParryTimer;
         private System.Windows.Forms.Timer p2ParryCooldownTimer;
-
         // Fireball
         private bool fireballActive = false;
         private int fireballX, fireballY;
         private int fireballDirection = 1;
-        private int fireballOwner = 0;
+        private int fireballOwner = 0; // 1 or 2, who shot the fireball
         private const int FIREBALL_WIDTH = 150;
         private const int FIREBALL_HEIGHT = 100;
         private int currentBackground = 0;
@@ -100,22 +99,33 @@ namespace DoAn_NT106
         private bool aPressed, dPressed;
         private bool leftPressed, rightPressed;
 
-        // Kích thước nhân vật
+        // Kích thước nhân vật (dynamic)
         private int PLAYER_WIDTH = 80;
         private int PLAYER_HEIGHT = 120;
-        private float characterHeightRatio = 0.30f;
+        private float characterHeightRatio = 0.30f; // relative to ClientSize.Height
+
+        // Hitbox configuration - nhỏ hơn và hướng theo facing
+        private int HITBOX_WIDTH_RATIO = 2; // Hitbox = PLAYER_WIDTH / 2
+        private int HITBOX_HEIGHT_RATIO = 2; // Hitbox = PLAYER_HEIGHT / 2
 
         // Hurt handling
         private const int HURT_DISPLAY_MS = 400;
         private string _prevAnimPlayer1 = null;
         private string _prevAnimPlayer2 = null;
-        public BattleForm(string username, string token, string opponent = "Opponent")
+
+        // Character types
+        private string player1CharacterType = "girlknight";
+        private string player2CharacterType = "girlknight";
+
+        public BattleForm(string username, string token, string opponent, string player1Character, string player2Character)
         {
             InitializeComponent();
 
             this.username = username;
             this.token = token;
             this.opponent = opponent;
+            this.player1CharacterType = player1Character;
+            this.player2CharacterType = player2Character;
 
             this.WindowState = FormWindowState.Maximized;
             this.FormBorderStyle = FormBorderStyle.None;
@@ -126,36 +136,30 @@ namespace DoAn_NT106
 
             SetupGame();
             SetupEventHandlers();
-
             this.Text = $"⚔️ Street Fighter - {username} vs {opponent}";
             this.DoubleBuffered = true;
             this.KeyPreview = true;
         }
 
-        // *** THÊM CONSTRUCTOR NÀY ***
-        public BattleForm(string username, string token, string opponent, string player1CharKey, string player2CharKey)
-            : this(username, token, opponent) // Gọi constructor 3 tham số trước
-        {
-            // Constructor này cho phép chọn character khác girlknight
-            // Hiện tại vẫn dùng girlknight vì LoadCharacterAnimations chỉ hỗ trợ girlknight
-            // Nếu muốn hỗ trợ nhiều character, cần thêm logic load động
-
-            Console.WriteLine($"Selected characters: P1={player1CharKey}, P2={player2CharKey}");
-            // TODO: Implement dynamic character loading nếu cần
-        }
         private void SetupGame()
         {
             try
             {
-                LoadCharacterAnimations("girlknight", player1Animations);
-                LoadCharacterAnimations("girlknight", player2Animations);
+                // Load animations using new manager
+                player1AnimationManager = new CharacterAnimationManager(player1CharacterType, OnFrameChanged);
+                player1AnimationManager.LoadAnimations();
+                
+                player2AnimationManager = new CharacterAnimationManager(player2CharacterType, OnFrameChanged);
+                player2AnimationManager.LoadAnimations();
 
+                // Update character size after animations loaded
                 UpdateCharacterSize();
 
+                // Khởi tạo walk animation timer
                 walkAnimationTimer = new System.Windows.Forms.Timer();
                 walkAnimationTimer.Interval = 100;
                 walkAnimationTimer.Tick += WalkAnimationTimer_Tick;
-
+                // Parry timers init
                 p1ParryTimer = new System.Windows.Forms.Timer();
                 p1ParryTimer.Interval = parryWindowMs;
                 p1ParryTimer.Tick += (s, e) =>
@@ -163,6 +167,7 @@ namespace DoAn_NT106
                     p1ParryTimer.Stop();
                     player1Parrying = false;
                     player1ParryOnCooldown = true;
+                    // restore previous animation if still valid
                     if (!player1Attacking && !player1Jumping)
                         player1CurrentAnimation = (_prevAnimPlayer1 == "walk" && (aPressed || dPressed)) ? "walk" : "stand";
                     p1ParryCooldownTimer.Start();
@@ -197,7 +202,7 @@ namespace DoAn_NT106
                     p2ParryCooldownTimer.Stop();
                     player2ParryOnCooldown = false;
                 };
-
+                // Load background options
                 backgroundImages.Add("battleground1");
                 backgroundImages.Add("battleground2");
                 backgroundImages.Add("battleground3");
@@ -208,8 +213,10 @@ namespace DoAn_NT106
                 });
                 if (cmbBackground.Items.Count > 0) cmbBackground.SelectedIndex = 0;
 
+                // Set background (uses current ClientSize; safe-guards inside)
                 SetBackground(backgroundImages[currentBackground]);
 
+                // Load fireball (resource may be Image or byte[])
                 try
                 {
                     fireball = ResourceToImage(Properties.Resources.fireball);
@@ -246,10 +253,11 @@ namespace DoAn_NT106
                 _prevAnimPlayer1 = player1CurrentAnimation;
                 player1CurrentAnimation = "parry";
 
-                if (player1Animations.ContainsKey("parry") && player1Animations["parry"] != null
-                    && ImageAnimator.CanAnimate(player1Animations["parry"]))
+                // Animate parry
+                var parryImg = player1AnimationManager.GetAnimation("parry");
+                if (parryImg != null && ImageAnimator.CanAnimate(parryImg))
                 {
-                    try { ImageAnimator.Animate(player1Animations["parry"], OnFrameChanged); } catch { }
+                    try { ImageAnimator.Animate(parryImg, OnFrameChanged); } catch { }
                 }
 
                 p1ParryTimer.Stop();
@@ -270,10 +278,10 @@ namespace DoAn_NT106
                 _prevAnimPlayer2 = player2CurrentAnimation;
                 player2CurrentAnimation = "parry";
 
-                if (player2Animations.ContainsKey("parry") && player2Animations["parry"] != null
-                    && ImageAnimator.CanAnimate(player2Animations["parry"]))
+                var parryImg = player2AnimationManager.GetAnimation("parry");
+                if (parryImg != null && ImageAnimator.CanAnimate(parryImg))
                 {
-                    try { ImageAnimator.Animate(player2Animations["parry"], OnFrameChanged); } catch { }
+                    try { ImageAnimator.Animate(parryImg, OnFrameChanged); } catch { }
                 }
 
                 p2ParryTimer.Stop();
@@ -284,94 +292,14 @@ namespace DoAn_NT106
                 this.Invalidate();
             }
         }
-
         private void CreateFallbackGraphics()
         {
-            CreateFallbackAnimations(player1Animations, Color.Pink);
-            CreateFallbackAnimations(player2Animations, Color.Purple);
+            // Animation managers will handle fallback
             background = CreateColoredImage(backgroundWidth, this.ClientSize.Height, Color.DarkGreen);
             fireball = CreateColoredImage(40, 25, Color.Orange);
         }
 
-        private void LoadCharacterAnimations(string characterName, Dictionary<string, Image> animations)
-        {
-            try
-            {
-                animations["stand"] = ResourceToImage(Properties.Resources.girlknight_stand);
-                animations["walk"] = ResourceToImage(Properties.Resources.girlknight_walk);
-                animations["punch"] = ResourceToImage(Properties.Resources.girlknight_attack);
-                animations["kick"] = ResourceToImage(Properties.Resources.girlknight_kick);
-                animations["jump"] = ResourceToImage(Properties.Resources.girlknight_jump);
-                animations["hurt"] = ResourceToImage(Properties.Resources.girlknight_hurt);
-                animations["parry"] = ResourceToImage(Properties.Resources.girlknight_parry);
-                animations["fireball"] = ResourceToImage(Properties.Resources.girlknight_fireball);
-
-                foreach (var anim in animations.Values)
-                {
-                    if (anim != null && ImageAnimator.CanAnimate(anim))
-                    {
-                        ImageAnimator.Animate(anim, OnFrameChanged);
-                    }
-                }
-
-                Console.WriteLine($"✅ Đã load {animations.Count} animations cho {characterName}");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"❌ Error loading {characterName} animations: {ex.Message}");
-                CreateFallbackAnimations(animations, characterName == "girlknight" ? Color.Pink : Color.Purple);
-            }
-        }
-
-        // UpdateHealth 
-        private void UpdateHealth(int player, int healthChange, bool showEffect = true)
-        {
-            if (player == 1)
-            {
-                player1Health = Math.Max(0, Math.Min(100, player1Health + healthChange));
-
-                if (healthBar1 != null)
-                    healthBar1.Value = player1Health;
-
-                if (showEffect)
-                {
-                    ShowHitEffect(healthChange >= 0 ? $"+{healthChange}" : $"{healthChange}",
-                                 healthChange >= 0 ? Color.LightGreen : Color.Red);
-                }
-
-                if (player1Health <= 0)
-                {
-                    if (!player1Parrying && !player1Jumping && player1CurrentAnimation != "hurt")
-                    {
-                        player1CurrentAnimation = "hurt";
-                    }
-                }
-            }
-            else if (player == 2)
-            {
-                player2Health = Math.Max(0, Math.Min(100, player2Health + healthChange));
-
-                if (healthBar2 != null)
-                    healthBar2.Value = player2Health;
-
-                if (showEffect)
-                {
-                    ShowHitEffect(healthChange >= 0 ? $"+{healthChange}" : $"{healthChange}",
-                                 healthChange >= 0 ? Color.LightGreen : Color.Red);
-                }
-
-                if (player2Health <= 0)
-                {
-                    if (!player2Parrying && !player2Jumping && player2CurrentAnimation != "hurt")
-                    {
-                        player2CurrentAnimation = "hurt";
-                    }
-                }
-            }
-
-            this.Invalidate();
-        }
-
+        // Apply hurt properly so it's not immediately overwritten by the attack reset logic
         private void ApplyHurtToPlayer(int player, int damage)
         {
             void ShowDamage(int dmg)
@@ -385,7 +313,6 @@ namespace DoAn_NT106
                 {
                     player1Stamina = Math.Min(100, player1Stamina + 8);
                     ShowHitEffect("Blocked!", Color.Cyan);
-
                     player2Attacking = false;
 
                     var stunTimer = new System.Windows.Forms.Timer { Interval = 200 };
@@ -403,12 +330,14 @@ namespace DoAn_NT106
                 if (player1CurrentAnimation == "hurt")
                     return;
 
-                UpdateHealth(1, -damage, showEffect: false);
+                player1Health = Math.Max(0, player1Health - damage);
+                ShowDamage(damage);
 
                 player1CurrentAnimation = "hurt";
-                if (player1Animations.ContainsKey("hurt") && player1Animations["hurt"] != null && ImageAnimator.CanAnimate(player1Animations["hurt"]))
+                var hurtImg = player1AnimationManager.GetAnimation("hurt");
+                if (hurtImg != null && ImageAnimator.CanAnimate(hurtImg))
                 {
-                    try { ImageAnimator.Animate(player1Animations["hurt"], OnFrameChanged); } catch { }
+                    try { ImageAnimator.Animate(hurtImg, OnFrameChanged); } catch { }
                 }
 
                 int kb = (player2X > player1X) ? -20 : 20;
@@ -438,8 +367,8 @@ namespace DoAn_NT106
                 {
                     player2Stamina = Math.Min(100, player2Stamina + 8);
                     ShowHitEffect("Blocked!", Color.Cyan);
-
                     player1Attacking = false;
+                    
                     var stunTimer = new System.Windows.Forms.Timer { Interval = 200 };
                     stunTimer.Tick += (s, e) =>
                     {
@@ -455,12 +384,14 @@ namespace DoAn_NT106
                 if (player2CurrentAnimation == "hurt")
                     return;
 
-                UpdateHealth(2, -damage, showEffect: false);
+                player2Health = Math.Max(0, player2Health - damage);
+                ShowDamage(damage);
 
                 player2CurrentAnimation = "hurt";
-                if (player2Animations.ContainsKey("hurt") && player2Animations["hurt"] != null && ImageAnimator.CanAnimate(player2Animations["hurt"]))
+                var hurtImg = player2AnimationManager.GetAnimation("hurt");
+                if (hurtImg != null && ImageAnimator.CanAnimate(hurtImg))
                 {
-                    try { ImageAnimator.Animate(player2Animations["hurt"], OnFrameChanged); } catch { }
+                    try { ImageAnimator.Animate(hurtImg, OnFrameChanged); } catch { }
                 }
 
                 int kb2 = (player1X > player2X) ? -20 : 20;
@@ -484,7 +415,7 @@ namespace DoAn_NT106
                 return;
             }
         }
-
+        // Safe resource loader: preserves animated GIF streams to keep animation working
         private Image ResourceToImage(object res)
         {
             if (res == null) return null;
@@ -512,7 +443,7 @@ namespace DoAn_NT106
                     var tmp = Image.FromStream(ms);
                     if (ImageAnimator.CanAnimate(tmp))
                     {
-                        resourceStreams.Add(ms);
+                        resourceStreams.Add(ms); // keep stream until form closes
                         return tmp;
                     }
                     else
@@ -533,31 +464,6 @@ namespace DoAn_NT106
             return null;
         }
 
-        private void CreateFallbackAnimations(Dictionary<string, Image> animations, Color baseColor)
-        {
-            animations["stand"] = CreateColoredImage(80, 120, baseColor);
-            animations["walk"] = CreateWalkingAnimation(baseColor);
-            animations["punch"] = CreateColoredImage(90, 120, Darken(baseColor, 0.3f));
-            animations["kick"] = CreateColoredImage(100, 120, Darken(baseColor, 0.4f));
-            animations["jump"] = CreateColoredImage(80, 100, Lighten(baseColor, 0.1f));
-            animations["fireball"] = CreateColoredImage(80, 120, Color.Yellow);
-            animations["hurt"] = CreateColoredImage(80, 120, Color.White);
-            animations["parry"] = CreateColoredImage(80, 120, Color.LightSkyBlue);
-        }
-
-        private Image CreateWalkingAnimation(Color baseColor)
-        {
-            var walkAnimation = new Bitmap(160, 120);
-            using (var g = Graphics.FromImage(walkAnimation))
-            {
-                g.FillRectangle(new SolidBrush(baseColor), 0, 0, 80, 120);
-                g.FillRectangle(new SolidBrush(Color.Black), 10, 100, 60, 20);
-                g.FillRectangle(new SolidBrush(Lighten(baseColor, 0.2f)), 80, 0, 80, 120);
-                g.FillRectangle(new SolidBrush(Color.Black), 90, 110, 60, 10);
-            }
-            return walkAnimation;
-        }
-
         private Color Lighten(Color color, float factor)
         {
             return Color.FromArgb(
@@ -576,17 +482,17 @@ namespace DoAn_NT106
             );
         }
 
-        private void DrawCharacter(Graphics g, int x, int y, string animation, string facing, Dictionary<string, Image> animations)
+        private void DrawCharacter(Graphics g, int x, int y, string animation, string facing, CharacterAnimationManager animationManager)
         {
             int screenX = x - viewportX;
 
+            // nếu off-screen, bỏ qua
             if (screenX + PLAYER_WIDTH < 0 || screenX > this.ClientSize.Width)
                 return;
 
-            if (animations.ContainsKey(animation) && animations[animation] != null)
+            var characterImage = animationManager.GetAnimation(animation);
+            if (characterImage != null)
             {
-                Image characterImage = animations[animation];
-
                 int drawHeight = PLAYER_HEIGHT;
                 int imgW = Math.Max(1, characterImage.Width);
                 int imgH = Math.Max(1, characterImage.Height);
@@ -646,11 +552,14 @@ namespace DoAn_NT106
             int newHeight = Math.Max(24, (int)(this.ClientSize.Height * characterHeightRatio));
             int spriteOrigW = 64;
             int spriteOrigH = 64;
-            if (player1Animations.ContainsKey("stand") && player1Animations["stand"] != null)
+            
+            var standImg = player1AnimationManager?.GetAnimation("stand");
+            if (standImg != null)
             {
-                spriteOrigW = player1Animations["stand"].Width;
-                spriteOrigH = player1Animations["stand"].Height;
+                spriteOrigW = standImg.Width;
+                spriteOrigH = standImg.Height;
             }
+            
             PLAYER_HEIGHT = newHeight;
             PLAYER_WIDTH = Math.Max(16, (int)(PLAYER_HEIGHT * (float)spriteOrigW / spriteOrigH));
             groundLevel = Math.Max(0, this.ClientSize.Height - groundOffset);
@@ -818,27 +727,25 @@ namespace DoAn_NT106
 
         private void WalkAnimationTimer_Tick(object sender, EventArgs e)
         {
-            if (player1Walking && player1Animations.ContainsKey("walk"))
+            if (player1Walking)
             {
-                var img = player1Animations["walk"];
-                if (img != null && ImageAnimator.CanAnimate(img))
-                    ImageAnimator.UpdateFrames(img);
+                player1AnimationManager.UpdateFrames();
             }
-            if (player2Walking && player2Animations.ContainsKey("walk"))
+            if (player2Walking)
             {
-                var img = player2Animations["walk"];
-                if (img != null && ImageAnimator.CanAnimate(img))
-                    ImageAnimator.UpdateFrames(img);
+                player2AnimationManager.UpdateFrames();
             }
         }
 
         private void BattleForm_KeyDown(object sender, KeyEventArgs e)
         {
             switch (e.KeyCode)
-            {
+            {// Player1 parry: key U
                 case Keys.U:
                     StartParry(1);
                     break;
+
+                // Player2 parry: key NumPad5
                 case Keys.NumPad5:
                     StartParry(2);
                     break;
@@ -894,7 +801,6 @@ namespace DoAn_NT106
         {
             player1Walking = false;
             player2Walking = false;
-
             if (fireballActive)
             {
                 fireballX += fireballSpeed * fireballDirection;
@@ -905,35 +811,36 @@ namespace DoAn_NT106
                     fireballActive = false;
                 }
             }
-
-            if (aPressed)
+            // Cho phép di chuyển trong khi nhảy - xóa điều kiện !player1Jumping
+            if (aPressed && !player1Attacking)
             {
                 player1X -= playerSpeed;
                 player1Facing = "left";
                 player1Walking = true;
-                if (!player1Parrying) player1CurrentAnimation = "walk";
+                if (!player1Parrying && !player1Jumping) player1CurrentAnimation = "walk";
             }
-            if (dPressed)
+            if (dPressed && !player1Attacking)
             {
                 player1X += playerSpeed;
                 player1Facing = "right";
                 player1Walking = true;
-                if (!player1Parrying) player1CurrentAnimation = "walk";
+                if (!player1Parrying && !player1Jumping) player1CurrentAnimation = "walk";
             }
 
-            if (leftPressed)
+            // Cho phép di chuyển trong khi nhảy - xóa điều kiện !player2Jumping
+            if (leftPressed && !player2Attacking)
             {
                 player2X -= playerSpeed;
                 player2Facing = "left";
                 player2Walking = true;
-                if (!player2Parrying) player2CurrentAnimation = "walk";
+                if (!player2Parrying && !player2Jumping) player2CurrentAnimation = "walk";
             }
-            if (rightPressed)
+            if (rightPressed && !player2Attacking)
             {
                 player2X += playerSpeed;
                 player2Facing = "right";
                 player2Walking = true;
-                if (!player2Parrying) player2CurrentAnimation = "walk";
+                if (!player2Parrying && !player2Jumping) player2CurrentAnimation = "walk";
             }
 
             if (!player1Walking && !player1Attacking && !player1Jumping && !player1Parrying)
@@ -960,21 +867,24 @@ namespace DoAn_NT106
             {
                 player1Y += (int)player1JumpVelocity;
                 player1JumpVelocity += GRAVITY;
-                player1CurrentAnimation = "jump";
+                if (!player1Attacking) player1CurrentAnimation = "jump";
 
                 if (player1Y >= groundLevel - PLAYER_HEIGHT)
                 {
                     player1Y = groundLevel - PLAYER_HEIGHT;
                     player1Jumping = false;
                     player1JumpVelocity = 0;
-                    if (aPressed || dPressed)
+                    if (!player1Attacking)
                     {
-                        player1CurrentAnimation = "walk";
-                        player1Walking = true;
-                    }
-                    else
-                    {
-                        player1CurrentAnimation = "stand";
+                        if (aPressed || dPressed)
+                        {
+                            player1CurrentAnimation = "walk";
+                            player1Walking = true;
+                        }
+                        else
+                        {
+                            player1CurrentAnimation = "stand";
+                        }
                     }
                 }
             }
@@ -983,21 +893,24 @@ namespace DoAn_NT106
             {
                 player2Y += (int)player2JumpVelocity;
                 player2JumpVelocity += GRAVITY;
-                player2CurrentAnimation = "jump";
+                if (!player2Attacking) player2CurrentAnimation = "jump";
 
                 if (player2Y >= groundLevel - PLAYER_HEIGHT)
                 {
                     player2Y = groundLevel - PLAYER_HEIGHT;
                     player2Jumping = false;
                     player2JumpVelocity = 0;
-                    if (leftPressed || rightPressed)
+                    if (!player2Attacking)
                     {
-                        player2CurrentAnimation = "walk";
-                        player2Walking = true;
-                    }
-                    else
-                    {
-                        player2CurrentAnimation = "stand";
+                        if (leftPressed || rightPressed)
+                        {
+                            player2CurrentAnimation = "walk";
+                            player2Walking = true;
+                        }
+                        else
+                        {
+                            player2CurrentAnimation = "stand";
+                        }
                     }
                 }
             }
@@ -1019,21 +932,27 @@ namespace DoAn_NT106
 
         private void UpdateGame()
         {
-            if (player1Animations.ContainsKey(player1CurrentAnimation))
-            {
-                var img = player1Animations[player1CurrentAnimation];
-                if (img != null && ImageAnimator.CanAnimate(img))
-                    ImageAnimator.UpdateFrames(img);
-            }
-            if (player2Animations.ContainsKey(player2CurrentAnimation))
-            {
-                var img = player2Animations[player2CurrentAnimation];
-                if (img != null && ImageAnimator.CanAnimate(img))
-                    ImageAnimator.UpdateFrames(img);
-            }
+            // Update animation frames
+            player1AnimationManager.SetCurrentAnimation(player1CurrentAnimation);
+            player1AnimationManager.UpdateFrames();
+            
+            player2AnimationManager.SetCurrentAnimation(player2CurrentAnimation);
+            player2AnimationManager.UpdateFrames();
+
             if (fireball != null && fireballActive && ImageAnimator.CanAnimate(fireball))
             {
                 ImageAnimator.UpdateFrames(fireball);
+            }
+
+            if (fireballActive)
+            {
+                fireballX += 12 * fireballDirection;
+                CheckFireballHit();
+
+                if (fireballX > backgroundWidth || fireballX < -FIREBALL_WIDTH)
+                {
+                    fireballActive = false;
+                }
             }
 
             RegenerateResources();
@@ -1068,6 +987,25 @@ namespace DoAn_NT106
             if (player2Mana < 100) player2Mana = Math.Min(100, player2Mana + 1);
         }
 
+        // Reset animation về frame đầu tiên - CHỈ gọi khi bắt đầu animation MỚI
+        private void ResetAnimationToFirstFrame(Image animation)
+        {
+            if (animation != null && ImageAnimator.CanAnimate(animation))
+            {
+                try
+                {
+                    ImageAnimator.StopAnimate(animation, OnFrameChanged);
+                    // Reset về frame đầu tiên
+                    animation.SelectActiveFrame(System.Drawing.Imaging.FrameDimension.Time, 0);
+                    ImageAnimator.Animate(animation, OnFrameChanged);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error resetting animation: {ex.Message}");
+                }
+            }
+        }
+
         private void Player1Attack(string attackType)
         {
             if (player1Attacking) return;
@@ -1082,12 +1020,33 @@ namespace DoAn_NT106
                     {
                         player1Stamina -= 10;
                         player1CurrentAnimation = "punch";
-                        if (CheckCollisionRect(player1X, player1Y, PLAYER_WIDTH, PLAYER_HEIGHT, player2X, player2Y, PLAYER_WIDTH, PLAYER_HEIGHT))
+                        player1AnimationManager.ResetAnimationToFirstFrame("punch");
+                        
+                        int hitDelay = player1AnimationManager.GetHitFrameDelay("punch");
+                        System.Windows.Forms.Timer hitTimer = new System.Windows.Forms.Timer();
+                        hitTimer.Interval = hitDelay;
+                        hitTimer.Tick += (s, e) =>
                         {
-                            ApplyHurtToPlayer(2, 10);
-                            ShowHitEffect("Punch!", Color.Orange);
-                        }
-                        ResetAttackAnimation(300, 1);
+                            hitTimer.Stop();
+                            hitTimer.Dispose();
+                            
+                            Rectangle attackHitbox = GetAttackHitbox(player1X, player1Y, player1Facing);
+                            Rectangle targetHurtbox = GetPlayerHurtbox(player2X, player2Y);
+                            
+                            if (attackHitbox.IntersectsWith(targetHurtbox))
+                            {
+                                ApplyHurtToPlayer(2, 10);
+                                ShowHitEffect("Punch!", Color.Orange);
+                            }
+                        };
+                        hitTimer.Start();
+                        
+                        int duration = player1AnimationManager.GetAnimationDuration("punch");
+                        ResetAttackAnimation(duration, 1);
+                    }
+                    else
+                    {
+                        player1Attacking = false;
                     }
                     break;
                 case "kick":
@@ -1095,12 +1054,33 @@ namespace DoAn_NT106
                     {
                         player1Stamina -= 15;
                         player1CurrentAnimation = "kick";
-                        if (CheckCollisionRect(player1X, player1Y, PLAYER_WIDTH, PLAYER_HEIGHT, player2X, player2Y, PLAYER_WIDTH, PLAYER_HEIGHT))
+                        player1AnimationManager.ResetAnimationToFirstFrame("kick");
+                        
+                        int hitDelay = player1AnimationManager.GetHitFrameDelay("kick");
+                        System.Windows.Forms.Timer hitTimer = new System.Windows.Forms.Timer();
+                        hitTimer.Interval = hitDelay;
+                        hitTimer.Tick += (s, e) =>
                         {
-                            ApplyHurtToPlayer(2, 15);
-                            ShowHitEffect("Kick!", Color.Red);
-                        }
-                        ResetAttackAnimation(400, 1);
+                            hitTimer.Stop();
+                            hitTimer.Dispose();
+                            
+                            Rectangle attackHitbox = GetAttackHitbox(player1X, player1Y, player1Facing);
+                            Rectangle targetHurtbox = GetPlayerHurtbox(player2X, player2Y);
+                            
+                            if (attackHitbox.IntersectsWith(targetHurtbox))
+                            {
+                                ApplyHurtToPlayer(2, 15);
+                                ShowHitEffect("Kick!", Color.Red);
+                            }
+                        };
+                        hitTimer.Start();
+                        
+                        int duration = player1AnimationManager.GetAnimationDuration("kick");
+                        ResetAttackAnimation(duration, 1);
+                    }
+                    else
+                    {
+                        player1Attacking = false;
                     }
                     break;
                 case "special":
@@ -1108,10 +1088,28 @@ namespace DoAn_NT106
                     {
                         player1Mana -= 30;
                         player1CurrentAnimation = "fireball";
-                        int direction = player1Facing == "right" ? 1 : -1;
-                        int startX = player1Facing == "right" ? player1X + PLAYER_WIDTH : player1X - FIREBALL_WIDTH;
-                        ShootFireball(startX, player1Y + 30, direction, 1);
-                        ResetAttackAnimation(500, 1);
+                        player1AnimationManager.ResetAnimationToFirstFrame("fireball");
+                        
+                        int hitDelay = player1AnimationManager.GetHitFrameDelay("special");
+                        System.Windows.Forms.Timer hitTimer = new System.Windows.Forms.Timer();
+                        hitTimer.Interval = hitDelay;
+                        hitTimer.Tick += (s, e) =>
+                        {
+                            hitTimer.Stop();
+                            hitTimer.Dispose();
+                            
+                            int direction = player1Facing == "right" ? 1 : -1;
+                            int startX = player1Facing == "right" ? player1X + PLAYER_WIDTH : player1X - FIREBALL_WIDTH;
+                            ShootFireball(startX, player1Y + 30, direction, 1);
+                        };
+                        hitTimer.Start();
+                        
+                        int duration = player1AnimationManager.GetAnimationDuration("special");
+                        ResetAttackAnimation(duration, 1);
+                    }
+                    else
+                    {
+                        player1Attacking = false;
                     }
                     break;
             }
@@ -1131,12 +1129,33 @@ namespace DoAn_NT106
                     {
                         player2Stamina -= 10;
                         player2CurrentAnimation = "punch";
-                        if (CheckCollisionRect(player2X, player2Y, PLAYER_WIDTH, PLAYER_HEIGHT, player1X, player1Y, PLAYER_WIDTH, PLAYER_HEIGHT))
+                        player2AnimationManager.ResetAnimationToFirstFrame("punch");
+                        
+                        int hitDelay = player2AnimationManager.GetHitFrameDelay("punch");
+                        System.Windows.Forms.Timer hitTimer = new System.Windows.Forms.Timer();
+                        hitTimer.Interval = hitDelay;
+                        hitTimer.Tick += (s, e) =>
                         {
-                            ApplyHurtToPlayer(1, 10);
-                            ShowHitEffect("Punch!", Color.Orange);
-                        }
-                        ResetAttackAnimation(300, 2);
+                            hitTimer.Stop();
+                            hitTimer.Dispose();
+                        
+                            Rectangle attackHitbox = GetAttackHitbox(player2X, player2Y, player2Facing);
+                            Rectangle targetHurtbox = GetPlayerHurtbox(player1X, player1Y);
+                        
+                            if (attackHitbox.IntersectsWith(targetHurtbox))
+                            {
+                                ApplyHurtToPlayer(1, 10);
+                                ShowHitEffect("Punch!", Color.Orange);
+                            }
+                        };
+                        hitTimer.Start();
+                        
+                        int duration = player2AnimationManager.GetAnimationDuration("punch");
+                        ResetAttackAnimation(duration, 2);
+                    }
+                    else
+                    {
+                        player2Attacking = false;
                     }
                     break;
                 case "kick":
@@ -1144,12 +1163,33 @@ namespace DoAn_NT106
                     {
                         player2Stamina -= 15;
                         player2CurrentAnimation = "kick";
-                        if (CheckCollisionRect(player2X, player2Y, PLAYER_WIDTH, PLAYER_HEIGHT, player1X, player1Y, PLAYER_WIDTH, PLAYER_HEIGHT))
+                        player2AnimationManager.ResetAnimationToFirstFrame("kick");
+                        
+                        int hitDelay = player2AnimationManager.GetHitFrameDelay("kick");
+                        System.Windows.Forms.Timer hitTimer = new System.Windows.Forms.Timer();
+                        hitTimer.Interval = hitDelay;
+                        hitTimer.Tick += (s, e) =>
                         {
-                            ApplyHurtToPlayer(1, 15);
-                            ShowHitEffect("Kick!", Color.Red);
-                        }
-                        ResetAttackAnimation(400, 2);
+                            hitTimer.Stop();
+                            hitTimer.Dispose();
+                        
+                            Rectangle attackHitbox = GetAttackHitbox(player2X, player2Y, player2Facing);
+                            Rectangle targetHurtbox = GetPlayerHurtbox(player1X, player1Y);
+                        
+                            if (attackHitbox.IntersectsWith(targetHurtbox))
+                            {
+                                ApplyHurtToPlayer(1, 15);
+                                ShowHitEffect("Kick!", Color.Red);
+                            }
+                        };
+                        hitTimer.Start();
+                        
+                        int duration = player2AnimationManager.GetAnimationDuration("kick");
+                        ResetAttackAnimation(duration, 2);
+                    }
+                    else
+                    {
+                        player2Attacking = false;
                     }
                     break;
                 case "special":
@@ -1157,15 +1197,34 @@ namespace DoAn_NT106
                     {
                         player2Mana -= 30;
                         player2CurrentAnimation = "fireball";
-                        int direction = player2Facing == "right" ? 1 : -1;
-                        int startX = player2Facing == "right" ? player2X + PLAYER_WIDTH : player2X - FIREBALL_WIDTH;
-                        ShootFireball(startX, player2Y + 30, direction, 2);
-                        ResetAttackAnimation(500, 2);
+                        player2AnimationManager.ResetAnimationToFirstFrame("fireball");
+                        
+                        int hitDelay = player2AnimationManager.GetHitFrameDelay("special");
+                        System.Windows.Forms.Timer hitTimer = new System.Windows.Forms.Timer();
+                        hitTimer.Interval = hitDelay;
+                        hitTimer.Tick += (s, e) =>
+                        {
+                            hitTimer.Stop();
+                            hitTimer.Dispose();
+                        
+                            int direction = player2Facing == "right" ? 1 : -1;
+                            int startX = player2Facing == "right" ? player2X + PLAYER_WIDTH : player2X - FIREBALL_WIDTH;
+                            ShootFireball(startX, player2Y + 30, direction, 2);
+                        };
+                        hitTimer.Start();
+                        
+                        int duration = player2AnimationManager.GetAnimationDuration("special");
+                        ResetAttackAnimation(duration, 2);
+                    }
+                    else
+                    {
+                        player2Attacking = false;
                     }
                     break;
             }
         }
 
+        // delay: ms, player: 0 = both, 1 = player1, 2 = player2
         private void ResetAttackAnimation(int delay, int player)
         {
             System.Windows.Forms.Timer resetTimer = new System.Windows.Forms.Timer();
@@ -1237,8 +1296,10 @@ namespace DoAn_NT106
                 {
                     if (player2Parrying)
                     {
+                        // reflect: send fireball back
                         fireballDirection *= -1;
                         fireballOwner = 2;
+                        // reposition just in front of parrier
                         fireballX = player2X + (player2Facing == "right" ? PLAYER_WIDTH + 5 : -FIREBALL_WIDTH - 5);
                         ShowHitEffect("Reflected!", Color.Orange);
                     }
@@ -1255,16 +1316,18 @@ namespace DoAn_NT106
                 Rectangle p1Rect = new Rectangle(player1X, player1Y, PLAYER_WIDTH, PLAYER_HEIGHT);
                 if (fireRect.IntersectsWith(p1Rect))
                 {
-                    if (player1Parrying)
+                    if (player2Parrying)
                     {
+                        // reflect: send fireball back
                         fireballDirection *= -1;
-                        fireballOwner = 1;
-                        fireballX = player1X + (player1Facing == "right" ? PLAYER_WIDTH + 5 : -FIREBALL_WIDTH - 5);
+                        fireballOwner = 2;
+                        // reposition just in front of parrier
+                        fireballX = player2X + (player2Facing == "right" ? PLAYER_WIDTH + 5 : -FIREBALL_WIDTH - 5);
                         ShowHitEffect("Reflected!", Color.Orange);
                     }
                     else
                     {
-                        ApplyHurtToPlayer(1, 20);
+                        ApplyHurtToPlayer(2, 20);
                         fireballActive = false;
                         ShowHitEffect("Fireball Hit!", Color.Yellow);
                     }
@@ -1277,6 +1340,22 @@ namespace DoAn_NT106
             Rectangle r1 = new Rectangle(x1, y1, w1, h1);
             Rectangle r2 = new Rectangle(x2, y2, w2, h2);
             return r1.IntersectsWith(r2);
+        }
+
+        // Tạo hitbox attack từ giữa nhân vật, hướng theo facing
+        private Rectangle GetAttackHitbox(int playerX, int playerY, string facing)
+        {
+            int hitboxWidth = PLAYER_WIDTH / HITBOX_WIDTH_RATIO;
+            int hitboxHeight = PLAYER_HEIGHT / HITBOX_HEIGHT_RATIO;
+            int hitboxY = playerY + (PLAYER_HEIGHT - hitboxHeight) / 2;
+            int hitboxX = facing == "right" ? playerX + PLAYER_WIDTH / 2 : playerX + PLAYER_WIDTH / 2 - hitboxWidth;
+            return new Rectangle(hitboxX, hitboxY, hitboxWidth, hitboxHeight);
+        }
+
+        // Lấy hurtbox của nhân vật
+        private Rectangle GetPlayerHurtbox(int playerX, int playerY)
+        {
+            return new Rectangle(playerX, playerY, PLAYER_WIDTH, PLAYER_HEIGHT);
         }
 
         private void ShowHitEffect(string message, Color color)
@@ -1317,8 +1396,8 @@ namespace DoAn_NT106
                     GraphicsUnit.Pixel);
             }
 
-            DrawCharacter(e.Graphics, player1X, player1Y, player1CurrentAnimation, player1Facing, player1Animations);
-            DrawCharacter(e.Graphics, player2X, player2Y, player2CurrentAnimation, player2Facing, player2Animations);
+            DrawCharacter(e.Graphics, player1X, player1Y, player1CurrentAnimation, player1Facing, player1AnimationManager);
+            DrawCharacter(e.Graphics, player2X, player2Y, player2CurrentAnimation, player2Facing, player2AnimationManager);
 
             if (fireballActive && fireball != null)
             {
@@ -1328,7 +1407,7 @@ namespace DoAn_NT106
                     e.Graphics.DrawImage(fireball, fireballScreenX, fireballY, FIREBALL_WIDTH, FIREBALL_HEIGHT);
                 }
             }
-
+            
             if (player1Parrying)
             {
                 int sx = player1X - viewportX + PLAYER_WIDTH / 2 - 12;
@@ -1339,7 +1418,6 @@ namespace DoAn_NT106
                 int sx = player2X - viewportX + PLAYER_WIDTH / 2 - 12;
                 e.Graphics.FillEllipse(new SolidBrush(Color.FromArgb(180, Color.Cyan)), sx, player2Y - 28, 24, 24);
             }
-
             DrawGameUI(e.Graphics);
         }
 
@@ -1372,7 +1450,6 @@ namespace DoAn_NT106
                 SetBackground(bgName);
             }
         }
-
         private void SetBackground(string backgroundName)
         {
             try
@@ -1411,7 +1488,6 @@ namespace DoAn_NT106
                 background = CreateColoredImage(backgroundWidth, this.ClientSize.Height, Color.DarkGreen);
             }
         }
-
         private void BtnBack_Click(object sender, EventArgs e)
         {
             try { gameTimer?.Stop(); } catch { }
@@ -1453,6 +1529,10 @@ namespace DoAn_NT106
         {
             try { gameTimer?.Stop(); } catch { }
             try { walkAnimationTimer?.Stop(); } catch { }
+
+            // Dispose animation managers
+            player1AnimationManager?.Dispose();
+            player2AnimationManager?.Dispose();
 
             foreach (var s in resourceStreams)
             {
