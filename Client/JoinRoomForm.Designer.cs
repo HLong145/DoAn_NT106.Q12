@@ -78,7 +78,7 @@
             this.btnBack.TabIndex = 1;
             this.btnBack.Text = "← BACK";
             this.btnBack.UseVisualStyleBackColor = false;
-            this.btnBack.Click += new EventHandler(this.btnBack_Click);
+            //this.btnBack.Click += new EventHandler(this.btnBack_Click);
 
             // 
             // lblWelcome
@@ -246,7 +246,7 @@
             this.btn_refresh.TabIndex = 3;
             this.btn_refresh.Text = "REFRESH";
             this.btn_refresh.UseVisualStyleBackColor = false;
-            this.btn_refresh.Click += new EventHandler(this.btn_refresh_Click);
+            //this.btn_refresh.Click += new EventHandler(this.btn_refresh_Click);
 
             // 
             // lblHelp
