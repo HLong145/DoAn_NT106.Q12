@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using DoAn_NT106.Client;
 
 namespace PixelGameLobby
 {
@@ -13,6 +14,7 @@ namespace PixelGameLobby
         private string username;
         private string token;
         private readonly List<Room> rooms = new List<Room>();
+        private readonly TcpClientService tcpClient;
 
         // Color palette
         private readonly Color primaryBrown = Color.FromArgb(160, 82, 45);
@@ -30,6 +32,8 @@ namespace PixelGameLobby
             InitializeComponent();
             this.username = username;
             this.token = token;
+
+            tcpClient = new TcpClientService("127.0.0.1", 8080);
 
             SetupPixelStyling();
             SetupEventHandlers();
@@ -76,6 +80,12 @@ namespace PixelGameLobby
                 tb.Leave += TextBox_Leave;
                 tb.KeyPress += TextBox_KeyPress;
             }
+            btnCreateRoom.Click += BtnCreateRoom_Click;
+            btnCreateRoom.MouseEnter += Button_MouseEnter;
+            btnCreateRoom.MouseLeave += (s, e) =>
+            {
+                if (s is Button btn) btn.BackColor = Color.FromArgb(0, 128, 0);
+            };
         }
 
         private void InitializeSampleRooms()
@@ -91,6 +101,50 @@ namespace PixelGameLobby
 
             UpdateRoomsDisplay();
         }
+
+        private async Task LoadRoomsFromServerAsync()
+        {
+            try
+            {
+                var response = await tcpClient.GetRoomsAsync();
+
+                if (response.Success && response.Data != null)
+                {
+                    rooms.Clear();
+
+                    // Parse rooms từ response
+                    if (response.Data.TryGetValue("rooms", out object roomsObj) &&
+                        roomsObj is System.Text.Json.JsonElement roomsElement)
+                    {
+                        foreach (var roomItem in roomsElement.EnumerateArray())
+                        {
+                            rooms.Add(new Room
+                            {
+                                Code = roomItem.GetProperty("RoomCode").GetString(),
+                                Name = roomItem.GetProperty("RoomName").GetString(),
+                                IsLocked = roomItem.GetProperty("HasPassword").GetBoolean(),
+                                Players = $"{roomItem.GetProperty("PlayerCount").GetInt32()}/2"
+                            });
+                        }
+                    }
+
+                    // Cập nhật UI trên main thread
+                    if (this.InvokeRequired)
+                    {
+                        this.Invoke(new Action(() => UpdateRoomsDisplay()));
+                    }
+                    else
+                    {
+                        UpdateRoomsDisplay();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ LoadRoomsFromServer error: {ex.Message}");
+            }
+        }
+
 
         // ===============================
         // UI Rendering
@@ -231,6 +285,70 @@ namespace PixelGameLobby
             }
         }
 
+        private async void BtnCreateRoom_Click(object sender, EventArgs e)
+        {
+            // Mở dialog tạo phòng
+            using (var createForm = new CreateRoomForm())
+            {
+                if (createForm.ShowDialog() != DialogResult.OK)
+                    return;
+
+                string roomName = createForm.RoomName;
+                string password = createForm.RoomPassword;
+
+                // Disable button trong khi xử lý
+                btnCreateRoom.Enabled = false;
+                btnCreateRoom.Text = "CREATING...";
+
+                try
+                {
+                    // Gọi server để tạo phòng
+                    var response = await tcpClient.CreateRoomAsync(roomName, password, username);
+
+                    if (response.Success)
+                    {
+                        string roomCode = response.Data?["roomCode"]?.ToString();
+
+                        MessageBox.Show(
+                            $"✅ Room created successfully!\n\nRoom Code: {roomCode}\nRoom Name: {roomName}",
+                            "Success",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Information
+                        );
+
+                        // Mở lobby form với room vừa tạo
+                        var lobbyForm = new GameLobbyForm(roomCode, username, token);
+                        lobbyForm.Show();
+                        this.Hide();
+                    }
+                    else
+                    {
+                        MessageBox.Show(
+                            $"❌ Failed to create room:\n{response.Message}",
+                            "Error",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Error
+                        );
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(
+                        $"❌ Error creating room:\n{ex.Message}",
+                        "Error",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error
+                    );
+                }
+                finally
+                {
+                    // Enable lại button
+                    btnCreateRoom.Enabled = true;
+                    btnCreateRoom.Text = "CREATE ROOM";
+                }
+            }
+        }
+
         private void JoinRoom(Room room)
         {
             if (room.IsLocked)
@@ -265,6 +383,51 @@ namespace PixelGameLobby
             var lobbyForm = new GameLobbyForm(room.Code, username, token);
             lobbyForm.Show();
             Hide();
+        }
+
+        private async void JoinRoomAsync(Room room)
+        {
+            try
+            {
+                string password = null;
+
+                // Nếu room có password, hiển thị dialog nhập password
+                if (room.IsLocked)
+                {
+                    using (var passForm = new PasswordForm(room.Name))
+                    {
+                        if (passForm.ShowDialog() != DialogResult.OK)
+                            return;
+                        password = passForm.Password;
+                    }
+                }
+
+                // Kiểm tra room đã đầy chưa
+                if (room.Players == "2/2")
+                {
+                    ShowMessage("Room is full!");
+                    return;
+                }
+
+                // Gọi server để join
+                var response = await tcpClient.JoinRoomAsync(room.Code, password, username);
+
+                if (response.Success)
+                {
+                    ShowMessage($"Joining room: {room.Name}");
+                    var lobbyForm = new GameLobbyForm(room.Code, username, token);
+                    lobbyForm.Show();
+                    this.Hide();
+                }
+                else
+                {
+                    ShowMessage($"❌ {response.Message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowMessage($"❌ Error: {ex.Message}");
+            }
         }
 
         // ===============================
@@ -343,9 +506,20 @@ namespace PixelGameLobby
             MessageBox.Show(message, "Notification", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
-        private void btn_refresh_Click(object sender, EventArgs e)
+        private async void btn_refresh_Click(object sender, EventArgs e)
         {
-            InitializeSampleRooms();
+            btn_refresh.Enabled = false;
+            btn_refresh.Text = "Loading...";
+
+            try
+            {
+                await LoadRoomsFromServerAsync();
+            }
+            finally
+            {
+                btn_refresh.Enabled = true;
+                btn_refresh.Text = "REFRESH";
+            }
         }
 
         private void btnBack_Click(object sender, EventArgs e)
