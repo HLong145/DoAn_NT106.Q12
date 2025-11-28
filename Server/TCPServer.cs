@@ -502,22 +502,31 @@ namespace DoAn_NT106.Server
         // ===========================
         // ✅ LẤY DANH SÁCH PHÒNG
         // ===========================
+
         private string HandleGetRooms(Request request)
         {
             try
             {
                 var rooms = roomManager.GetAvailableRooms();
 
-                return CreateResponse(true, "Rooms retrieved", new Dictionary<string, object>
+                server.Log($"📋 GetRooms: Found {rooms.Count} available rooms");
+                foreach (var room in rooms)
                 {
-                    { "rooms", rooms }
-                });
+                    server.Log($"   - {room.RoomCode}: {room.RoomName} ({room.PlayerCount}/2)");
+                }
+
+                return CreateResponse(true, "Rooms retrieved", new Dictionary<string, object>
+        {
+            { "rooms", rooms }
+        });
             }
             catch (Exception ex)
             {
+                server.Log($"❌ GetRooms error: {ex.Message}");
                 return CreateResponse(false, $"Get rooms error: {ex.Message}");
             }
         }
+
 
         // ===========================
         // ✅ BẮT ĐẦU GAME
