@@ -4,7 +4,6 @@ using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using System.Linq;
 
 namespace DoAn_NT106.Server
 {
@@ -22,7 +21,6 @@ namespace DoAn_NT106.Server
         private RoomManager roomManager;
         //Quản lý chat global ở lobby form
         private GlobalChatManager globalChatManager;
-        private LobbyManager lobbyManager;
 
         private Task _acceptTask;
         private CancellationTokenSource cts;
@@ -42,11 +40,9 @@ namespace DoAn_NT106.Server
             roomManager.OnLog += LogMessage;
             globalChatManager = new GlobalChatManager();
             globalChatManager.OnLog += LogMessage;
-
-            lobbyManager = new LobbyManager();
-            lobbyManager.OnLog += LogMessage;
         }
 
+        // ... (Giữ nguyên Start, Stop, AcceptClients từ code cũ) ...
 
         public void Start(int port)
         {
@@ -150,8 +146,7 @@ namespace DoAn_NT106.Server
                         validationService,
                         securityService,
                         roomManager,
-                        globalChatManager,
-                        lobbyManager);
+                        globalChatManager);
 
                     lock (connectedClients)
                     {
@@ -212,11 +207,12 @@ namespace DoAn_NT106.Server
         // ✅ THÊM ROOM MANAGER
         private RoomManager roomManager;
         private string currentUsername;
+        private string currentRoomCode;
 
         private GlobalChatManager globalChatManager;
         private string globalChatUsername;
-        private string lobbyRoomCode;
-        private LobbyManager lobbyManager;
+
+        private bool isNormalLogout = false;
 
         public ClientHandler(
             TcpClient client,
@@ -226,8 +222,7 @@ namespace DoAn_NT106.Server
             ValidationService validationService,
             SecurityService securityService,
             RoomManager roomManager,
-            GlobalChatManager globalChatManager,
-            LobbyManager lobbyManager)
+            GlobalChatManager globalChatManager)
         {
             tcpClient = client;
             this.server = server;
@@ -238,7 +233,11 @@ namespace DoAn_NT106.Server
             this.securityService = securityService;
             this.roomManager = roomManager;
             this.globalChatManager = globalChatManager;
-            this.lobbyManager = lobbyManager;
+        }
+
+        public void SetNormalLogout()
+        {
+            isNormalLogout = true;
         }
 
         public async Task Handle()
@@ -271,24 +270,14 @@ namespace DoAn_NT106.Server
             }
             finally
             {
-                // =============================================
-                // CHỈ CLEANUP GLOBAL CHAT - KHÔNG CLEANUP ROOM!
-                // Vì đây là request connection, không phải game connection
-                // =============================================
                 if (!string.IsNullOrEmpty(globalChatUsername))
                 {
                     globalChatManager.LeaveGlobalChat(globalChatUsername);
                 }
 
-                if (!string.IsNullOrEmpty(lobbyRoomCode) && !string.IsNullOrEmpty(currentUsername))
-                {
-                    lobbyManager.LeaveLobby(lobbyRoomCode, currentUsername);
-                }
-
                 Close();
             }
         }
-
 
         // ✅ GỬI MESSAGE TỚI CLIENT (PUBLIC METHOD)
         public void SendMessage(string json)
@@ -386,6 +375,7 @@ namespace DoAn_NT106.Server
                         return HandleGetUserByContact(request);
                     case "LOGOUT":
                         return HandleLogout(request);
+
                     // ===== ✅ CÁC ACTION MỚI - PHÒNG CHƠI =====
                     case "CREATE_ROOM":
                         return HandleCreateRoom(request);
@@ -403,28 +393,18 @@ namespace DoAn_NT106.Server
                     //Các action global chat
                     case "GLOBAL_CHAT_JOIN":
                         return HandleGlobalChatJoin(request);
+
                     case "GLOBAL_CHAT_LEAVE":
                         return HandleGlobalChatLeave(request);
+
                     case "GLOBAL_CHAT_SEND":
                         return HandleGlobalChatSend(request);
+
                     case "GLOBAL_CHAT_GET_HISTORY":
                         return HandleGlobalChatGetHistory(request);
+
                     case "GLOBAL_CHAT_GET_ONLINE":
                         return HandleGlobalChatGetOnline(request);
-
-                    //Các action Lobby
-                    case "LOBBY_JOIN":
-                        return HandleLobbyJoin(request);
-
-                    case "LOBBY_LEAVE":
-                        return HandleLobbyLeave(request);
-
-                    case "LOBBY_SET_READY":
-                        return HandleLobbySetReady(request);
-
-                    case "LOBBY_CHAT_SEND":
-                        return HandleLobbyChatSend(request);
-
                     default:
                         return CreateResponse(false, "Unknown action");
                 }
@@ -454,19 +434,19 @@ namespace DoAn_NT106.Server
                     return CreateResponse(false, "Room name and username are required");
                 }
 
-                // ❌ XÓA: currentUsername = username;
+                currentUsername = username;
 
-                var result = roomManager.CreateRoom(roomName, password, username, null); // ✅ Pass null cho client
+                var result = roomManager.CreateRoom(roomName, password, username, this);
 
                 if (result.Success)
                 {
-                    // ❌ XÓA: currentRoomCode = result.RoomCode;
+                    currentRoomCode = result.RoomCode;
 
                     return CreateResponse(true, result.Message, new Dictionary<string, object>
-                {
-                    { "roomCode", result.RoomCode },
-                    { "roomName", roomName }
-                });
+                    {
+                        { "roomCode", result.RoomCode },
+                        { "roomName", roomName }
+                    });
                 }
 
                 return CreateResponse(false, result.Message);
@@ -495,20 +475,20 @@ namespace DoAn_NT106.Server
                     return CreateResponse(false, "Room code and username are required");
                 }
 
-                // ❌ XÓA: currentUsername = username;
+                currentUsername = username;
 
-                var result = roomManager.JoinRoom(roomCode, password, username, null); // ✅ Pass null cho client
+                var result = roomManager.JoinRoom(roomCode, password, username, this);
 
                 if (result.Success)
                 {
-                    // ❌ XÓA: currentRoomCode = roomCode;
+                    currentRoomCode = roomCode;
 
                     return CreateResponse(true, result.Message, new Dictionary<string, object>
-                {
-                    { "roomCode", roomCode },
-                    { "player1", result.Room.Player1Username },
-                    { "player2", result.Room.Player2Username }
-                });
+                    {
+                        { "roomCode", roomCode },
+                        { "player1", result.Room.Player1Username },
+                        { "player2", result.Room.Player2Username }
+                    });
                 }
 
                 return CreateResponse(false, result.Message);
@@ -624,21 +604,20 @@ namespace DoAn_NT106.Server
                 var roomCode = request.Data?["roomCode"]?.ToString();
                 var username = request.Data?["username"]?.ToString();
 
-                if (string.IsNullOrEmpty(roomCode) || string.IsNullOrEmpty(username))
+                if (!string.IsNullOrEmpty(roomCode) && !string.IsNullOrEmpty(username))
                 {
-                    return CreateResponse(false, "Room code and username are required");
+                    roomManager.LeaveRoom(roomCode, username);
                 }
 
-                // ✅ Gọi LeaveRoom - room sẽ bị xóa nếu trống
-                roomManager.LeaveRoom(roomCode, username);
-
-                return CreateResponse(true, "Left room successfully");
+                return CreateResponse(true, "Left room");
             }
             catch (Exception ex)
             {
                 return CreateResponse(false, $"Leave room error: {ex.Message}");
             }
         }
+
+        // ... (Giữ nguyên các HandleXXX khác từ code cũ) ...
 
         private string HandleRegister(Request request)
         {
@@ -879,6 +858,7 @@ namespace DoAn_NT106.Server
 
                 if (logoutType == "normal")
                 {
+                    SetNormalLogout();
                     return CreateResponse(true, "Logout successful (token preserved)");
                 }
                 else
@@ -1052,127 +1032,6 @@ namespace DoAn_NT106.Server
             }
         }
 
-        private string HandleLobbyJoin(Request request)
-        {
-            try
-            {
-                var roomCode = request.Data?["roomCode"]?.ToString();
-                var username = request.Data?["username"]?.ToString();
-
-                if (string.IsNullOrEmpty(roomCode) || string.IsNullOrEmpty(username))
-                {
-                    return CreateResponse(false, "Room code and username required");
-                }
-
-                currentUsername = username;
-                lobbyRoomCode = roomCode;
-
-                var result = lobbyManager.JoinLobby(roomCode, username, this, roomManager);
-
-                if (result.Success)
-                {
-                    var lobby = result.Lobby;
-
-                    // Chuẩn bị chat history
-                    var chatHistory = lobby.ChatHistory.Select(c => new
-                    {
-                        username = c.Username,
-                        message = c.Message,
-                        timestamp = c.Timestamp,
-                        type = c.Type
-                    }).ToList();
-
-                    return CreateResponseWithData(true, "Joined lobby", new Dictionary<string, object>
-            {
-                { "roomCode", roomCode },
-                { "roomName", lobby.RoomName },
-                { "player1", lobby.Player1Username },
-                { "player2", lobby.Player2Username },
-                { "player1Ready", lobby.Player1Ready },
-                { "player2Ready", lobby.Player2Ready },
-                { "chatHistory", chatHistory }
-            });
-                }
-
-                return CreateResponse(false, result.Message);
-            }
-            catch (Exception ex)
-            {
-                return CreateResponse(false, $"Lobby join error: {ex.Message}");
-            }
-        }
-
-        private string HandleLobbyLeave(Request request)
-        {
-            try
-            {
-                var roomCode = request.Data?["roomCode"]?.ToString();
-                var username = request.Data?["username"]?.ToString();
-
-                if (!string.IsNullOrEmpty(roomCode) && !string.IsNullOrEmpty(username))
-                {
-                    lobbyManager.LeaveLobby(roomCode, username);
-                    lobbyRoomCode = null;
-                }
-
-                return CreateResponse(true, "Left lobby");
-            }
-            catch (Exception ex)
-            {
-                return CreateResponse(false, $"Lobby leave error: {ex.Message}");
-            }
-        }
-
-        private string HandleLobbySetReady(Request request)
-        {
-            try
-            {
-                var roomCode = request.Data?["roomCode"]?.ToString();
-                var username = request.Data?["username"]?.ToString();
-                var isReady = request.Data?["isReady"] is JsonElement el && el.GetBoolean();
-
-                if (string.IsNullOrEmpty(roomCode) || string.IsNullOrEmpty(username))
-                {
-                    return CreateResponse(false, "Room code and username required");
-                }
-
-                var result = lobbyManager.SetReady(roomCode, username, isReady);
-
-                return CreateResponseWithData(true, "Ready status updated", new Dictionary<string, object>
-        {
-            { "isReady", isReady },
-            { "allReady", result.AllReady }
-        });
-            }
-            catch (Exception ex)
-            {
-                return CreateResponse(false, $"Set ready error: {ex.Message}");
-            }
-        }
-
-        private string HandleLobbyChatSend(Request request)
-        {
-            try
-            {
-                var roomCode = request.Data?["roomCode"]?.ToString();
-                var username = request.Data?["username"]?.ToString();
-                var message = request.Data?["message"]?.ToString();
-
-                if (string.IsNullOrEmpty(roomCode) || string.IsNullOrEmpty(username) || string.IsNullOrEmpty(message))
-                {
-                    return CreateResponse(false, "Missing required fields");
-                }
-
-                bool success = lobbyManager.SendChat(roomCode, username, message);
-
-                return CreateResponse(success, success ? "Message sent" : "Failed to send");
-            }
-            catch (Exception ex)
-            {
-                return CreateResponse(false, $"Chat error: {ex.Message}");
-            }
-        }
-
         // ✅ BƯỚC 8: Helper method để tạo response với data
         // ------------------------------------------------------------
         private string CreateResponseWithData(bool success, string message, Dictionary<string, object> data)
@@ -1190,6 +1049,12 @@ namespace DoAn_NT106.Server
         {
             try
             {
+                // ✅ Rời phòng nếu đang trong phòng
+                if (!string.IsNullOrEmpty(currentRoomCode) && !string.IsNullOrEmpty(currentUsername))
+                {
+                    roomManager.LeaveRoom(currentRoomCode, currentUsername);
+                }
+
                 if (!string.IsNullOrEmpty(currentToken))
                 {
                     tokenManager.RevokeToken(currentToken);
