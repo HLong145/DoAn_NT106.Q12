@@ -21,6 +21,7 @@ namespace DoAn_NT106.Server
         private RoomManager roomManager;
         //Quản lý chat global ở lobby form
         private GlobalChatManager globalChatManager;
+        LobbyManager lobbyManager;
 
         private Task _acceptTask;
         private CancellationTokenSource cts;
@@ -34,15 +35,13 @@ namespace DoAn_NT106.Server
             tokenManager = new TokenManager();
             validationService = new ValidationService();
             securityService = new SecurityService();
-
-            // ✅ KHỞI TẠO ROOM MANAGER
             roomManager = new RoomManager();
             roomManager.OnLog += LogMessage;
             globalChatManager = new GlobalChatManager();
             globalChatManager.OnLog += LogMessage;
+            lobbyManager = new LobbyManager();
+            lobbyManager.OnLog += LogMessage;
         }
-
-        // ... (Giữ nguyên Start, Stop, AcceptClients từ code cũ) ...
 
         public void Start(int port)
         {
@@ -122,20 +121,7 @@ namespace DoAn_NT106.Server
             {
                 while (!token.IsCancellationRequested)
                 {
-                    TcpClient client = null;
-                    try
-                    {
-                        client = await listener.AcceptTcpClientAsync();
-                    }
-                    catch (ObjectDisposedException)
-                    {
-                        break;
-                    }
-                    catch (InvalidOperationException)
-                    {
-                        break;
-                    }
-
+                    TcpClient client = await listener.AcceptTcpClientAsync();
                     if (client == null) break;
 
                     var clientHandler = new ClientHandler(
@@ -146,7 +132,8 @@ namespace DoAn_NT106.Server
                         validationService,
                         securityService,
                         roomManager,
-                        globalChatManager);
+                        globalChatManager,
+                        lobbyManager);  // ✅ THÊM
 
                     lock (connectedClients)
                     {
@@ -154,7 +141,6 @@ namespace DoAn_NT106.Server
                     }
 
                     Log($"📱 New client connected. Total: {connectedClients.Count}");
-
                     _ = Task.Run(() => clientHandler.Handle());
                 }
             }
@@ -162,10 +148,6 @@ namespace DoAn_NT106.Server
             {
                 if (isRunning)
                     Log($"❌ Error in AcceptClients: {ex.Message}");
-            }
-            finally
-            {
-                Log("🧩 AcceptClients stopped safely");
             }
         }
 
@@ -204,6 +186,12 @@ namespace DoAn_NT106.Server
         private ValidationService validationService;
         private SecurityService securityService;
 
+        private LobbyManager lobbyManager;
+        private string lobbyRoomCode;
+        private string lobbyUsername;
+
+        private string currentRequestId;
+
         // ✅ THÊM ROOM MANAGER
         private RoomManager roomManager;
         private string currentUsername;
@@ -222,7 +210,8 @@ namespace DoAn_NT106.Server
             ValidationService validationService,
             SecurityService securityService,
             RoomManager roomManager,
-            GlobalChatManager globalChatManager)
+            GlobalChatManager globalChatManager,
+            LobbyManager lobbyManager)
         {
             tcpClient = client;
             this.server = server;
@@ -233,6 +222,7 @@ namespace DoAn_NT106.Server
             this.securityService = securityService;
             this.roomManager = roomManager;
             this.globalChatManager = globalChatManager;
+            this.lobbyManager = lobbyManager;
         }
 
         public void SetNormalLogout()
@@ -270,9 +260,16 @@ namespace DoAn_NT106.Server
             }
             finally
             {
+                // Cleanup code...
                 if (!string.IsNullOrEmpty(globalChatUsername))
                 {
                     globalChatManager.LeaveGlobalChat(globalChatUsername);
+                }
+
+                // ✅ THÊM: Cleanup lobby connection
+                if (!string.IsNullOrEmpty(lobbyRoomCode) && !string.IsNullOrEmpty(lobbyUsername))
+                {
+                    lobbyManager?.LeaveLobby(lobbyRoomCode, lobbyUsername);
                 }
 
                 Close();
@@ -349,11 +346,17 @@ namespace DoAn_NT106.Server
         {
             try
             {
-                var request = JsonSerializer.Deserialize<Request>(requestJson);
-
-                if (request == null)
+                var request = JsonSerializer.Deserialize<Request>(requestJson, new JsonSerializerOptions
                 {
-                    return CreateResponse(false, "Invalid request format");
+                    PropertyNameCaseInsensitive = true
+                });
+
+                // ✅ LƯU REQUEST ID
+                currentRequestId = request?.RequestId;
+
+                if (request == null || string.IsNullOrEmpty(request.Action))
+                {
+                    return CreateResponse(false, "Invalid request");
                 }
 
                 switch (request.Action?.ToUpper())
@@ -405,6 +408,21 @@ namespace DoAn_NT106.Server
 
                     case "GLOBAL_CHAT_GET_ONLINE":
                         return HandleGlobalChatGetOnline(request);
+
+                    //Các case liênq quan đến lobby form
+                    case "LOBBY_JOIN":
+                        return HandleLobbyJoin(request);
+
+                    case "LOBBY_LEAVE":
+                        return HandleLobbyLeave(request);
+
+                    case "LOBBY_SET_READY":
+                        return HandleLobbySetReady(request);
+
+                    case "LOBBY_CHAT_SEND":
+                        return HandleLobbyChatSend(request);
+
+
                     default:
                         return CreateResponse(false, "Unknown action");
                 }
@@ -617,7 +635,152 @@ namespace DoAn_NT106.Server
             }
         }
 
-        // ... (Giữ nguyên các HandleXXX khác từ code cũ) ...
+        private string HandleLobbyJoin(Request request)
+        {
+            try
+            {
+                var roomCode = request.Data?["roomCode"]?.ToString();
+                var username = request.Data?["username"]?.ToString();
+                var token = request.Data?["token"]?.ToString();
+
+                if (string.IsNullOrEmpty(roomCode) || string.IsNullOrEmpty(username))
+                {
+                    return CreateResponse(false, "Room code and username are required");
+                }
+
+                // Save for cleanup on disconnect
+                this.lobbyRoomCode = roomCode;
+                this.lobbyUsername = username;
+
+                var result = lobbyManager.JoinLobby(roomCode, username, this, roomManager);
+
+                if (result.Success && result.Lobby != null)
+                {
+                    var lobby = result.Lobby;
+
+                    // Prepare chat history
+                    var chatHistory = lobby.ChatHistory.Select(c => new
+                    {
+                        id = c.Id,
+                        username = c.Username,
+                        message = c.Message,
+                        timestamp = c.Timestamp.ToString("HH:mm:ss")
+                    }).ToList();
+
+                    return CreateResponseWithData(true, "Joined lobby", new Dictionary<string, object>
+            {
+                { "roomCode", roomCode },
+                { "roomName", lobby.RoomName ?? "Game Room" },
+                { "player1", lobby.Player1Username },
+                { "player2", lobby.Player2Username },
+                { "player1Ready", lobby.Player1Ready },
+                { "player2Ready", lobby.Player2Ready },
+                { "chatHistory", chatHistory }
+            });
+                }
+
+                return CreateResponse(false, result.Message);
+            }
+            catch (Exception ex)
+            {
+                server.Log($"❌ HandleLobbyJoin error: {ex.Message}");
+                return CreateResponse(false, $"Error: {ex.Message}");
+            }
+        }
+
+        private string HandleLobbyLeave(Request request)
+        {
+            try
+            {
+                var roomCode = request.Data?["roomCode"]?.ToString();
+                var username = request.Data?["username"]?.ToString();
+
+                if (string.IsNullOrEmpty(roomCode) || string.IsNullOrEmpty(username))
+                {
+                    return CreateResponse(false, "Room code and username are required");
+                }
+
+                var result = lobbyManager.LeaveLobby(roomCode, username);
+
+                // Clear saved data
+                if (this.lobbyRoomCode == roomCode)
+                {
+                    this.lobbyRoomCode = null;
+                    this.lobbyUsername = null;
+                }
+
+                return CreateResponse(result.Success, result.Message);
+            }
+            catch (Exception ex)
+            {
+                server.Log($"❌ HandleLobbyLeave error: {ex.Message}");
+                return CreateResponse(false, $"Error: {ex.Message}");
+            }
+        }
+
+        private string HandleLobbySetReady(Request request)
+        {
+            try
+            {
+                var roomCode = request.Data?["roomCode"]?.ToString();
+                var username = request.Data?["username"]?.ToString();
+
+                bool isReady = false;
+                if (request.Data?.ContainsKey("isReady") == true)
+                {
+                    var isReadyObj = request.Data["isReady"];
+                    if (isReadyObj is bool b)
+                        isReady = b;
+                    else if (isReadyObj is JsonElement je)
+                        isReady = je.GetBoolean();
+                    else
+                        isReady = Convert.ToBoolean(isReadyObj);
+                }
+
+                if (string.IsNullOrEmpty(roomCode) || string.IsNullOrEmpty(username))
+                {
+                    return CreateResponse(false, "Room code and username are required");
+                }
+
+                var result = lobbyManager.SetReady(roomCode, username, isReady);
+
+                return CreateResponseWithData(result.Success, result.Message, new Dictionary<string, object>
+        {
+            { "isReady", isReady },
+            { "bothReady", result.BothReady }
+        });
+            }
+            catch (Exception ex)
+            {
+                server.Log($"❌ HandleLobbySetReady error: {ex.Message}");
+                return CreateResponse(false, $"Error: {ex.Message}");
+            }
+        }
+
+        private string HandleLobbyChatSend(Request request)
+        {
+            try
+            {
+                var roomCode = request.Data?["roomCode"]?.ToString();
+                var username = request.Data?["username"]?.ToString();
+                var message = request.Data?["message"]?.ToString();
+
+                if (string.IsNullOrEmpty(roomCode) || string.IsNullOrEmpty(username) || string.IsNullOrEmpty(message))
+                {
+                    return CreateResponse(false, "Room code, username, and message are required");
+                }
+
+                var result = lobbyManager.SendChatMessage(roomCode, username, message);
+
+                return CreateResponse(result.Success, result.Message);
+            }
+            catch (Exception ex)
+            {
+                server.Log($"❌ HandleLobbyChatSend error: {ex.Message}");
+                return CreateResponse(false, $"Error: {ex.Message}");
+            }
+        }
+
 
         private string HandleRegister(Request request)
         {
@@ -879,9 +1042,9 @@ namespace DoAn_NT106.Server
             {
                 Success = success,
                 Message = message,
+                RequestId = currentRequestId,  
                 Data = data ?? new Dictionary<string, object>()
             };
-
             return JsonSerializer.Serialize(response);
         }
 
@@ -1040,6 +1203,7 @@ namespace DoAn_NT106.Server
             {
                 Success = success,
                 Message = message,
+                RequestId = currentRequestId,
                 Data = data
             };
             return JsonSerializer.Serialize(response);
@@ -1071,6 +1235,7 @@ namespace DoAn_NT106.Server
     public class Request
     {
         public string Action { get; set; }
+        public string RequestId { get; set; }
         public Dictionary<string, object> Data { get; set; }
     }
 
@@ -1078,6 +1243,8 @@ namespace DoAn_NT106.Server
     {
         public bool Success { get; set; }
         public string Message { get; set; }
+        public string RequestId { get; set; }
         public Dictionary<string, object> Data { get; set; }
+
     }
 }
