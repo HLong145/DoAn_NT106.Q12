@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
+using DoAn_NT106.Client;
+using System.Threading;
 
 namespace PixelGameLobby
 {
@@ -23,15 +25,51 @@ namespace PixelGameLobby
         private Color readyColor = Color.FromArgb(100, 200, 100);    // Xanh lá - Ready
         private Color notReadyColor = Color.FromArgb(255, 0, 0);     // Đỏ - Not Ready
 
+
+        private LobbyClient lobbyClient;
+        private bool isReady = false;
+        private bool opponentReady = false;
+        private string opponentName = null;
+
+
         public GameLobbyForm(string roomCode, string username, string token)
         {
             InitializeComponent();
             this.roomCode = roomCode ?? GenerateRoomCode();
             this.username = username;
             this.token = token;
-            InitializeData();
+
+         InitializePlayers();
+
             SetupPixelStyling();
+
+            // ✅ THÊM: Kết nối lobby sau khi form load
+            this.Load += async (s, e) => await ConnectToLobbyAsync();
+            this.FormClosing += async (s, e) => await DisconnectLobbyAsync();
         }
+
+
+        private void InitializePlayers()
+        {
+            // Khởi tạo với data trống, sẽ được cập nhật từ server
+            players.Clear();
+            players.Add(new Player { Id = 1, Name = "Loading...", Status = "Not Ready", IsReady = false });
+            players.Add(new Player { Id = 2, Name = "Waiting for player...", Status = "Not Ready", IsReady = false });
+
+            messages.Clear();
+            messages.Add(new ChatMessage
+            {
+                Id = 1,
+                Player = "System",
+                Message = $"Connecting to room {roomCode}...",
+                Time = DateTime.Now.ToString("HH:mm")
+            });
+
+            UpdatePlayersDisplay();
+            UpdateChatDisplay();
+        }
+
+
 
         public GameLobbyForm(string roomCode = null) : this(roomCode, "Guest", "")
         {
@@ -172,103 +210,108 @@ namespace PixelGameLobby
             chatMessagesPanel.VerticalScroll.Value = chatMessagesPanel.VerticalScroll.Maximum;
         }
 
-        private void sendButton_Click(object sender, EventArgs e)
+        private async void sendButton_Click(object sender, EventArgs e)
         {
             if (!string.IsNullOrWhiteSpace(messageTextBox.Text))
             {
-                var newMessage = new ChatMessage
-                {
-                    Id = messages.Count + 1,
-                    Player = "You",
-                    Message = messageTextBox.Text,
-                    Time = DateTime.Now.ToString("HH:mm")
-                };
-
-                messages.Add(newMessage);
+                string msg = messageTextBox.Text;
                 messageTextBox.Clear();
-                UpdateChatDisplay();
+
+                // ✅ GỬI LÊN SERVER (thay vì add local)
+                if (lobbyClient != null)
+                {
+                    await lobbyClient.SendChatAsync(msg);
+                }
             }
         }
 
-        private void notReadyButton_Click(object sender, EventArgs e)
+        private async void notReadyButton_Click(object sender, EventArgs e)
         {
-            if (notReadyButton.Text == "NOT READY")
+            isReady = !isReady;
+
+            // Cập nhật UI ngay
+            notReadyButton.Text = isReady ? "READY" : "NOT READY";
+            notReadyButton.BackColor = isReady ? readyColor : notReadyColor;
+            notReadyButton.ForeColor = isReady ? Color.Black : Color.White;
+
+            // Cập nhật local
+            if (players.Count > 0)
             {
-                notReadyButton.Text = "READY";
-                notReadyButton.BackColor = readyColor;
-                notReadyButton.ForeColor = Color.Black;
-
-                // Cập nhật trạng thái người chơi
-                if (players.Count > 0)
-                {
-                    players[0].IsReady = true;
-                    players[0].Status = "Ready";
-                }
-            }
-            else
-            {
-                notReadyButton.Text = "NOT READY";
-                notReadyButton.BackColor = notReadyColor;
-                notReadyButton.ForeColor = Color.White;
-
-                // Cập nhật trạng thái người chơi
-                if (players.Count > 0)
-                {
-                    players[0].IsReady = false;
-                    players[0].Status = "Not Ready";
-                }
-            }
-
-            UpdatePlayersDisplay();
-        }
-
-        private void startGameButton_Click(object sender, EventArgs e)
-        {
-            bool allReady = true;
-            foreach (var player in players)
-            {
-                if (!player.IsReady)
-                {
-                    allReady = false;
-                    break;
-                }
-            }
-
-            if (allReady)
-            {
-                string opponentName = "Opponent";
+                // Tìm player của mình
                 foreach (var player in players)
                 {
-                    if (player.Name != username)
+                    if (player.Name == username)
                     {
-                        opponentName = player.Name;
+                        player.IsReady = isReady;
+                        player.Status = isReady ? "Ready" : "Not Ready";
                         break;
                     }
                 }
-
-                // Mở form chọn tướng thay vì vào thẳng BattleForm
-                CharacterSelectForm selectForm = new CharacterSelectForm(username, token, roomCode, opponentName, true);
-                selectForm.FormClosed += (s, args) =>
-                {
-                    if (selectForm.DialogResult != DialogResult.OK)
-                    {
-                        this.Show();
-                    }
-                };
-                selectForm.Show();
-                this.Hide();
             }
-            else
+            UpdatePlayersDisplay();
+
+            // ✅ GỬI LÊN SERVER
+            if (lobbyClient != null)
             {
-                MessageBox.Show("Not all players are ready!", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                await lobbyClient.SetReadyAsync(isReady);
             }
         }
 
-        private void leaveRoomButton_Click(object sender, EventArgs e)
+        //private void startGameButton_Click(object sender, EventArgs e)
+        //{
+        //    bool allReady = true;
+        //    foreach (var player in players)
+        //    {
+        //        if (!player.IsReady)
+        //        {
+        //            allReady = false;
+        //            break;
+        //        }
+        //    }
+
+        //    if (allReady)
+        //    {
+        //        string opponentName = "Opponent";
+        //        foreach (var player in players)
+        //        {
+        //            if (player.Name != username)
+        //            {
+        //                opponentName = player.Name;
+        //                break;
+        //            }
+        //        }
+
+        //        // Mở form chọn tướng thay vì vào thẳng BattleForm
+        //        CharacterSelectForm selectForm = new CharacterSelectForm(username, token, roomCode, opponentName, true);
+        //        selectForm.FormClosed += (s, args) =>
+        //        {
+        //            if (selectForm.DialogResult != DialogResult.OK)
+        //            {
+        //                this.Show();
+        //            }
+        //        };
+        //        selectForm.Show();
+        //        this.Hide();
+        //    }
+        //    else
+        //    {
+        //        MessageBox.Show("Not all players are ready!", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        //    }
+        //}
+
+
+        private void startGameButton_Click(object sender, EventArgs e)
+        {
+            MessageBox.Show("Game will start automatically when both players are ready!",
+                "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        private async void leaveRoomButton_Click(object sender, EventArgs e)
         {
             if (MessageBox.Show("Are you sure you want to leave the room?", "Leave Room",
                 MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
             {
+                await DisconnectLobbyAsync();
                 this.Close();
             }
         }
@@ -328,6 +371,240 @@ namespace PixelGameLobby
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
 
             e.Graphics.DrawRectangle(new Pen(darkerBrown, 2), 0, 0, button.Width - 1, button.Height - 1);
+        }
+
+        private async Task ConnectToLobbyAsync()
+        {
+            try
+            {
+                lobbyClient = new LobbyClient();
+
+                // Subscribe events
+                lobbyClient.OnPlayerJoined += LobbyClient_OnPlayerJoined;
+                lobbyClient.OnPlayerLeft += LobbyClient_OnPlayerLeft;
+                lobbyClient.OnPlayerReadyChanged += LobbyClient_OnPlayerReadyChanged;
+                lobbyClient.OnChatMessage += LobbyClient_OnChatMessage;
+                lobbyClient.OnAllPlayersReady += LobbyClient_OnAllPlayersReady;
+                lobbyClient.OnError += LobbyClient_OnError;
+                lobbyClient.OnDisconnected += LobbyClient_OnDisconnected;
+
+                var result = await lobbyClient.ConnectAndJoinAsync(roomCode, username, token);
+
+                if (result.Success && result.State != null)
+                {
+                    // Cập nhật UI với state từ server
+                    this.Invoke((Action)(() =>
+                    {
+                        UpdateFromLobbyState(result.State);
+                    }));
+                }
+                else
+                {
+                    MessageBox.Show("Failed to connect to lobby!", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    this.Close();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Connection error: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                this.Close();
+            }
+        }
+
+        // ===========================
+        // 6. THÊM METHOD MỚI - UpdateFromLobbyState
+        // ===========================
+        private void UpdateFromLobbyState(LobbyStateData state)
+        {
+            players.Clear();
+
+            // Player 1
+            players.Add(new Player
+            {
+                Id = 1,
+                Name = state.Player1 ?? "Waiting...",
+                Status = state.Player1Ready ? "Ready" : "Not Ready",
+                IsReady = state.Player1Ready
+            });
+
+            // Player 2
+            players.Add(new Player
+            {
+                Id = 2,
+                Name = state.Player2 ?? "Waiting for player...",
+                Status = state.Player2Ready ? "Ready" : "Not Ready",
+                IsReady = state.Player2Ready
+            });
+
+            // Xác định opponent
+            if (state.Player1 == username)
+            {
+                opponentName = state.Player2;
+                isReady = state.Player1Ready;
+                opponentReady = state.Player2Ready;
+            }
+            else
+            {
+                opponentName = state.Player1;
+                isReady = state.Player2Ready;
+                opponentReady = state.Player1Ready;
+            }
+
+            // Load chat history
+            if (state.ChatHistory != null)
+            {
+                messages.Clear();
+                foreach (var msg in state.ChatHistory)
+                {
+                    messages.Add(new ChatMessage
+                    {
+                        Id = messages.Count + 1,
+                        Player = msg.Username,
+                        Message = msg.Message,
+                        Time = msg.Timestamp
+                    });
+                }
+            }
+
+            // Cập nhật button text
+            notReadyButton.Text = isReady ? "READY" : "NOT READY";
+            notReadyButton.BackColor = isReady ? readyColor : notReadyColor;
+
+            UpdatePlayersDisplay();
+            UpdateChatDisplay();
+        }
+
+        // ===========================
+        // 7. THÊM EVENT HANDLERS
+        // ===========================
+        private void LobbyClient_OnPlayerJoined(LobbyPlayerData data)
+        {
+            this.Invoke((Action)(() =>
+            {
+                if (data.IsPlayer1)
+                {
+                    players[0].Name = data.Username;
+                }
+                else
+                {
+                    players[1].Name = data.Username;
+                    opponentName = data.Username;
+                }
+
+                UpdatePlayersDisplay();
+            }));
+        }
+
+        private void LobbyClient_OnPlayerLeft(string leftUsername)
+        {
+            this.Invoke((Action)(() =>
+            {
+                for (int i = 0; i < players.Count; i++)
+                {
+                    if (players[i].Name == leftUsername)
+                    {
+                        players[i].Name = "Waiting for player...";
+                        players[i].IsReady = false;
+                        players[i].Status = "Not Ready";
+
+                        if (leftUsername == opponentName)
+                        {
+                            opponentName = null;
+                            opponentReady = false;
+                        }
+                        break;
+                    }
+                }
+                UpdatePlayersDisplay();
+            }));
+        }
+
+        private void LobbyClient_OnPlayerReadyChanged(string changedUsername, bool ready)
+        {
+            this.Invoke((Action)(() =>
+            {
+                foreach (var player in players)
+                {
+                    if (player.Name == changedUsername)
+                    {
+                        player.IsReady = ready;
+                        player.Status = ready ? "Ready" : "Not Ready";
+                        break;
+                    }
+                }
+
+                if (changedUsername == opponentName)
+                {
+                    opponentReady = ready;
+                }
+
+                UpdatePlayersDisplay();
+            }));
+        }
+
+        private void LobbyClient_OnChatMessage(LobbyChatMessage msg)
+        {
+            this.Invoke((Action)(() =>
+            {
+                messages.Add(new ChatMessage
+                {
+                    Id = messages.Count + 1,
+                    Player = msg.Username,
+                    Message = msg.Message,
+                    Time = msg.Timestamp
+                });
+                UpdateChatDisplay();
+            }));
+        }
+
+        private void LobbyClient_OnAllPlayersReady()
+        {
+            this.Invoke((Action)(() =>
+            {
+                // Tự động chuyển sang CharacterSelectForm
+                string opponent = opponentName ?? "Opponent";
+
+                CharacterSelectForm selectForm = new CharacterSelectForm(username, token, roomCode, opponent, true);
+                selectForm.FormClosed += (s, args) =>
+                {
+                    if (selectForm.DialogResult != DialogResult.OK)
+                    {
+                        this.Show();
+                    }
+                };
+                selectForm.Show();
+                this.Hide();
+            }));
+        }
+
+        private void LobbyClient_OnError(string error)
+        {
+            Console.WriteLine($"Lobby error: {error}");
+        }
+
+        private void LobbyClient_OnDisconnected(string reason)
+        {
+            this.Invoke((Action)(() =>
+            {
+                messages.Add(new ChatMessage
+                {
+                    Id = messages.Count + 1,
+                    Player = "System",
+                    Message = "Disconnected from lobby!",
+                    Time = DateTime.Now.ToString("HH:mm")
+                });
+                UpdateChatDisplay();
+            }));
+        }
+
+        private async Task DisconnectLobbyAsync()
+        {
+            if (lobbyClient != null)
+            {
+                await lobbyClient.LeaveAsync();
+                lobbyClient.Dispose();
+                lobbyClient = null;
+            }
         }
     }
 
