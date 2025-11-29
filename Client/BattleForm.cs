@@ -95,6 +95,16 @@ namespace DoAn_NT106
         private int currentBackground = 0;
         private int fireballSpeed = 1;
 
+        // Spell System (for Bringer of Death)
+        private bool spellActive = false;
+        private int spellX, spellY;
+        private int spellOwner = 0;
+        private Image spellAnimation = null;
+        private const int SPELL_WIDTH = 120;
+        private const int SPELL_HEIGHT = 120;
+        private const int SPELL_DAMAGE_DELAY_MS = 200; // 0.2 giây
+        private System.Windows.Forms.Timer spellDamageTimer = null;
+
         // Key states
         private bool aPressed, dPressed;
         private bool leftPressed, rightPressed;
@@ -228,6 +238,20 @@ namespace DoAn_NT106
                 catch
                 {
                     fireball = CreateColoredImage(FIREBALL_WIDTH, FIREBALL_HEIGHT, Color.Orange);
+                }
+
+                // Load spell animation (for Bringer of Death)
+                try
+                {
+                    spellAnimation = ResourceToImage(Properties.Resources.BringerofDeath_Spell);
+                    if (spellAnimation != null && ImageAnimator.CanAnimate(spellAnimation))
+                    {
+                        ImageAnimator.Animate(spellAnimation, OnFrameChanged);
+                    }
+                }
+                catch
+                {
+                    spellAnimation = CreateColoredImage(SPELL_WIDTH, SPELL_HEIGHT, Color.Purple);
                 }
             }
             catch (Exception ex)
@@ -944,6 +968,11 @@ namespace DoAn_NT106
                 ImageAnimator.UpdateFrames(fireball);
             }
 
+            if (spellAnimation != null && spellActive && ImageAnimator.CanAnimate(spellAnimation))
+            {
+                ImageAnimator.UpdateFrames(spellAnimation);
+            }
+
             if (fireballActive)
             {
                 fireballX += 12 * fireballDirection;
@@ -1098,9 +1127,19 @@ namespace DoAn_NT106
                             hitTimer.Stop();
                             hitTimer.Dispose();
                             
-                            int direction = player1Facing == "right" ? 1 : -1;
-                            int startX = player1Facing == "right" ? player1X + PLAYER_WIDTH : player1X - FIREBALL_WIDTH;
-                            ShootFireball(startX, player1Y + 30, direction, 1);
+                            // Check character type for different special attacks
+                            if (player1CharacterType == "bringerofdeath")
+                            {
+                                // Spawn spell at player2's current position
+                                SpawnSpell(player2X, player2Y, 1, 2);
+                            }
+                            else
+                            {
+                                // Normal fireball for other characters
+                                int direction = player1Facing == "right" ? 1 : -1;
+                                int startX = player1Facing == "right" ? player1X + PLAYER_WIDTH : player1X - FIREBALL_WIDTH;
+                                ShootFireball(startX, player1Y + 30, direction, 1);
+                            }
                         };
                         hitTimer.Start();
                         
@@ -1207,9 +1246,19 @@ namespace DoAn_NT106
                             hitTimer.Stop();
                             hitTimer.Dispose();
                         
-                            int direction = player2Facing == "right" ? 1 : -1;
-                            int startX = player2Facing == "right" ? player2X + PLAYER_WIDTH : player2X - FIREBALL_WIDTH;
-                            ShootFireball(startX, player2Y + 30, direction, 2);
+                            // Check character type for different special attacks
+                            if (player2CharacterType == "bringerofdeath")
+                            {
+                                // Spawn spell at player1's current position
+                                SpawnSpell(player1X, player1Y, 2, 1);
+                            }
+                            else
+                            {
+                                // Normal fireball for other characters
+                                int direction = player2Facing == "right" ? 1 : -1;
+                                int startX = player2Facing == "right" ? player2X + PLAYER_WIDTH : player2X - FIREBALL_WIDTH;
+                                ShootFireball(startX, player2Y + 30, direction, 2);
+                            }
                         };
                         hitTimer.Start();
                         
@@ -1281,6 +1330,70 @@ namespace DoAn_NT106
             fireballOwner = owner;
             if (fireball != null && ImageAnimator.CanAnimate(fireball))
                 ImageAnimator.Animate(fireball, OnFrameChanged);
+        }
+
+        private void SpawnSpell(int targetX, int targetY, int owner, int targetPlayer)
+        {
+            spellActive = true;
+            spellX = targetX;
+            spellY = targetY;
+            spellOwner = owner;
+
+            // Reset spell animation to first frame
+            if (spellAnimation != null && ImageAnimator.CanAnimate(spellAnimation))
+            {
+                try
+                {
+                    ImageAnimator.StopAnimate(spellAnimation, OnFrameChanged);
+                    spellAnimation.SelectActiveFrame(System.Drawing.Imaging.FrameDimension.Time, 0);
+                    ImageAnimator.Animate(spellAnimation, OnFrameChanged);
+                }
+                catch { }
+            }
+
+            // Create timer to deal damage after delay
+            if (spellDamageTimer != null)
+            {
+                spellDamageTimer.Stop();
+                spellDamageTimer.Dispose();
+            }
+
+            spellDamageTimer = new System.Windows.Forms.Timer();
+            spellDamageTimer.Interval = SPELL_DAMAGE_DELAY_MS;
+            spellDamageTimer.Tick += (s, e) =>
+            {
+                spellDamageTimer.Stop();
+                spellDamageTimer.Dispose();
+                spellDamageTimer = null;
+
+                // Check if target is still in spell area
+                int targetCurrentX = targetPlayer == 1 ? player1X : player2X;
+                int targetCurrentY = targetPlayer == 1 ? player1Y : player2Y;
+
+                Rectangle spellRect = new Rectangle(spellX, spellY, SPELL_WIDTH, SPELL_HEIGHT);
+                Rectangle targetRect = new Rectangle(targetCurrentX, targetCurrentY, PLAYER_WIDTH, PLAYER_HEIGHT);
+
+                if (spellRect.IntersectsWith(targetRect))
+                {
+                    ApplyHurtToPlayer(targetPlayer, 25); // 25 damage
+                    ShowHitEffect("Dark Magic!", Color.Purple);
+                }
+                else
+                {
+                    ShowHitEffect("Dodged!", Color.LightGray);
+                }
+
+                // Deactivate spell after some time
+                var deactivateTimer = new System.Windows.Forms.Timer { Interval = 300 };
+                deactivateTimer.Tick += (s2, e2) =>
+                {
+                    spellActive = false;
+                    deactivateTimer.Stop();
+                    deactivateTimer.Dispose();
+                };
+                deactivateTimer.Start();
+            };
+            spellDamageTimer.Start();
         }
 
         private void CheckFireballHit()
@@ -1399,6 +1512,17 @@ namespace DoAn_NT106
             DrawCharacter(e.Graphics, player1X, player1Y, player1CurrentAnimation, player1Facing, player1AnimationManager);
             DrawCharacter(e.Graphics, player2X, player2Y, player2CurrentAnimation, player2Facing, player2AnimationManager);
 
+            // Draw spell effect
+            if (spellActive && spellAnimation != null)
+            {
+                int spellScreenX = spellX - viewportX;
+                if (spellScreenX >= -SPELL_WIDTH && spellScreenX <= this.ClientSize.Width)
+                {
+                    e.Graphics.DrawImage(spellAnimation, spellScreenX, spellY, SPELL_WIDTH, SPELL_HEIGHT);
+                }
+            }
+
+            // Draw fireball
             if (fireballActive && fireball != null)
             {
                 int fireballScreenX = fireballX - viewportX;
@@ -1529,6 +1653,7 @@ namespace DoAn_NT106
         {
             try { gameTimer?.Stop(); } catch { }
             try { walkAnimationTimer?.Stop(); } catch { }
+            try { spellDamageTimer?.Stop(); spellDamageTimer?.Dispose(); } catch { }
 
             // Dispose animation managers
             player1AnimationManager?.Dispose();

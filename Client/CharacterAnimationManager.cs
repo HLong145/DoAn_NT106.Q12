@@ -30,7 +30,7 @@ namespace DoAn_NT106
             {
                 ["punch"] = 1250,   // 10 frames @ 8 fps
                 ["kick"] = 556,     // 10 frames @ 18 fps
-                ["special"] = 800
+                ["special"] = 1125  // 9 frames @ 8 fps = 1125ms (Cast animation)
             }
         };
 
@@ -47,7 +47,7 @@ namespace DoAn_NT106
             {
                 ["punch"] = 5,
                 ["kick"] = 5,
-                ["special"] = 5
+                ["special"] = 5  // Frame 6 - khi spell ???c spawn
             }
         };
 
