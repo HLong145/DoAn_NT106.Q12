@@ -775,14 +775,104 @@ namespace DoAn_NT106.Services
             return 0;
         }
 
-        #endregion
+        /// <summary>
+        /// Lấy TẤT CẢ rooms từ database (để load vào memory khi server khởi chạy)
+        /// </summary>
+        public List<RoomDbInfo> GetAllRooms()
+        {
+            var rooms = new List<RoomDbInfo>();
 
-        // =============================================
-        // DATA CLASS CHO ROOM (thêm vào cuối file, ngoài class DatabaseService)
-        // =============================================
+            try
+            {
+                using (var connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    string query = "EXEC SP_GET_ALL_ROOMS";
+
+                    using (var command = new SqlCommand(query, connection))
+                    {
+                        using (var reader = command.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                rooms.Add(new RoomDbInfo
+                                {
+                                    RoomId = Convert.ToInt32(reader["RoomId"]),
+                                    RoomCode = reader["RoomCode"].ToString(),
+                                    RoomName = reader["RoomName"].ToString(),
+                                    Password = reader["Password"] != DBNull.Value
+                                        ? reader["Password"].ToString()
+                                        : null,
+                                    Player1Username = reader["Player1Username"] != DBNull.Value
+                                        ? reader["Player1Username"].ToString()
+                                        : null,
+                                    Player2Username = reader["Player2Username"] != DBNull.Value
+                                        ? reader["Player2Username"].ToString()
+                                        : null,
+                                    Player1Character = reader["Player1Character"] != DBNull.Value
+                                        ? reader["Player1Character"].ToString()
+                                        : null,
+                                    Player2Character = reader["Player2Character"] != DBNull.Value
+                                        ? reader["Player2Character"].ToString()
+                                        : null,
+                                    Status = reader["Status"].ToString(),
+                                    CreatedAt = Convert.ToDateTime(reader["CreatedAt"]),
+                                    LastActivity = reader["LastActivity"] != DBNull.Value
+                                        ? Convert.ToDateTime(reader["LastActivity"])
+                                        : DateTime.Now
+                                });
+                            }
+                        }
+                    }
+                }
+
+                Console.WriteLine($"✅ Loaded {rooms.Count} rooms from database");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ GetAllRooms error: {ex.Message}");
+            }
+
+            return rooms;
+        }
+
+        /// <summary>
+        /// Xóa room khỏi database
+        /// </summary>
+        public (bool Success, string Message) DeleteRoom(string roomCode)
+        {
+            try
+            {
+                using (var connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    string query = "EXEC SP_DELETE_ROOM @RoomCode";
+
+                    using (var command = new SqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@RoomCode", roomCode);
+
+                        using (var reader = command.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                bool success = Convert.ToInt32(reader["Success"]) == 1;
+                                string message = reader["Message"].ToString();
+                                Console.WriteLine($"🗑️ DeleteRoom {roomCode}: {message}");
+                                return (success, message);
+                            }
+                        }
+                    }
+                }
+                return (false, "Unknown error");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ DeleteRoom error: {ex.Message}");
+                return (false, ex.Message);
+            }
+        }
+        #endregion
     }
 
-    /// <summary>
-    /// Thông tin room từ database
-    /// </summary>
 }
