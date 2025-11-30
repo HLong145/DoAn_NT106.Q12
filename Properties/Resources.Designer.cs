@@ -291,86 +291,6 @@ namespace DoAn_NT106.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized resource of type System.Byte[].
-        /// </summary>
-        internal static byte[] girlknight_attack {
-            get {
-                object obj = ResourceManager.GetObject("girlknight_attack", resourceCulture);
-                return ((byte[])(obj));
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized resource of type System.Byte[].
-        /// </summary>
-        internal static byte[] girlknight_fireball {
-            get {
-                object obj = ResourceManager.GetObject("girlknight_fireball", resourceCulture);
-                return ((byte[])(obj));
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized resource of type System.Byte[].
-        /// </summary>
-        internal static byte[] girlknight_hurt {
-            get {
-                object obj = ResourceManager.GetObject("girlknight_hurt", resourceCulture);
-                return ((byte[])(obj));
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized resource of type System.Byte[].
-        /// </summary>
-        internal static byte[] girlknight_jump {
-            get {
-                object obj = ResourceManager.GetObject("girlknight_jump", resourceCulture);
-                return ((byte[])(obj));
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized resource of type System.Byte[].
-        /// </summary>
-        internal static byte[] girlknight_kick {
-            get {
-                object obj = ResourceManager.GetObject("girlknight_kick", resourceCulture);
-                return ((byte[])(obj));
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized resource of type System.Byte[].
-        /// </summary>
-        internal static byte[] girlknight_parry {
-            get {
-                object obj = ResourceManager.GetObject("girlknight_parry", resourceCulture);
-                return ((byte[])(obj));
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized resource of type System.Byte[].
-        /// </summary>
-        internal static byte[] girlknight_stand {
-            get {
-                object obj = ResourceManager.GetObject("girlknight_stand", resourceCulture);
-                return ((byte[])(obj));
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized resource of type System.Byte[].
-        /// </summary>
-        internal static byte[] girlknight_walk {
-            get {
-                object obj = ResourceManager.GetObject("girlknight_walk", resourceCulture);
-                return ((byte[])(obj));
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized resource of type System.Drawing.Bitmap.
         /// </summary>
         internal static System.Drawing.Bitmap girlwithgun {
@@ -391,6 +311,106 @@ namespace DoAn_NT106.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] GM_Attack1 {
+            get {
+                object obj = ResourceManager.GetObject("GM_Attack1", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] GM_Attack2 {
+            get {
+                object obj = ResourceManager.GetObject("GM_Attack2", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] GM_Hurt {
+            get {
+                object obj = ResourceManager.GetObject("GM_Hurt", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] GM_Idle {
+            get {
+                object obj = ResourceManager.GetObject("GM_Idle", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] GM_impact {
+            get {
+                object obj = ResourceManager.GetObject("GM_impact", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] GM_jump {
+            get {
+                object obj = ResourceManager.GetObject("GM_jump", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] GM_parry {
+            get {
+                object obj = ResourceManager.GetObject("GM_parry", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] GM_run {
+            get {
+                object obj = ResourceManager.GetObject("GM_run", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] GM_skill {
+            get {
+                object obj = ResourceManager.GetObject("GM_skill", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] hit_effect {
+            get {
+                object obj = ResourceManager.GetObject("hit_effect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized resource of type System.Drawing.Bitmap.
         /// </summary>
         internal static System.Drawing.Bitmap images__1__removebg_preview {
@@ -407,6 +427,96 @@ namespace DoAn_NT106.Properties {
             get {
                 object obj = ResourceManager.GetObject("key", resourceCulture);
                 return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] Knightgirl_Attack1 {
+            get {
+                object obj = ResourceManager.GetObject("Knightgirl_Attack1", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] Knightgirl_Attack2 {
+            get {
+                object obj = ResourceManager.GetObject("Knightgirl_Attack2", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] Knightgirl_Dash {
+            get {
+                object obj = ResourceManager.GetObject("Knightgirl_Dash", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] Knightgirl_Hurt {
+            get {
+                object obj = ResourceManager.GetObject("Knightgirl_Hurt", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] Knightgirl_Idle {
+            get {
+                object obj = ResourceManager.GetObject("Knightgirl_Idle", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] Knightgirl_Jump {
+            get {
+                object obj = ResourceManager.GetObject("Knightgirl_Jump", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] Knightgirl_parry {
+            get {
+                object obj = ResourceManager.GetObject("Knightgirl_parry", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] Knightgirl_Skill {
+            get {
+                object obj = ResourceManager.GetObject("Knightgirl_Skill", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] Knightgirl_Walking {
+            get {
+                object obj = ResourceManager.GetObject("Knightgirl_Walking", resourceCulture);
+                return ((byte[])(obj));
             }
         }
         
@@ -472,16 +582,6 @@ namespace DoAn_NT106.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized resource of type System.Byte[].
-        /// </summary>
-        internal static byte[] Shield_Up_KG_1_1 {
-            get {
-                object obj = ResourceManager.GetObject("Shield_Up_KG_1.1", resourceCulture);
-                return ((byte[])(obj));
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized resource of type System.Drawing.Bitmap.
         /// </summary>
         internal static System.Drawing.Bitmap thanh_hp {
@@ -518,6 +618,106 @@ namespace DoAn_NT106.Properties {
             get {
                 object obj = ResourceManager.GetObject("thor", resourceCulture);
                 return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] Warrior_Attack1 {
+            get {
+                object obj = ResourceManager.GetObject("Warrior_Attack1", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] Warrior_Attack2 {
+            get {
+                object obj = ResourceManager.GetObject("Warrior_Attack2", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] Warrior_Dash {
+            get {
+                object obj = ResourceManager.GetObject("Warrior_Dash", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] Warrior_Hurt {
+            get {
+                object obj = ResourceManager.GetObject("Warrior_Hurt", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] Warrior_Idle {
+            get {
+                object obj = ResourceManager.GetObject("Warrior_Idle", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] Warrior_Jump {
+            get {
+                object obj = ResourceManager.GetObject("Warrior_Jump", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] Warrior_Parry {
+            get {
+                object obj = ResourceManager.GetObject("Warrior_Parry", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] Warrior_Skill {
+            get {
+                object obj = ResourceManager.GetObject("Warrior_Skill", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] Warrior_skill_effect {
+            get {
+                object obj = ResourceManager.GetObject("Warrior_skill_effect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] Warrior_Walk {
+            get {
+                object obj = ResourceManager.GetObject("Warrior_Walk", resourceCulture);
+                return ((byte[])(obj));
             }
         }
     }

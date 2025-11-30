@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
@@ -6,7 +6,7 @@ using System.Windows.Forms;
 namespace DoAn_NT106
 {
     /// <summary>
-    /// Class qu?n l� animations cho nh�n v?t trong game
+    /// Class quản lý animations cho nhân vật trong game
     /// </summary>
     public class CharacterAnimationManager
     {
@@ -22,35 +22,112 @@ namespace DoAn_NT106
         {
             ["girlknight"] = new Dictionary<string, int>
             {
-                ["punch"] = 400,
-                ["kick"] = 500,
-                ["special"] = 600
+                ["punch"] = 1000,    // attack1: 6fps, 6 frames = 1000ms
+                ["kick"] = 1500,     // attack2: 6fps, 9 frames = 1500ms
+                ["special"] = 500,   // skill: 10fps, 5 frames = 500ms (loop)
+                ["slide"] = 200      // dash: 0.2s
             },
             ["bringerofdeath"] = new Dictionary<string, int>
             {
-                ["punch"] = 1250,   // 10 frames @ 8 fps
-                ["kick"] = 556,     // 10 frames @ 18 fps
-                ["special"] = 1125  // 9 frames @ 8 fps = 1125ms (Cast animation)
+                ["punch"] = 1250,   // Attack2: 10 frames @ 8 fps = 1250ms
+                ["kick"] = 556,     // Attack1: 10 frames @ 18 fps = 556ms
+                ["special"] = 1125, // 9 frames @ 8 fps = 1125ms (Cast animation)
+                ["slide"] = 200
+            },
+            ["goatman"] = new Dictionary<string, int>
+            {
+                ["punch"] = 545,    // attack1: 11fps, 6 frames = 545ms
+                ["kick"] = 667,     // attack2: 9fps, 6 frames = 667ms
+                ["special"] = 3000, // charge skill: 3s duration
+                ["slide"] = 200     // dash: 0.2s
+            },
+            ["warrior"] = new Dictionary<string, int>
+            {
+                ["punch"] = 1000,   // attack1: 12fps, 12 frames = 1000ms
+                ["kick"] = 1000,    // attack2: 10fps, 10 frames = 1000ms
+                ["special"] = 714,  // skill: 7fps, 5 frames = 714ms
+                ["slide"] = 200     // dash: 0.2s
             }
         };
 
-        // Hit timing configuration - frame number khi g�y damage (t�nh t? 0)
+        // Hit timing configuration - frame number khi gây damage (tính từ 0)
         private Dictionary<string, Dictionary<string, int>> hitFrames = new Dictionary<string, Dictionary<string, int>>
         {
             ["girlknight"] = new Dictionary<string, int>
             {
-                ["punch"] = 5,
-                ["kick"] = 5,
+                ["punch"] = 2,      // Frame 3 (index 2): 6fps, 6 frames = 333ms
+                ["kick"] = 5,       // Frame 6 (index 5): 6fps, 9 frames = 833ms
+                ["special"] = 0     // Continuous damage at 0.5s and 1s intervals
+            },
+            ["bringerofdeath"] = new Dictionary<string, int>
+            {
+                ["punch"] = 5,      // Frame 6 (index 5): 8fps, 10 frames = 625ms
+                ["kick"] = 5,       // Frame 6 (index 5): 18fps, 10 frames = 278ms
+                ["special"] = 5     // Frame 6 (index 5) - khi spell được spawn
+            },
+            ["goatman"] = new Dictionary<string, int>
+            {
+                ["punch"] = 3,     // Frame 4 (index 3): 11fps, 6 frames = 273ms
+                ["kick"] = 3,      // Frame 4 (index 3): 9fps, 6 frames = 333ms
+                ["special"] = 0    // Collision-based damage
+            },
+            ["warrior"] = new Dictionary<string, int>
+            {
+                ["punch"] = 5,     // Frame 6 (index 5): 12fps, 12 frames = 500ms (first hit)
+                ["kick"] = 3,      // Frame 4 (index 3): 10fps, 10 frames = 400ms
+                ["special"] = 2    // Frame 3 (index 2): 7fps, 5 frames = 428ms
+            }
+        };
+
+        // Frame count configuration
+        private Dictionary<string, Dictionary<string, int>> frameCounts = new Dictionary<string, Dictionary<string, int>>
+        {
+            ["girlknight"] = new Dictionary<string, int>
+            {
+                ["punch"] = 6,
+                ["kick"] = 9,
                 ["special"] = 5
             },
             ["bringerofdeath"] = new Dictionary<string, int>
             {
-                ["punch"] = 5,
-                ["kick"] = 5,
-                ["special"] = 5  // Frame 6 - khi spell ???c spawn
+                ["punch"] = 10,
+                ["kick"] = 10,
+                ["special"] = 9
+            },
+            ["goatman"] = new Dictionary<string, int>
+            {
+                ["punch"] = 6,
+                ["kick"] = 6,
+                ["special"] = 0  // Charge is time-based
+            },
+            ["warrior"] = new Dictionary<string, int>
+            {
+                ["punch"] = 12,
+                ["kick"] = 10,
+                ["special"] = 5
             }
         };
 
+        // Multi-hit configuration for skills
+        private Dictionary<string, List<int>> multiHitTimings = new Dictionary<string, List<int>>
+        {
+            ["girlknight_special"] = new List<int> { 500, 1000 }, // Hit at 0.5s and 1.0s
+            ["warrior_punch"] = new List<int> { 500, 833 }  // Hit at frame 6 and frame 10
+        };
+
+        // Slide distance for attack2
+        private Dictionary<string, int> slideDistances = new Dictionary<string, int>
+        {
+            ["girlknight_kick"] = 60,  // Slide 60px during attack2
+            ["warrior_kick"] = 40      // Slide 40px trong 3 frames đầu
+        };
+
+        // Knockback configuration
+        private Dictionary<string, int> knockbackDistances = new Dictionary<string, int>
+        {
+            ["goatman_kick"] = 80  // Strong knockback for attack2
+        };
+        
         // Event handler for frame changes
         private EventHandler frameChangedHandler;
         
@@ -65,7 +142,7 @@ namespace DoAn_NT106
         }
 
         /// <summary>
-        /// Load t?t c? animations cho character
+        /// Load tất cả animations cho character
         /// </summary>
         public void LoadAnimations()
         {
@@ -79,6 +156,14 @@ namespace DoAn_NT106
                 {
                     LoadBringerOfDeathAnimations();
                 }
+                else if (characterType == "goatman")
+                {
+                    LoadGoatmanAnimations();
+                }
+                else if (characterType == "warrior")
+                {
+                    LoadWarriorAnimations();
+                }
 
                 // Start animation for any animatable images
                 foreach (var anim in animations.Values)
@@ -89,26 +174,28 @@ namespace DoAn_NT106
                     }
                 }
 
-                Console.WriteLine($"? ?� load {animations.Count} animations cho {characterType}");
+                Console.WriteLine($"✅ Đã load {animations.Count} animations cho {characterType}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"? Error loading {characterType} animations: {ex.Message}");
-                CreateFallbackAnimations(characterType == "girlknight" ? Color.Pink : Color.Purple);
+                Console.WriteLine($"❌ Error loading {characterType} animations: {ex.Message}");
+                CreateFallbackAnimations(characterType == "girlknight" ? Color.Pink : 
+                                       characterType == "goatman" ? Color.Brown :
+                                       characterType == "warrior" ? Color.DarkRed : Color.Purple);
             }
         }
 
         private void LoadGirlKnightAnimations()
         {
-            animations["stand"] = ResourceToImage(Properties.Resources.girlknight_stand);
-            animations["walk"] = ResourceToImage(Properties.Resources.girlknight_walk);
-            animations["punch"] = ResourceToImage(Properties.Resources.girlknight_attack);
-            animations["kick"] = ResourceToImage(Properties.Resources.girlknight_kick);
-            animations["jump"] = ResourceToImage(Properties.Resources.girlknight_jump);
-            animations["hurt"] = ResourceToImage(Properties.Resources.girlknight_hurt);
-            animations["parry"] = ResourceToImage(Properties.Resources.girlknight_parry);
-            animations["fireball"] = ResourceToImage(Properties.Resources.girlknight_fireball);
-            animations["slide"] = ResourceToImage(Properties.Resources.girlknight_walk);
+            animations["stand"] = ResourceToImage(Properties.Resources.Knightgirl_Idle);
+            animations["walk"] = ResourceToImage(Properties.Resources.Knightgirl_Walking);
+            animations["punch"] = ResourceToImage(Properties.Resources.Knightgirl_Attack1);
+            animations["kick"] = ResourceToImage(Properties.Resources.Knightgirl_Attack2);
+            animations["jump"] = ResourceToImage(Properties.Resources.Knightgirl_Jump);
+            animations["hurt"] = ResourceToImage(Properties.Resources.Knightgirl_Hurt);
+            animations["parry"] = ResourceToImage(Properties.Resources.Knightgirl_parry);
+            animations["fireball"] = ResourceToImage(Properties.Resources.Knightgirl_Skill);
+            animations["slide"] = ResourceToImage(Properties.Resources.Knightgirl_Dash);
         }
 
         private void LoadBringerOfDeathAnimations()
@@ -121,8 +208,34 @@ namespace DoAn_NT106
             animations["hurt"] = ResourceToImage(Properties.Resources.BringerofDeath_Hurt);
             animations["parry"] = ResourceToImage(Properties.Resources.BringerofDeath_Parry);
             animations["fireball"] = ResourceToImage(Properties.Resources.BringerofDeath_Cast);
-            animations["slide"] = ResourceToImage(Properties.Resources.BringerofDeath_Walk);
+            animations["slide"] = ResourceToImage(Properties.Resources.BringerofDeath_Walk); // No dash animation
             animations["spell"] = ResourceToImage(Properties.Resources.BringerofDeath_Spell);
+        }
+
+        private void LoadGoatmanAnimations()
+        {
+            animations["stand"] = ResourceToImage(Properties.Resources.GM_Idle);
+            animations["walk"] = ResourceToImage(Properties.Resources.GM_run);
+            animations["punch"] = ResourceToImage(Properties.Resources.GM_Attack1);
+            animations["kick"] = ResourceToImage(Properties.Resources.GM_Attack2);
+            animations["jump"] = ResourceToImage(Properties.Resources.GM_run);
+            animations["hurt"] = ResourceToImage(Properties.Resources.GM_Hurt);
+            animations["parry"] = ResourceToImage(Properties.Resources.GM_parry);
+            animations["fireball"] = ResourceToImage(Properties.Resources.GM_skill);
+            animations["slide"] = ResourceToImage(Properties.Resources.GM_run); // No dash animation
+        }
+
+        private void LoadWarriorAnimations()
+        {
+            animations["stand"] = ResourceToImage(Properties.Resources.Warrior_Idle);
+            animations["walk"] = ResourceToImage(Properties.Resources.Warrior_Walk);
+            animations["punch"] = ResourceToImage(Properties.Resources.Warrior_Attack1);
+            animations["kick"] = ResourceToImage(Properties.Resources.Warrior_Attack2);
+            animations["jump"] = ResourceToImage(Properties.Resources.Warrior_Jump);
+            animations["hurt"] = ResourceToImage(Properties.Resources.Warrior_Hurt);
+            animations["parry"] = ResourceToImage(Properties.Resources.Warrior_Parry);
+            animations["fireball"] = ResourceToImage(Properties.Resources.Warrior_Skill);
+            animations["slide"] = ResourceToImage(Properties.Resources.Warrior_Dash);
         }
 
         /// <summary>
@@ -165,7 +278,7 @@ namespace DoAn_NT106
         }
 
         /// <summary>
-        /// Reset animation v? frame ??u ti�n
+        /// Reset animation về frame đầu tiên
         /// </summary>
         public void ResetAnimationToFirstFrame(string animationName)
         {
@@ -206,7 +319,7 @@ namespace DoAn_NT106
         }
 
         /// <summary>
-        /// Get hit frame delay (th?i gian ??n khi g�y damage)
+        /// Get hit frame delay (thời gian đến khi gây damage)
         /// </summary>
         public int GetHitFrameDelay(string attackType)
         {
@@ -219,9 +332,56 @@ namespace DoAn_NT106
             }
 
             int totalDuration = GetAnimationDuration(attackType);
+            
+            // Get frame count from configuration
+            if (frameCounts.ContainsKey(characterType) && frameCounts[characterType].ContainsKey(attackType))
+            {
+                totalFrames = frameCounts[characterType][attackType];
+            }
+            
+            // Calculate delay based on frame timing
             int delay = (int)((float)hitFrameIndex / totalFrames * totalDuration);
             
             return delay;
+        }
+
+        /// <summary>
+        /// Get slide distance for attack
+        /// </summary>
+        public int GetSlideDistance(string attackType)
+        {
+            string key = $"{characterType}_{attackType}";
+            if (slideDistances.ContainsKey(key))
+            {
+                return slideDistances[key];
+            }
+            return 0;
+        }
+
+        /// <summary>
+        /// Get multi-hit timings for skills
+        /// </summary>
+        public List<int> GetMultiHitTimings(string attackType)
+        {
+            string key = $"{characterType}_{attackType}";
+            if (multiHitTimings.ContainsKey(key))
+            {
+                return new List<int>(multiHitTimings[key]);
+            }
+            return new List<int>();
+        }
+
+        /// <summary>
+        /// Get knockback distance for attack
+        /// </summary>
+        public int GetKnockbackDistance(string attackType)
+        {
+            string key = $"{characterType}_{attackType}";
+            if (knockbackDistances.ContainsKey(key))
+            {
+                return knockbackDistances[key];
+            }
+            return 20; // Default knockback
         }
 
         /// <summary>
@@ -230,6 +390,15 @@ namespace DoAn_NT106
         public bool HasAnimation(string animationName)
         {
             return animations.ContainsKey(animationName);
+        }
+
+        /// <summary>
+        /// Check if character has dash animation
+        /// </summary>
+        public bool HasDashAnimation()
+        {
+            // Girl Knight và Warrior có dash animation riêng
+            return characterType == "girlknight" || characterType == "warrior";
         }
 
         /// <summary>
@@ -296,6 +465,7 @@ namespace DoAn_NT106
             animations["fireball"] = CreateColoredImage(80, 120, Color.Yellow);
             animations["hurt"] = CreateColoredImage(80, 120, Color.White);
             animations["parry"] = CreateColoredImage(80, 120, Color.LightSkyBlue);
+            animations["slide"] = CreateColoredImage(80, 120, Lighten(baseColor, 0.2f));
         }
 
         private Image CreateWalkingAnimation(Color baseColor)

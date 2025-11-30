@@ -81,8 +81,9 @@ namespace DoAn_NT106
                 Speed = 95,
                 Stamina = 100,
                 Mana = 100,
-                SkillDescription = "Noble Warrior - Balanced with strong parry",
-                PreviewImage = SafeLoadImage(Properties.Resources.girlknight_stand)
+                SkillDescription = "⚡ Energy Shield - Continuous AoE damage (30 mana/s)\n" +
+                                   "Deals 5 damage at 0.5s and 1.0s intervals",
+                PreviewImage = SafeLoadImage(Properties.Resources.Knightgirl_Idle)
             });
 
             // Character 2: Bringer of Death
@@ -95,8 +96,42 @@ namespace DoAn_NT106
                 Speed = 85,
                 Stamina = 90,
                 Mana = 110,
-                SkillDescription = "Dark Reaper - High damage with life steal",
+                SkillDescription = "💀 Dark Spell - Summons spell at enemy position (30 mana)\n" +
+                                   "Deals 25 damage after 0.2s delay if target doesn't dodge",
                 PreviewImage = SafeLoadImage(Properties.Resources.BringerofDeath_Idle)
+            });
+
+            // Character 3: Goatman
+            characters.Add(new CharacterInfo
+            {
+                Name = "goatman",
+                DisplayName = "Goatman Berserker",
+                HP = 120,
+                Damage = 110,
+                Speed = 100,
+                Stamina = 110,
+                Mana = 80,
+                SkillDescription = "🐐 Wild Charge - Rush forward for 3s (30 mana)\n" +
+                                   "Accelerates to max speed at 1.5s, stuns on impact\n" +
+                                   "Attack2: Heavy knockback with impact effect (80px)",
+                PreviewImage = SafeLoadImage(Properties.Resources.GM_Idle)
+            });
+
+            // Character 4: Warrior
+            characters.Add(new CharacterInfo
+            {
+                Name = "warrior",
+                DisplayName = "Elite Warrior",
+                HP = 115,
+                Damage = 120,
+                Speed = 90,
+                Stamina = 95,
+                Mana = 90,
+                SkillDescription = "⚔️ Energy Wave - Launches projectile (30 mana)\n" +
+                                   "Deals 20 damage, travels for 3s\n" +
+                                   "Attack1: Double hit combo\n" +
+                                   "Attack2: Slide 40px before striking",
+                PreviewImage = SafeLoadImage(Properties.Resources.Warrior_Idle)
             });
         }
 
@@ -177,7 +212,7 @@ namespace DoAn_NT106
         private void InitializeUI()
         {
             this.Text = $"Select Your Character - {username}";
-            this.Size = new Size(900, 650);
+            this.Size = new Size(900, 700);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
@@ -187,7 +222,7 @@ namespace DoAn_NT106
             mainPanel = new Pnl_Pixel
             {
                 Location = new Point(20, 20),
-                Size = new Size(850, 580),
+                Size = new Size(850, 630),
                 BackColor = darkBrown
             };
             this.Controls.Add(mainPanel);
@@ -209,7 +244,7 @@ namespace DoAn_NT106
             characterListPanel = new FlowLayoutPanel
             {
                 Location = new Point(20, 70),
-                Size = new Size(350, 440),
+                Size = new Size(350, 490),
                 BackColor = Color.FromArgb(80, 50, 30),
                 AutoScroll = true,
                 FlowDirection = FlowDirection.TopDown,
@@ -228,7 +263,7 @@ namespace DoAn_NT106
             previewPanel = new Panel
             {
                 Location = new Point(390, 70),
-                Size = new Size(440, 440),
+                Size = new Size(440, 490),
                 BackColor = Color.FromArgb(90, 60, 40),
                 BorderStyle = BorderStyle.FixedSingle
             };
@@ -279,11 +314,11 @@ namespace DoAn_NT106
             lblSkillDesc = new Label
             {
                 Location = new Point(20, 400),
-                Size = new Size(400, 30),
-                Font = new Font("Courier New", 9, FontStyle.Italic),
+                Size = new Size(400, 80),
+                Font = new Font("Courier New", 8, FontStyle.Regular),
                 ForeColor = Color.LightGoldenrodYellow,
                 BackColor = Color.Transparent,
-                TextAlign = ContentAlignment.MiddleCenter
+                TextAlign = ContentAlignment.TopCenter
             };
             previewPanel.Controls.Add(lblSkillDesc);
 
@@ -291,7 +326,7 @@ namespace DoAn_NT106
             btnConfirm = new Btn_Pixel
             {
                 Text = "✓ CONFIRM",
-                Location = new Point(500, 525),
+                Location = new Point(500, 575),
                 Size = new Size(160, 45),
                 BtnColor = Color.FromArgb(34, 139, 34),
                 Font = new Font("Courier New", 12, FontStyle.Bold),
@@ -304,7 +339,7 @@ namespace DoAn_NT106
             btnBack = new Btn_Pixel
             {
                 Text = "← BACK",
-                Location = new Point(680, 525),
+                Location = new Point(680, 575),
                 Size = new Size(140, 45),
                 BtnColor = Color.FromArgb(178, 34, 34),
                 Font = new Font("Courier New", 12, FontStyle.Bold),
@@ -317,7 +352,7 @@ namespace DoAn_NT106
             var lblRoomInfo = new Label
             {
                 Text = $"Room: {roomCode} | VS: {opponentName}",
-                Location = new Point(20, 530),
+                Location = new Point(20, 580),
                 Size = new Size(400, 30),
                 Font = new Font("Courier New", 10, FontStyle.Bold),
                 ForeColor = Color.White,
@@ -330,7 +365,7 @@ namespace DoAn_NT106
         {
             var panel = new Panel
             {
-                Size = new Size(320, 70),
+                Size = new Size(320, 90),
                 Margin = new Padding(5),
                 BackColor = Color.FromArgb(100, 65, 40),
                 Cursor = Cursors.Hand,
@@ -340,7 +375,7 @@ namespace DoAn_NT106
             var picBox = new PictureBox
             {
                 Location = new Point(10, 10),
-                Size = new Size(50, 50),
+                Size = new Size(70, 70),
                 SizeMode = PictureBoxSizeMode.Zoom,
                 Image = character.PreviewImage,
                 BackColor = Color.Transparent
@@ -350,8 +385,8 @@ namespace DoAn_NT106
             var lblName = new Label
             {
                 Text = character.DisplayName,
-                Location = new Point(70, 10),
-                Size = new Size(200, 25),
+                Location = new Point(90, 15),
+                Size = new Size(220, 25),
                 Font = new Font("Courier New", 11, FontStyle.Bold),
                 ForeColor = goldColor,
                 BackColor = Color.Transparent
@@ -361,13 +396,24 @@ namespace DoAn_NT106
             var lblType = new Label
             {
                 Text = GetCharacterType(character),
-                Location = new Point(70, 35),
-                Size = new Size(200, 20),
+                Location = new Point(90, 40),
+                Size = new Size(220, 20),
                 Font = new Font("Courier New", 8),
                 ForeColor = Color.LightGray,
                 BackColor = Color.Transparent
             };
             panel.Controls.Add(lblType);
+
+            var lblStats = new Label
+            {
+                Text = $"HP:{character.HP} | DMG:{character.Damage} | SPD:{character.Speed}",
+                Location = new Point(90, 60),
+                Size = new Size(220, 20),
+                Font = new Font("Courier New", 7),
+                ForeColor = Color.White,
+                BackColor = Color.Transparent
+            };
+            panel.Controls.Add(lblStats);
 
             // Event handlers
             panel.Click += (s, e) => SelectCharacter(index);
@@ -399,7 +445,7 @@ namespace DoAn_NT106
         {
             if (character.Damage >= 115) return "⚔️ Damage Dealer";
             if (character.HP >= 120) return "🛡️ Tank";
-            if (character.Speed >= 120) return "⚡ Speedster";
+            if (character.Speed >= 100) return "⚡ Speedster";
             return "⚖️ Balanced";
         }
 
@@ -472,6 +518,7 @@ namespace DoAn_NT106
             battleForm.Show();
             this.Close();
         }
+        
         private void BtnBack_Click(object sender, EventArgs e)
         {
             // Quay lại GameLobbyForm
