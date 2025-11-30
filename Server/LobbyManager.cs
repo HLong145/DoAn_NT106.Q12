@@ -7,73 +7,75 @@ using System.Text.Json;
 namespace DoAn_NT106.Server
 {
     /// <summary>
-    /// Quản lý real-time connections trong mỗi room lobby
+    /// Quản lý Lobby cho mỗi Room - Real-time sync giữa 2 players
     /// </summary>
     public class LobbyManager
     {
-        // Dictionary: roomCode -> LobbyRoom
-        private ConcurrentDictionary<string, LobbyRoom> lobbies = new ConcurrentDictionary<string, LobbyRoom>();
+        // Room Code -> Lobby Data
+        private ConcurrentDictionary<string, LobbyData> lobbies = new ConcurrentDictionary<string, LobbyData>();
 
         public event Action<string> OnLog;
+
+        private void Log(string message) => OnLog?.Invoke($"[Lobby] {message}");
 
         // ===========================
         // JOIN LOBBY
         // ===========================
-        public (bool Success, string Message, LobbyRoom Lobby) JoinLobby(
+        public (bool Success, string Message, LobbyData Lobby) JoinLobby(
             string roomCode, string username, ClientHandler client, RoomManager roomManager)
         {
             try
             {
-                // Lấy room info từ RoomManager
-                var room = roomManager.GetRoom(roomCode);
-                if (room == null)
-                {
-                    return (false, "Room not found", null);
-                }
+                if (string.IsNullOrEmpty(roomCode) || string.IsNullOrEmpty(username))
+                    return (false, "Room code and username are required", null);
 
-                // Tạo hoặc lấy lobby
-                var lobby = lobbies.GetOrAdd(roomCode, _ => new LobbyRoom
-                {
-                    RoomCode = roomCode,
-                    RoomName = room.RoomName
-                });
+                // Get or create lobby
+                var lobby = lobbies.GetOrAdd(roomCode, code => new LobbyData { RoomCode = code });
 
-                // Xác định player slot
-                bool isPlayer1 = room.Player1Username == username;
-                bool isPlayer2 = room.Player2Username == username;
-
-                if (!isPlayer1 && !isPlayer2)
+                lock (lobby.Lock)
                 {
-                    return (false, "You are not in this room", null);
-                }
-
-                // Thêm connection
-                if (isPlayer1)
-                {
-                    lobby.Player1Username = username;
-                    lobby.Player1Client = client;
-                }
-                else
-                {
-                    lobby.Player2Username = username;
-                    lobby.Player2Client = client;
-                }
-
-                Log($"✅ {username} joined lobby {roomCode}");
-
-                // Broadcast cho người còn lại
-                BroadcastToLobby(roomCode, new
-                {
-                    Action = "LOBBY_PLAYER_JOINED",
-                    Data = new
+                    // Get room info from RoomManager
+                    var room = roomManager.GetRoom(roomCode);
+                    if (room != null)
                     {
-                        username = username,
-                        isPlayer1 = isPlayer1
+                        lobby.RoomName = room.RoomName;
                     }
-                }, excludeUser: username);
 
-                // Gửi system message
-                AddChatMessage(roomCode, "System", $"{username} đã vào phòng!", "system");
+                    // Determine player slot
+                    if (string.IsNullOrEmpty(lobby.Player1Username))
+                    {
+                        lobby.Player1Username = username;
+                        lobby.Player1Client = client;
+                        lobby.Player1Ready = false;
+                        Log($"✅ {username} joined lobby {roomCode} as Player 1");
+                    }
+                    else if (lobby.Player1Username == username)
+                    {
+                        // Reconnecting as Player 1
+                        lobby.Player1Client = client;
+                        Log($"🔄 {username} reconnected to lobby {roomCode} as Player 1");
+                    }
+                    else if (string.IsNullOrEmpty(lobby.Player2Username))
+                    {
+                        lobby.Player2Username = username;
+                        lobby.Player2Client = client;
+                        lobby.Player2Ready = false;
+                        Log($"✅ {username} joined lobby {roomCode} as Player 2");
+                    }
+                    else if (lobby.Player2Username == username)
+                    {
+                        // Reconnecting as Player 2
+                        lobby.Player2Client = client;
+                        Log($"🔄 {username} reconnected to lobby {roomCode} as Player 2");
+                    }
+                    else
+                    {
+                        return (false, "Lobby is full", null);
+                    }
+
+                    // Broadcast to other player
+                    BroadcastLobbyState(lobby, excludeUsername: null);
+                }
 
                 return (true, "Joined lobby", lobby);
             }
@@ -87,218 +89,268 @@ namespace DoAn_NT106.Server
         // ===========================
         // LEAVE LOBBY
         // ===========================
-        public void LeaveLobby(string roomCode, string username)
+        public (bool Success, string Message) LeaveLobby(string roomCode, string username)
         {
             try
             {
                 if (!lobbies.TryGetValue(roomCode, out var lobby))
-                    return;
+                    return (true, "Lobby not found");
 
-                bool wasPlayer1 = lobby.Player1Username == username;
-
-                if (wasPlayer1)
+                lock (lobby.Lock)
                 {
-                    lobby.Player1Username = null;
-                    lobby.Player1Client = null;
-                    lobby.Player1Ready = false;
+                    bool wasPlayer1 = lobby.Player1Username == username;
+                    bool wasPlayer2 = lobby.Player2Username == username;
+
+                    if (wasPlayer1)
+                    {
+                        lobby.Player1Username = null;
+                        lobby.Player1Client = null;
+                        lobby.Player1Ready = false;
+                        Log($"👋 {username} left lobby {roomCode} (was Player 1)");
+                    }
+                    else if (wasPlayer2)
+                    {
+                        lobby.Player2Username = null;
+                        lobby.Player2Client = null;
+                        lobby.Player2Ready = false;
+                        Log($"👋 {username} left lobby {roomCode} (was Player 2)");
+                    }
+
+                    // Broadcast leave to remaining player
+                    BroadcastPlayerLeft(lobby, username);
+
+                    // Remove lobby if empty
+                    if (string.IsNullOrEmpty(lobby.Player1Username) && string.IsNullOrEmpty(lobby.Player2Username))
+                    {
+                        lobbies.TryRemove(roomCode, out _);
+                        Log($"🗑 Lobby {roomCode} removed (empty)");
+                    }
                 }
-                else if (lobby.Player2Username == username)
-                {
-                    lobby.Player2Username = null;
-                    lobby.Player2Client = null;
-                    lobby.Player2Ready = false;
-                }
 
-                Log($"👋 {username} left lobby {roomCode}");
-
-                // Broadcast cho người còn lại
-                BroadcastToLobby(roomCode, new
-                {
-                    Action = "LOBBY_PLAYER_LEFT",
-                    Data = new { username = username }
-                });
-
-                AddChatMessage(roomCode, "System", $"{username} đã rời phòng!", "system");
-
-                // Nếu lobby trống, xóa
-                if (lobby.Player1Client == null && lobby.Player2Client == null)
-                {
-                    lobbies.TryRemove(roomCode, out _);
-                    Log($"🗑️ Lobby {roomCode} removed (empty)");
-                }
+                return (true, "Left lobby");
             }
             catch (Exception ex)
             {
                 Log($"❌ LeaveLobby error: {ex.Message}");
+                return (false, ex.Message);
             }
         }
 
         // ===========================
         // SET READY STATUS
         // ===========================
-        public (bool Success, bool AllReady) SetReady(string roomCode, string username, bool isReady)
+        public (bool Success, string Message, bool BothReady) SetReady(string roomCode, string username, bool isReady)
         {
             try
             {
                 if (!lobbies.TryGetValue(roomCode, out var lobby))
-                    return (false, false);
+                    return (false, "Lobby not found", false);
 
-                bool isPlayer1 = lobby.Player1Username == username;
-
-                if (isPlayer1)
-                    lobby.Player1Ready = isReady;
-                else if (lobby.Player2Username == username)
-                    lobby.Player2Ready = isReady;
-                else
-                    return (false, false);
-
-                Log($"🎮 {username} is {(isReady ? "READY" : "NOT READY")} in room {roomCode}");
-
-                // Broadcast ready status
-                BroadcastToLobby(roomCode, new
+                lock (lobby.Lock)
                 {
-                    Action = "LOBBY_READY_CHANGED",
-                    Data = new
+                    if (lobby.Player1Username == username)
                     {
-                        username = username,
-                        isReady = isReady
+                        lobby.Player1Ready = isReady;
+                        Log($"🎮 {username} is {(isReady ? "READY" : "NOT READY")} in lobby {roomCode}");
                     }
-                });
-
-                // Kiểm tra cả 2 đã ready chưa
-                bool allReady = !string.IsNullOrEmpty(lobby.Player1Username) &&
-                               !string.IsNullOrEmpty(lobby.Player2Username) &&
-                               lobby.Player1Ready && lobby.Player2Ready;
-
-                if (allReady)
-                {
-                    Log($"🚀 All players ready in room {roomCode}! Starting game...");
-
-                    // Broadcast ALL_READY
-                    BroadcastToLobby(roomCode, new
+                    else if (lobby.Player2Username == username)
                     {
-                        Action = "LOBBY_ALL_READY",
-                        Data = new
-                        {
-                            roomCode = roomCode,
-                            player1 = lobby.Player1Username,
-                            player2 = lobby.Player2Username
-                        }
-                    });
-                }
+                        lobby.Player2Ready = isReady;
+                        Log($"🎮 {username} is {(isReady ? "READY" : "NOT READY")} in lobby {roomCode}");
+                    }
+                    else
+                    {
+                        return (false, "Player not in lobby", false);
+                    }
 
-                return (true, allReady);
+                    // Broadcast updated state
+                    BroadcastLobbyState(lobby, excludeUsername: null);
+
+                    // Check if both ready
+                    bool bothReady = lobby.Player1Ready && lobby.Player2Ready &&
+                                    !string.IsNullOrEmpty(lobby.Player1Username) &&
+                                    !string.IsNullOrEmpty(lobby.Player2Username);
+
+                    if (bothReady)
+                    {
+                        Log($"🚀 Both players ready in lobby {roomCode}! Starting game...");
+                        BroadcastStartGame(lobby);
+                    }
+
+                    return (true, "Ready status updated", bothReady);
+                }
             }
             catch (Exception ex)
             {
                 Log($"❌ SetReady error: {ex.Message}");
-                return (false, false);
+                return (false, ex.Message, false);
             }
         }
 
         // ===========================
-        // CHAT
+        // SEND CHAT MESSAGE
         // ===========================
-        public bool SendChat(string roomCode, string username, string message)
+        public (bool Success, string Message) SendChatMessage(string roomCode, string username, string message)
         {
             try
             {
                 if (!lobbies.TryGetValue(roomCode, out var lobby))
-                    return false;
+                    return (false, "Lobby not found");
 
-                AddChatMessage(roomCode, username, message, "user");
-                return true;
+                if (string.IsNullOrWhiteSpace(message))
+                    return (false, "Message cannot be empty");
+
+                var chatMessage = new LobbyChatMessage
+                {
+                    Id = Guid.NewGuid().ToString("N").Substring(0, 8),
+                    Username = username,
+                    Message = message,
+                    Timestamp = DateTime.Now
+                };
+
+                lock (lobby.Lock)
+                {
+                    // Store in history
+                    lobby.ChatHistory.Add(chatMessage);
+                    if (lobby.ChatHistory.Count > 50)
+                        lobby.ChatHistory.RemoveAt(0);
+
+                    // Broadcast to both players
+                    BroadcastChatMessage(lobby, chatMessage);
+                }
+
+                Log($"💬 [{roomCode}] {username}: {message}");
+                return (true, "Message sent");
             }
             catch (Exception ex)
             {
-                Log($"❌ SendChat error: {ex.Message}");
-                return false;
+                Log($"❌ SendChatMessage error: {ex.Message}");
+                return (false, ex.Message);
             }
         }
 
-        private void AddChatMessage(string roomCode, string username, string message, string type)
-        {
-            if (!lobbies.TryGetValue(roomCode, out var lobby))
-                return;
-
-            var chatMsg = new LobbyChatMsg
-            {
-                Username = username,
-                Message = message,
-                Timestamp = DateTime.Now.ToString("HH:mm:ss"),
-                Type = type
-            };
-
-            // Lưu vào history (giới hạn 50)
-            lobby.ChatHistory.Add(chatMsg);
-            if (lobby.ChatHistory.Count > 50)
-                lobby.ChatHistory.RemoveAt(0);
-
-            // Broadcast
-            BroadcastToLobby(roomCode, new
-            {
-                Action = "LOBBY_CHAT",
-                Data = new
-                {
-                    username = chatMsg.Username,
-                    message = chatMsg.Message,
-                    timestamp = chatMsg.Timestamp,
-                    type = chatMsg.Type
-                }
-            });
-
-            if (type == "user")
-                Log($"💬 [Lobby {roomCode}] {username}: {message.Substring(0, Math.Min(30, message.Length))}...");
-        }
-
         // ===========================
-        // GET LOBBY STATE
+        // GET LOBBY DATA
         // ===========================
-        public LobbyRoom GetLobby(string roomCode)
+        public LobbyData GetLobby(string roomCode)
         {
             lobbies.TryGetValue(roomCode, out var lobby);
             return lobby;
         }
 
         // ===========================
-        // BROADCAST
+        // BROADCAST METHODS
         // ===========================
-        private void BroadcastToLobby(string roomCode, object message, string excludeUser = null)
+        private void BroadcastLobbyState(LobbyData lobby, string excludeUsername)
         {
-            if (!lobbies.TryGetValue(roomCode, out var lobby))
-                return;
-
-            string json = JsonSerializer.Serialize(message);
-
-            if (lobby.Player1Client != null && lobby.Player1Username != excludeUser)
+            var broadcast = new
             {
-                try { lobby.Player1Client.SendMessage(json); } catch { }
-            }
+                Action = "LOBBY_STATE_UPDATE",
+                Data = new
+                {
+                    roomCode = lobby.RoomCode,
+                    roomName = lobby.RoomName,
+                    player1 = lobby.Player1Username,
+                    player2 = lobby.Player2Username,
+                    player1Ready = lobby.Player1Ready,
+                    player2Ready = lobby.Player2Ready
+                }
+            };
 
-            if (lobby.Player2Client != null && lobby.Player2Username != excludeUser)
-            {
-                try { lobby.Player2Client.SendMessage(json); } catch { }
-            }
+            string json = JsonSerializer.Serialize(broadcast);
+
+            if (lobby.Player1Client != null && lobby.Player1Username != excludeUsername)
+                SafeSend(lobby.Player1Client, json);
+
+            if (lobby.Player2Client != null && lobby.Player2Username != excludeUsername)
+                SafeSend(lobby.Player2Client, json);
         }
 
-        // ===========================
-        // CLEANUP
-        // ===========================
-        public void RemoveDisconnectedClient(string roomCode, string username)
+        private void BroadcastPlayerLeft(LobbyData lobby, string leftUsername)
         {
-            LeaveLobby(roomCode, username);
+            var broadcast = new
+            {
+                Action = "LOBBY_PLAYER_LEFT",
+                Data = new
+                {
+                    roomCode = lobby.RoomCode,
+                    username = leftUsername,
+                    player1 = lobby.Player1Username,
+                    player2 = lobby.Player2Username
+                }
+            };
+
+            string json = JsonSerializer.Serialize(broadcast);
+
+            if (lobby.Player1Client != null)
+                SafeSend(lobby.Player1Client, json);
+
+            if (lobby.Player2Client != null)
+                SafeSend(lobby.Player2Client, json);
         }
 
-        private void Log(string message)
+        private void BroadcastChatMessage(LobbyData lobby, LobbyChatMessage chatMessage)
         {
-            OnLog?.Invoke($"[Lobby] {message}");
+            var broadcast = new
+            {
+                Action = "LOBBY_CHAT_MESSAGE",
+                Data = new
+                {
+                    id = chatMessage.Id,
+                    username = chatMessage.Username,
+                    message = chatMessage.Message,
+                    timestamp = chatMessage.Timestamp.ToString("HH:mm:ss")
+                }
+            };
+
+            string json = JsonSerializer.Serialize(broadcast);
+
+            if (lobby.Player1Client != null)
+                SafeSend(lobby.Player1Client, json);
+
+            if (lobby.Player2Client != null)
+                SafeSend(lobby.Player2Client, json);
+        }
+
+        private void BroadcastStartGame(LobbyData lobby)
+        {
+            var broadcast = new
+            {
+                Action = "LOBBY_START_GAME",
+                Data = new
+                {
+                    roomCode = lobby.RoomCode,
+                    player1 = lobby.Player1Username,
+                    player2 = lobby.Player2Username
+                }
+            };
+
+            string json = JsonSerializer.Serialize(broadcast);
+
+            if (lobby.Player1Client != null)
+                SafeSend(lobby.Player1Client, json);
+
+            if (lobby.Player2Client != null)
+                SafeSend(lobby.Player2Client, json);
+        }
+
+        private void SafeSend(ClientHandler client, string json)
+        {
+            try
+            {
+                client?.SendMessage(json);
+            }
+            catch (Exception ex)
+            {
+                Log($"⚠️ SafeSend error: {ex.Message}");
+            }
         }
     }
 
     // ===========================
     // DATA CLASSES
     // ===========================
-    public class LobbyRoom
+    public class LobbyData
     {
         public string RoomCode { get; set; }
         public string RoomName { get; set; }
@@ -311,14 +363,15 @@ namespace DoAn_NT106.Server
         public ClientHandler Player2Client { get; set; }
         public bool Player2Ready { get; set; }
 
-        public List<LobbyChatMsg> ChatHistory { get; set; } = new List<LobbyChatMsg>();
+        public List<LobbyChatMessage> ChatHistory { get; } = new List<LobbyChatMessage>();
+        public object Lock { get; } = new object();
     }
 
-    public class LobbyChatMsg
+    public class LobbyChatMessage
     {
+        public string Id { get; set; }
         public string Username { get; set; }
         public string Message { get; set; }
-        public string Timestamp { get; set; }
-        public string Type { get; set; }
+        public DateTime Timestamp { get; set; }
     }
 }

@@ -307,21 +307,4 @@ namespace DoAn_NT106.Services
         public ServerResponse LeaveRoom(string roomCode, string username)
             => LeaveRoomAsync(roomCode, username).GetAwaiter().GetResult();
     }
-
-    // ==========================
-    // DTO: Response
-    // ==========================
-    public class ServerResponse
-    {
-        public bool Success { get; set; }
-        public string Message { get; set; }
-        public Dictionary<string, object> Data { get; set; }
-
-        public string GetDataValue(string key)
-        {
-            if (Data != null && Data.ContainsKey(key))
-                return Data[key]?.ToString();
-            return null;
-        }
-    }
 }

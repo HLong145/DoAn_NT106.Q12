@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using DoAn_NT106.Services;
 
 namespace PixelGameLobby
 {
@@ -14,7 +15,7 @@ namespace PixelGameLobby
         private string username;
         private string token;
         private readonly List<Room> rooms = new List<Room>();
-        private readonly TcpClientService tcpClient;
+        private PersistentTcpClient TcpClient => PersistentTcpClient.Instance;
 
         // Color palette
         private readonly Color primaryBrown = Color.FromArgb(160, 82, 45);
@@ -37,16 +38,12 @@ namespace PixelGameLobby
             this.username = username;
             this.token = token;
 
-            tcpClient = new TcpClientService("127.0.0.1", 8080);
-
             SetupPixelStyling();
             SetupEventHandlers();
             SetupRefreshTimer();
             SetupGlobalChatEvents();
 
             this.Text = $"Pixel Game Lobby - Welcome {username}";
-
-            // Load rooms từ server khi form load
             this.Load += async (s, e) => await LoadRoomsFromServerAsync();
         }
 
@@ -127,54 +124,41 @@ namespace PixelGameLobby
 
         private async Task LoadRoomsFromServerAsync()
         {
-
-
-
-
-
-            // Tránh gọi đồng thời nhiều lần
             if (isLoadingRooms) return;
-            isLoadingRooms = true;
 
+            isLoadingRooms = true;
             try
             {
-                UpdateRefreshButtonState("⏳", false);
+                var response = await TcpClient.GetRoomListAsync();
 
-                var response = await tcpClient.GetRoomsAsync();
-
-                // ✅ THÊM LOG ĐỂ DEBUG
-                Console.WriteLine($"📋 GetRooms Response: Success={response.Success}, Message={response.Message}");
-
-                if (response.Success && response.Data != null)
+                if (response.Success && response.RawData.ValueKind != System.Text.Json.JsonValueKind.Undefined)
                 {
-                    var roomList = ParseRoomsFromResponse(response.Data);
+                    rooms.Clear();
 
-                    // ✅ THÊM LOG
-                    Console.WriteLine($"📋 Parsed {roomList.Count} rooms from server");
+                    if (response.RawData.TryGetProperty("rooms", out var roomsArray))
+                    {
+                        foreach (var roomEl in roomsArray.EnumerateArray())
+                        {
+                            rooms.Add(new Room
+                            {
+                                Code = roomEl.GetProperty("roomCode").GetString(),
+                                Name = roomEl.GetProperty("roomName").GetString(),
+                                Players = roomEl.GetProperty("players").GetString(),
+                                IsLocked = roomEl.TryGetProperty("hasPassword", out var hp) && hp.GetBoolean()
+                            });
+                        }
+                    }
 
-                    if (this.InvokeRequired)
-                    {
-                        this.Invoke(new Action(() => UpdateRoomsList(roomList)));
-                    }
-                    else
-                    {
-                        UpdateRoomsList(roomList);
-                    }
-                }
-                else
-                {
-                    Console.WriteLine($"❌ Failed to load rooms: {response.Message}");
+                    //BtnRefresh_Click(sender, e);
                 }
             }
-
             catch (Exception ex)
             {
-                Console.WriteLine($"LoadRoomsFromServerAsync error: {ex.Message}");
+                Console.WriteLine($"❌ LoadRooms error: {ex.Message}");
             }
             finally
             {
                 isLoadingRooms = false;
-                UpdateRefreshButtonState("🔄", true);
             }
         }
 
@@ -454,31 +438,23 @@ namespace PixelGameLobby
         {
             try
             {
-                // Disable các button để tránh double-click
                 SetJoinButtonsEnabled(false);
 
-                // Gọi server để join room
-                var response = await tcpClient.JoinRoomAsync(roomCode, password, username);
+                var response = await TcpClient.JoinRoomAsync(roomCode, password, username);
 
                 if (response.Success)
                 {
-                    // Dừng auto-refresh timer
                     refreshTimer?.Stop();
-
-                    // Dispose global chat (sẽ tự LeaveAsync bên trong)
                     globalChatClient?.Dispose();
                     globalChatClient = null;
 
-                    // Mở GameLobbyForm
+                    // Mở GameLobbyForm (giữ nguyên tên cũ)
                     var lobbyForm = new GameLobbyForm(roomCode, username, token);
                     lobbyForm.FormClosed += async (s, e) =>
                     {
-                        // Khi lobby đóng, hiện lại JoinRoomForm và refresh
                         this.Show();
                         refreshTimer?.Start();
                         await LoadRoomsFromServerAsync();
-
-                        // Reconnect global chat
                         await ConnectGlobalChatAsync();
                     };
                     lobbyForm.Show();
@@ -498,6 +474,7 @@ namespace PixelGameLobby
                 SetJoinButtonsEnabled(true);
             }
         }
+
 
         private void SetJoinButtonsEnabled(bool enabled)
         {
@@ -535,60 +512,44 @@ namespace PixelGameLobby
                 string roomName = createForm.RoomName;
                 string password = createForm.RoomPassword;
 
-                // Disable button trong khi xử lý
                 btnCreateRoom.Enabled = false;
                 btnCreateRoom.Text = "CREATING...";
 
                 try
                 {
-                    var response = await tcpClient.CreateRoomAsync(roomName, password, username);
+                    var response = await TcpClient.CreateRoomAsync(roomName, password, username);
 
                     if (response.Success)
                     {
-                        string roomCode = response.Data?["roomCode"]?.ToString();
+                        string roomCode = response.GetDataValue("roomCode");
 
-                        MessageBox.Show(
-                            $"✅ Room created successfully!\n\nRoom Code: {roomCode}\nRoom Name: {roomName}",
-                            "Success",
-                            MessageBoxButtons.OK,
-                            MessageBoxIcon.Information
-                        );
-
-                        // Dừng timer và dispose chat
-                        refreshTimer?.Stop();
-                        globalChatClient?.Dispose();
-                        globalChatClient = null;
-
-                        // Mở lobby form
-                        var lobbyForm = new GameLobbyForm(roomCode, username, token);
-                        lobbyForm.FormClosed += async (s, ev) =>
+                        if (!string.IsNullOrEmpty(roomCode))
                         {
-                            this.Show();
-                            refreshTimer?.Start();
-                            await LoadRoomsFromServerAsync();
-                            await ConnectGlobalChatAsync();
-                        };
-                        lobbyForm.Show();
-                        this.Hide();
+                            refreshTimer?.Stop();
+                            globalChatClient?.Dispose();
+                            globalChatClient = null;
+
+                            // Mở GameLobbyForm (giữ nguyên tên cũ)
+                            var lobbyForm = new GameLobbyForm(roomCode, username, token);
+                            lobbyForm.FormClosed += async (s, args) =>
+                            {
+                                this.Show();
+                                refreshTimer?.Start();
+                                await LoadRoomsFromServerAsync();
+                                await ConnectGlobalChatAsync();
+                            };
+                            lobbyForm.Show();
+                            this.Hide();
+                        }
                     }
                     else
                     {
-                        MessageBox.Show(
-                            $"❌ Failed to create room:\n{response.Message}",
-                            "Error",
-                            MessageBoxButtons.OK,
-                            MessageBoxIcon.Error
-                        );
+                        ShowMessage($"❌ {response.Message}");
                     }
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show(
-                        $"❌ Error creating room:\n{ex.Message}",
-                        "Error",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Error
-                    );
+                    ShowMessage($"❌ Error: {ex.Message}");
                 }
                 finally
                 {
