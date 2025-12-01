@@ -23,7 +23,6 @@ BEGIN
         USER_LEVEL INT DEFAULT 1,
         XP INT DEFAULT 0,
         TOTAL_XP INT DEFAULT 0,
-        CHARACTER_USED NVARCHAR(50) NULL,
         LAST_LOGIN DATETIME NULL,
         CREATED_AT DATETIME DEFAULT GETDATE()
     );
@@ -32,27 +31,7 @@ END
 GO
 
 -- =============================================
--- BẢNG 2: CHARACTERS (Nhân vật)
--- =============================================
-IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'CHARACTERS')
-BEGIN
-    CREATE TABLE CHARACTERS
-    (
-        CHARACTER_NAME NVARCHAR(50) PRIMARY KEY,
-        HP INT NOT NULL,
-        DAMAGE INT NOT NULL,
-        SPEED INT NOT NULL,
-        STAMINA INT NOT NULL,
-        MANA INT NOT NULL,
-        SKILL_DESCRIPTION NVARCHAR(255) NULL,
-        CREATED_AT DATETIME DEFAULT GETDATE()
-    );
-    PRINT '✅ Table CHARACTERS created';
-END
-GO
-
--- =============================================
--- BẢNG 3: ROOMS (Phòng chơi) - ĐÃ CẬP NHẬT
+-- BẢNG 2: ROOMS (Phòng chơi) 
 -- =============================================
 
 -- Xóa bảng MATCHES trước (vì nó reference đến ROOMS)
@@ -85,10 +64,6 @@ CREATE TABLE ROOMS
     PLAYER1_USERNAME NVARCHAR(50) NULL,
     PLAYER2_USERNAME NVARCHAR(50) NULL,
     
-    -- Characters được chọn
-    PLAYER1_CHARACTER NVARCHAR(50) NULL,
-    PLAYER2_CHARACTER NVARCHAR(50) NULL,
-    
     -- Trạng thái: WAITING, READY, PLAYING, FINISHED, EMPTY
     ROOM_STATUS NVARCHAR(20) DEFAULT 'WAITING',
     
@@ -99,8 +74,6 @@ CREATE TABLE ROOMS
     -- Foreign Keys (NO ACTION để tránh multiple cascade paths)
     FOREIGN KEY (PLAYER1_USERNAME) REFERENCES PLAYERS(USERNAME) ON DELETE NO ACTION,
     FOREIGN KEY (PLAYER2_USERNAME) REFERENCES PLAYERS(USERNAME) ON DELETE NO ACTION,
-    FOREIGN KEY (PLAYER1_CHARACTER) REFERENCES CHARACTERS(CHARACTER_NAME) ON DELETE NO ACTION,
-    FOREIGN KEY (PLAYER2_CHARACTER) REFERENCES CHARACTERS(CHARACTER_NAME) ON DELETE NO ACTION
 );
 
 -- Index cho tìm kiếm nhanh
@@ -111,7 +84,7 @@ PRINT '✅ Table ROOMS created with ROOM_CODE and LAST_ACTIVITY';
 GO
 
 -- =============================================
--- BẢNG 4: MATCHES (Lịch sử trận đấu)
+-- BẢNG 3: MATCHES (Lịch sử trận đấu)
 -- =============================================
 CREATE TABLE MATCHES
 (
@@ -453,8 +426,6 @@ BEGIN
         ROOM_PASSWORD AS Password,
         PLAYER1_USERNAME AS Player1Username,
         PLAYER2_USERNAME AS Player2Username,
-        PLAYER1_CHARACTER AS Player1Character,
-        PLAYER2_CHARACTER AS Player2Character,
         ROOM_STATUS AS Status,
         CREATED_AT AS CreatedAt,
         LAST_ACTIVITY AS LastActivity
@@ -525,68 +496,6 @@ END
 GO
 
 PRINT '✅ SP_CLEANUP_INACTIVE_ROOMS created';
-GO
-
--- =============================================
--- STORED PROCEDURE: Chọn Character
--- =============================================
-IF EXISTS (SELECT * FROM sys.procedures WHERE name = 'SP_SELECT_CHARACTER')
-    DROP PROCEDURE SP_SELECT_CHARACTER;
-GO
-
-CREATE PROCEDURE SP_SELECT_CHARACTER
-    @RoomCode VARCHAR(6),
-    @Username NVARCHAR(50),
-    @CharacterName NVARCHAR(50)
-AS
-BEGIN
-    SET NOCOUNT ON;
-    
-    DECLARE @Player1 NVARCHAR(50), @Player2 NVARCHAR(50);
-    
-    SELECT @Player1 = PLAYER1_USERNAME, @Player2 = PLAYER2_USERNAME
-    FROM ROOMS WHERE ROOM_CODE = @RoomCode;
-    
-    IF @Username = @Player1
-    BEGIN
-        UPDATE ROOMS 
-        SET PLAYER1_CHARACTER = @CharacterName, LAST_ACTIVITY = GETDATE()
-        WHERE ROOM_CODE = @RoomCode;
-    END
-    ELSE IF @Username = @Player2
-    BEGIN
-        UPDATE ROOMS 
-        SET PLAYER2_CHARACTER = @CharacterName, LAST_ACTIVITY = GETDATE()
-        WHERE ROOM_CODE = @RoomCode;
-    END
-    ELSE
-    BEGIN
-        SELECT 0 AS Success, N'Player not in room' AS Message;
-        RETURN;
-    END
-    
-    SELECT 1 AS Success, N'Character selected' AS Message;
-END
-GO
-
-PRINT '✅ SP_SELECT_CHARACTER created';
-GO
-
--- =============================================
--- INSERT DỮ LIỆU MẪU: Characters
--- =============================================
-IF NOT EXISTS (SELECT 1 FROM CHARACTERS)
-BEGIN
-    INSERT INTO CHARACTERS (CHARACTER_NAME, HP, DAMAGE, SPEED, STAMINA, MANA, SKILL_DESCRIPTION)
-    VALUES 
-        (N'Warrior', 120, 25, 5, 100, 50, N'Heavy attacks with high damage'),
-        (N'Assassin', 80, 35, 10, 80, 60, N'Fast and deadly strikes'),
-        (N'Mage', 70, 40, 6, 60, 120, N'Powerful magic spells'),
-        (N'Tank', 150, 15, 3, 120, 30, N'High defense and HP'),
-        (N'Archer', 90, 30, 8, 90, 70, N'Long range attacks');
-    
-    PRINT '✅ Sample characters inserted';
-END
 GO
 
 -- =============================================
