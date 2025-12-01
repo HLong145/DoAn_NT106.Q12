@@ -74,8 +74,17 @@ namespace PixelGameLobby
             btn_refresh.MouseEnter += Button_MouseEnter;
             btn_refresh.MouseLeave += (s, e) =>
             {
-                if (s is Button btn) btn.BackColor = darkGold;
+                if (s is Button btn) btn.BackColor = Color.DarkOrchid;
             };
+
+            // ✅ NEW: Test Room button
+            btnTestRoom.Click += BtnTestRoom_Click;
+            btnTestRoom.MouseEnter += Button_MouseEnter;
+            btnTestRoom.MouseLeave += (s, e) =>
+            {
+                if (s is Button btn) btn.BackColor = Color.FromArgb(0, 102, 204);
+            };
+            btnTestRoom.Paint += Button_Paint;
 
             // Create room button
             btnCreateRoom.Click += BtnCreateRoom_Click;
@@ -561,6 +570,49 @@ namespace PixelGameLobby
 
         #endregion
 
+        #region Test Room (Offline Mode)
+
+        private void BtnTestRoom_Click(object sender, EventArgs e)
+        {
+            // Open offline test character selection dialog
+            using (var testForm = new OfflineTestForm(username))
+            {
+                if (testForm.ShowDialog() == DialogResult.OK)
+                {
+                    string player1Character = testForm.Player1Character;
+                    string player2Character = testForm.Player2Character;
+                    string player2Name = testForm.Player2Name;
+
+                    // Stop timers and chat
+                    refreshTimer?.Stop();
+                    globalChatClient?.Dispose();
+                    globalChatClient = null;
+
+                    // Open BattleForm in offline mode
+                    var battleForm = new BattleForm(
+                        username,           // Player 1 name
+                        token,              // Token (not used in offline)
+                        player2Name,        // Player 2 name
+                        player1Character,   // Player 1 character
+                        player2Character    // Player 2 character
+                    );
+
+                    battleForm.FormClosed += async (s, args) =>
+                    {
+                        this.Show();
+                        refreshTimer?.Start();
+                        await LoadRoomsFromServerAsync();
+                        await ConnectGlobalChatAsync();
+                    };
+
+                    battleForm.Show();
+                    this.Hide();
+                }
+            }
+        }
+
+        #endregion
+
         #region UI Effects
 
         private void Button_MouseEnter(object sender, EventArgs e)
@@ -584,7 +636,9 @@ namespace PixelGameLobby
                 else if (button == btnCreateRoom)
                     button.BackColor = Color.FromArgb(0, 128, 0);
                 else if (button == btn_refresh)
-                    button.BackColor = darkGold;
+                    button.BackColor = Color.DarkOrchid;
+                else if (button == btnTestRoom) // ✅ NEW: Handle test room button
+                    button.BackColor = Color.FromArgb(0, 102, 204);
             }
         }
 

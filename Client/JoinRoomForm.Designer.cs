@@ -32,6 +32,7 @@
             this.roomsPanel = new FlowLayoutPanel();
             this.pnlHelp = new Panel();
             this.btn_refresh = new Button();
+            this.btnTestRoom = new Button(); // ✅ NEW: Test Room button
             this.lblHelp = new Label();
 
             // Global Chat Controls
@@ -227,6 +228,7 @@
             this.pnlHelp.BackColor = Color.FromArgb(74, 50, 25);
             this.pnlHelp.BorderStyle = BorderStyle.FixedSingle;
             this.pnlHelp.Controls.Add(this.btn_refresh);
+            this.pnlHelp.Controls.Add(this.btnTestRoom); // ✅ NEW: Add to controls
             this.pnlHelp.Controls.Add(this.lblHelp);
             this.pnlHelp.Location = new Point(100, 620);
             this.pnlHelp.Name = "pnlHelp";
@@ -248,17 +250,20 @@
             this.btn_refresh.UseVisualStyleBackColor = false;
             //this.btn_refresh.Click += new EventHandler(this.btn_refresh_Click);
 
+            // ✅ NEW: Test Room button configuration
             // 
-            // lblHelp
+            // btnTestRoom
             // 
-            this.lblHelp.AutoSize = true;
-            this.lblHelp.Font = new Font("Courier New", 11F, FontStyle.Bold);
-            this.lblHelp.ForeColor = Color.Gold;
-            this.lblHelp.Location = new Point(20, 20);
-            this.lblHelp.Name = "lblHelp";
-            this.lblHelp.Size = new Size(549, 22);
-            this.lblHelp.TabIndex = 0;
-            this.lblHelp.Text = "💡 Enter room code and password (if any) to join.";
+            this.btnTestRoom.BackColor = Color.FromArgb(0, 102, 204); // Blue color
+            this.btnTestRoom.FlatStyle = FlatStyle.Flat;
+            this.btnTestRoom.Font = new Font("Courier New", 11F, FontStyle.Bold);
+            this.btnTestRoom.ForeColor = Color.White;
+            this.btnTestRoom.Location = new Point(620, 13);
+            this.btnTestRoom.Name = "btnTestRoom";
+            this.btnTestRoom.Size = new Size(170, 35);
+            this.btnTestRoom.TabIndex = 4;
+            this.btnTestRoom.Text = "🧪 TEST ROOM";
+            this.btnTestRoom.UseVisualStyleBackColor = false;
 
             // =====================================================
             // GLOBAL CHAT CONTROLS
@@ -416,6 +421,7 @@
         private FlowLayoutPanel roomsPanel;
         private Panel pnlHelp;
         private Button btn_refresh;
+        private Button btnTestRoom; // ✅ NEW: Test Room button declaration
         private Label lblHelp;
 
         // Global Chat Controls
