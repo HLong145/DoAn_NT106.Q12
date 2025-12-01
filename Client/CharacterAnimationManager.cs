@@ -22,60 +22,62 @@ namespace DoAn_NT106
         {
             ["girlknight"] = new Dictionary<string, int>
             {
-                ["punch"] = 1000,    // attack1: 6fps, 6 frames = 1000ms
-                ["kick"] = 1500,     // attack2: 6fps, 9 frames = 1500ms
-                ["special"] = 500,   // skill: 10fps, 5 frames = 500ms (loop)
+                ["punch"] = 1000,    // ✅ 6 frames ÷ 6 fps = 1000ms
+                ["kick"] = 1500,     // ✅ 9 frames ÷ 6 fps = 1500ms
+                ["special"] = 500,   // ✅ 5 frames ÷ 10 fps = 500ms (loop)
                 ["slide"] = 200      // dash: 0.2s
             },
             ["bringerofdeath"] = new Dictionary<string, int>
             {
-                ["punch"] = 1250,   // Attack2: 10 frames @ 8 fps = 1250ms
-                ["kick"] = 556,     // Attack1: 10 frames @ 18 fps = 556ms
-                ["special"] = 1125, // 9 frames @ 8 fps = 1125ms (Cast animation)
+                ["punch"] = 1250,   // ✅ 10 frames ÷ 8 fps = 1250ms
+                ["kick"] = 556,     // ✅ 10 frames ÷ 18 fps = 556ms
+                ["special"] = 1125, // ✅ 9 frames ÷ 8 fps = 1125ms (Cast animation)
                 ["slide"] = 200
             },
             ["goatman"] = new Dictionary<string, int>
             {
-                ["punch"] = 545,    // attack1: 11fps, 6 frames = 545ms
-                ["kick"] = 667,     // attack2: 9fps, 6 frames = 667ms
+                ["punch"] = 545,    // ✅ 6 frames ÷ 11 fps = 545ms
+                ["kick"] = 667,     // ✅ 6 frames ÷ 9 fps = 667ms
                 ["special"] = 3000, // charge skill: 3s duration
                 ["slide"] = 200     // dash: 0.2s
             },
             ["warrior"] = new Dictionary<string, int>
             {
-                ["punch"] = 1000,   // attack1: 12fps, 12 frames = 1000ms
-                ["kick"] = 1000,    // attack2: 10fps, 10 frames = 1000ms
-                ["special"] = 714,  // skill: 7fps, 5 frames = 714ms
+                ["punch"] = 1000,   // ✅ 12 frames ÷ 12 fps = 1000ms
+                ["kick"] = 1000,    // ✅ 10 frames ÷ 10 fps = 1000ms
+                ["special"] = 714,  // ✅ 5 frames ÷ 7 fps = 714ms
                 ["slide"] = 200     // dash: 0.2s
             }
         };
 
         // Hit timing configuration - frame number khi gây damage (tính từ 0)
+        // ✅ HIT TIMING CONFIGURATION - FRAME NUMBER (1-based), NOT INDEX!
+        // VD: Frame 4 = frame thứ 4 trong animation (không phải index 3)
         private Dictionary<string, Dictionary<string, int>> hitFrames = new Dictionary<string, Dictionary<string, int>>
         {
             ["girlknight"] = new Dictionary<string, int>
             {
-                ["punch"] = 2,      // Frame 3 (index 2): 6fps, 6 frames = 333ms
-                ["kick"] = 5,       // Frame 6 (index 5): 6fps, 9 frames = 833ms
-                ["special"] = 0     // Continuous damage at 0.5s and 1s intervals
+                ["punch"] = 3,      // ✅ Frame 3: 6fps, 6 frames → 3/6 * 1000ms = 500ms
+                ["kick"] = 6,       // ✅ Frame 6: 6fps, 9 frames → 6/9 * 1500ms = 1000ms
+                ["special"] = 0     // Continuous damage at 0.5s and 1.0s intervals
             },
             ["bringerofdeath"] = new Dictionary<string, int>
             {
-                ["punch"] = 5,      // Frame 6 (index 5): 8fps, 10 frames = 625ms
-                ["kick"] = 5,       // Frame 6 (index 5): 18fps, 10 frames = 278ms
-                ["special"] = 5     // Frame 6 (index 5) - khi spell được spawn
+                ["punch"] = 6,      // ✅ Frame 6: 8fps, 10 frames → 6/10 * 1250ms = 750ms
+                ["kick"] = 6,       // ✅ Frame 6: 18fps, 10 frames → 6/10 * 556ms = 333ms
+                ["special"] = 6     // Frame 6 - khi spell được spawn
             },
             ["goatman"] = new Dictionary<string, int>
             {
-                ["punch"] = 3,     // Frame 4 (index 3): 11fps, 6 frames = 273ms
-                ["kick"] = 3,      // Frame 4 (index 3): 9fps, 6 frames = 333ms
+                ["punch"] = 4,     // ✅ Frame 4: 11fps, 6 frames → 4/6 * 545ms = 363ms
+                ["kick"] = 4,      // ✅ Frame 4: 9fps, 6 frames → 4/6 * 667ms = 445ms
                 ["special"] = 0    // Collision-based damage
             },
             ["warrior"] = new Dictionary<string, int>
             {
-                ["punch"] = 5,     // Frame 6 (index 5): 12fps, 12 frames = 500ms (first hit)
-                ["kick"] = 3,      // Frame 4 (index 3): 10fps, 10 frames = 400ms
-                ["special"] = 2    // Frame 3 (index 2): 7fps, 5 frames = 428ms
+                ["punch"] = 6,     // ✅ Frame 6: 12fps, 12 frames → 6/12 * 1000ms = 500ms (first hit)
+                ["kick"] = 4,      // ✅ Frame 4: 10fps, 10 frames → 4/10 * 1000ms = 400ms
+                ["special"] = 3    // ✅ Frame 3: 7fps, 5 frames → 3/5 * 714ms = 428ms
             }
         };
 
@@ -118,8 +120,8 @@ namespace DoAn_NT106
         // Slide distance for attack2
         private Dictionary<string, int> slideDistances = new Dictionary<string, int>
         {
-            ["girlknight_kick"] = 60,  // Slide 60px during attack2
-            ["warrior_kick"] = 40      // Slide 40px trong 3 frames đầu
+            ["girlknight_kick"] = 200,  // Tăng từ 60 lên 200 (1/2 dash)
+            ["warrior_kick"] = 200      // Tăng từ 40 lên 200 (1/2 dash)
         };
 
         // Knockback configuration
@@ -282,19 +284,67 @@ namespace DoAn_NT106
         /// </summary>
         public void ResetAnimationToFirstFrame(string animationName)
         {
-            var animation = GetAnimation(animationName);
-            if (animation != null && ImageAnimator.CanAnimate(animation))
+            try
             {
+                var animation = GetAnimation(animationName);
+                if (animation == null)
+                {
+                    Console.WriteLine($"⚠️ Animation '{animationName}' not found for {characterType}");
+                    return;
+                }
+
+                if (!ImageAnimator.CanAnimate(animation))
+                {
+                    Console.WriteLine($"⚠️ Animation '{animationName}' is not animatable for {characterType}");
+                    return;
+                }
+
+                // ✅ CRITICAL: Stop -> Reset -> Restart với NHIỀU LẦN ĐỂ ĐẢM BẢO
+                
+                // ✅ BƯỚC 1: STOP animation NHIỀU LẦN
                 try
                 {
                     ImageAnimator.StopAnimate(animation, frameChangedHandler);
-                    animation.SelectActiveFrame(System.Drawing.Imaging.FrameDimension.Time, 0);
-                    ImageAnimator.Animate(animation, frameChangedHandler);
+                    System.Threading.Thread.Sleep(5);
+                    ImageAnimator.StopAnimate(animation, frameChangedHandler); // Lần 2
+                    Console.WriteLine($"✅ Stopped animation: {animationName}");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error resetting animation: {ex.Message}");
+                    Console.WriteLine($"⚠️ Stop error: {ex.Message}");
                 }
+
+                // ✅ BƯỚC 2: Wait để đảm bảo stop hoàn tất
+                System.Threading.Thread.Sleep(15);
+
+                // ✅ BƯỚC 3: RESET về frame 0 - CRITICAL STEP
+                try
+                {
+                    animation.SelectActiveFrame(System.Drawing.Imaging.FrameDimension.Time, 0);
+                    Console.WriteLine($"✅ Reset to frame 0: {animationName}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"⚠️ Reset frame error: {ex.Message}");
+                }
+
+                // ✅ BƯỚC 4: Wait để đảm bảo reset hoàn tất
+                System.Threading.Thread.Sleep(15);
+
+                // ✅ BƯỚC 5: RESTART animation từ frame 0
+                try
+                {
+                    ImageAnimator.Animate(animation, frameChangedHandler);
+                    Console.WriteLine($"✅ Restarted animation: {animationName} for {characterType}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"⚠️ Restart error: {ex.Message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ ResetAnimationToFirstFrame error for '{animationName}': {ex.Message}");
             }
         }
 
@@ -303,10 +353,38 @@ namespace DoAn_NT106
         /// </summary>
         public int GetAnimationDuration(string attackType)
         {
+            // ✅ SỬ DỤNG TIMING TỪ frameTimings DICTIONARY ĐỂ TÍNH CHÍNH XÁC
             if (animationDurations.ContainsKey(characterType) && 
                 animationDurations[characterType].ContainsKey(attackType))
             {
                 return animationDurations[characterType][attackType];
+            }
+            
+            // ✅ FALLBACK: Tính từ frameTimings nếu có
+            if (frameCounts.ContainsKey(characterType) && frameCounts[characterType].ContainsKey(attackType))
+            {
+                int frameCount = frameCounts[characterType][attackType];
+                
+                // Lấy FPS từ config
+                float fps = 10f; // Default
+                switch (characterType)
+                {
+                    case "goatman":
+                        fps = attackType == "punch" ? 11f : 9f;
+                        break;
+                    case "bringerofdeath":
+                        fps = attackType == "punch" ? 8f : 18f;
+                        break;
+                    case "girlknight":
+                        fps = attackType == "special" ? 10f : 6f;
+                        break;
+                    case "warrior":
+                        fps = attackType == "punch" ? 12f : (attackType == "kick" ? 10f : 7f);
+                        break;
+                }
+                
+                // ✅ TÍNH CHÍNH XÁC: (frames / fps) * 1000
+                return (int)((frameCount / fps) * 1000);
             }
             
             return attackType switch
@@ -319,28 +397,33 @@ namespace DoAn_NT106
         }
 
         /// <summary>
-        /// Get hit frame delay (thời gian đến khi gây damage)
+        /// Get hit frame delay (thời gian đến khi gây damage) - ✅ FRAME NUMBER, NOT INDEX
         /// </summary>
         public int GetHitFrameDelay(string attackType)
         {
-            int totalFrames = 10;
-            int hitFrameIndex = 5;
-
+            // ✅ LẤY FRAME NUMBER (1-based) từ config
+            int hitFrame = 5; // Default
             if (hitFrames.ContainsKey(characterType) && hitFrames[characterType].ContainsKey(attackType))
             {
-                hitFrameIndex = hitFrames[characterType][attackType];
+                hitFrame = hitFrames[characterType][attackType];
             }
 
-            int totalDuration = GetAnimationDuration(attackType);
-            
-            // Get frame count from configuration
+            // ✅ LẤY TỔNG SỐ FRAMES
+            int totalFrames = 10; // Default
             if (frameCounts.ContainsKey(characterType) && frameCounts[characterType].ContainsKey(attackType))
             {
                 totalFrames = frameCounts[characterType][attackType];
             }
+
+            // ✅ LẤY TỔNG THỜI GIAN ANIMATION
+            int totalDuration = GetAnimationDuration(attackType);
             
-            // Calculate delay based on frame timing
-            int delay = (int)((float)hitFrameIndex / totalFrames * totalDuration);
+            // ✅ CÔNG THỨC ĐÚNG: (hitFrame / totalFrames) * totalDuration
+            // VD: Goatman punch: frame 4, total 6 frames, duration 545ms
+            // → (4/6) * 545 = 363ms ← ĐÚNG!
+            int delay = (int)((float)hitFrame / totalFrames * totalDuration);
+            
+            Console.WriteLine($"🎯 {characterType} {attackType}: Frame {hitFrame}/{totalFrames} = {delay}ms (total: {totalDuration}ms)");
             
             return delay;
         }

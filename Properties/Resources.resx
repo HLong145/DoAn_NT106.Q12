@@ -316,4 +316,7 @@
   <data name="Warrior_Walk" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\Warrior_Walk.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
+  <data name="Dash_effect" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Dash_effect.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
 </root>

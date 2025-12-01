@@ -283,6 +283,16 @@ namespace DoAn_NT106.Properties {
         /// <summary>
         ///   Looks up a localized resource of type System.Byte[].
         /// </summary>
+        internal static byte[] Dash_effect {
+            get {
+                object obj = ResourceManager.GetObject("Dash_effect", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
         internal static byte[] fireball {
             get {
                 object obj = ResourceManager.GetObject("fireball", resourceCulture);

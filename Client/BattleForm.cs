@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
+using DoAn_NT106.Client.BattleSystems; // ✅ THÊM NAMESPACE MỚI
 
 namespace DoAn_NT106
 {
@@ -20,12 +21,22 @@ namespace DoAn_NT106
         private string token;
         private string opponent;
 
+        // ===== ✅ NEW SYSTEMS (ADDED) =====
+        private PlayerState player1State;
+        private PlayerState player2State;
+        private ResourceSystem resourceSystem;
+        private PhysicsSystem physicsSystem;
+        private EffectManager effectManager;
+        private ProjectileManager projectileManager;
+        private CombatSystem combatSystem;
+        // ==================================
+
         // Game assets
         private Image background;
         private Image fireball;
         private List<string> backgroundImages = new List<string>();
 
-        // Player positions (x = left, y = top)
+        // Player positions (x = left, y = top) - ⚠️ WILL BE MIGRATED
         private int player1X = 300;
         private int player1Y;
         private int player2X = 600;
@@ -119,7 +130,7 @@ namespace DoAn_NT106
         private bool player2Dashing = false;
         private int player1DashDirection = 0;
         private int player2DashDirection = 0;
-        private const int DASH_DISTANCE = 100;
+        private const int DASH_DISTANCE = 400; // Tăng từ 100 lên 400
         private const int DASH_DURATION_MS = 200;
         private System.Windows.Forms.Timer player1DashTimer;
         private System.Windows.Forms.Timer player2DashTimer;
@@ -129,6 +140,17 @@ namespace DoAn_NT106
         private int dashEffect1X, dashEffect1Y;
         private int dashEffect2X, dashEffect2Y;
         private string dashEffect1Facing, dashEffect2Facing;
+
+        // ✅ THÊM: Dash effect GIF cho Bringer of Death và Goatman
+        private Image dashEffectGif = null;
+        private bool player1DashEffectActive = false;
+        private bool player2DashEffectActive = false;
+        private int player1DashEffectX, player1DashEffectY;
+        private int player2DashEffectX, player2DashEffectY;
+        private string player1DashEffectFacing;
+        private string player2DashEffectFacing;
+        private System.Windows.Forms.Timer player1DashEffectTimer;
+        private System.Windows.Forms.Timer player2DashEffectTimer;
 
         // Knight Girl Skill System
         private bool player1SkillActive = false;
@@ -145,7 +167,7 @@ namespace DoAn_NT106
         private bool player2Charging = false;
         private float player1ChargeSpeed = 0;
         private float player2ChargeSpeed = 0;
-        private const float CHARGE_ACCELERATION = 5f;
+        private const float CHARGE_ACCELERATION = 20f; // Tăng từ 12f lên 20f để nhanh hơn
         private const float CHARGE_MAX_SPEED = 30f;
         private const int CHARGE_DURATION_MS = 3000;
         private System.Windows.Forms.Timer player1ChargeTimer;
@@ -157,9 +179,9 @@ namespace DoAn_NT106
         private int projectile1X, projectile1Y, projectile1Direction;
         private int projectile2X, projectile2Y, projectile2Direction;
         private Image warriorSkillEffect = null;
-        private const int PROJECTILE_SPEED = 15;
-        private const int PROJECTILE_WIDTH = 80;
-        private const int PROJECTILE_HEIGHT = 80;
+        private const int PROJECTILE_SPEED = 23; // Tăng từ 15 lên 23 (x1.5 ~= 22.5)
+        private const int PROJECTILE_WIDTH = 160; // Tăng gấp đôi từ 80 lên 160
+        private const int PROJECTILE_HEIGHT = 160; // Tăng gấp đôi từ 80 lên 160
 
         // Impact Effect System
         private Image gmImpactEffect = null;
@@ -238,13 +260,59 @@ namespace DoAn_NT106
                 player2AnimationManager = new CharacterAnimationManager(player2CharacterType, OnFrameChanged);
                 player2AnimationManager.LoadAnimations();
 
-                // Update character size after animations loaded
+                // ❌ XÓA DÒNG NÀY - CHƯA CÓ physicsSystem!
+                // UpdateCharacterSize();
+
+                // ===== ✅ INITIALIZE NEW SYSTEMS =====
+                // 1. Initialize PlayerState instances
+                player1State = new PlayerState(username, player1CharacterType, 1)
+                {
+                    X = 300,
+                    Y = groundLevel - PLAYER_HEIGHT,
+                    Facing = "right",
+                    CurrentAnimation = "stand"
+                };
+
+                player2State = new PlayerState(opponent, player2CharacterType, 2)
+                {
+                    X = 600,
+                    Y = groundLevel - PLAYER_HEIGHT,
+                    Facing = "left",
+                    CurrentAnimation = "stand"
+                };
+
+                // 2. Initialize ResourceSystem
+                resourceSystem = new ResourceSystem(player1State, player2State);
+                resourceSystem.SetupStatusBars(this.ClientSize.Width);
+
+                // 3. Initialize PhysicsSystem
+                physicsSystem = new PhysicsSystem(groundLevel, backgroundWidth, PLAYER_WIDTH, PLAYER_HEIGHT);
+
+                // 4. Initialize EffectManager
+                effectManager = new EffectManager();
+
+                // 5. Initialize ProjectileManager
+                projectileManager = new ProjectileManager(backgroundWidth, OnFrameChanged);
+
+                // 6. Initialize CombatSystem
+                combatSystem = new CombatSystem(
+                    player1State, player2State,
+                    player1AnimationManager, player2AnimationManager,
+                    effectManager, projectileManager,
+                    PLAYER_WIDTH, PLAYER_HEIGHT, backgroundWidth,
+                    () => this.Invalidate(),
+                    ShowHitEffect
+                );
+                // =====================================
+
+                // ✅ THÊM DÒNG NÀY - SAU KHI ĐÃ CÓ physicsSystem!
                 UpdateCharacterSize();
 
                 // Khởi tạo walk animation timer
                 walkAnimationTimer = new System.Windows.Forms.Timer();
                 walkAnimationTimer.Interval = 100;
                 walkAnimationTimer.Tick += WalkAnimationTimer_Tick;
+
                 // Parry timers init
                 p1ParryTimer = new System.Windows.Forms.Timer();
                 p1ParryTimer.Interval = parryWindowMs;
@@ -340,14 +408,14 @@ namespace DoAn_NT106
                     dashEffectImage = CreateColoredImage(80, 80, Color.White);
                 }
 
-                // Load GM impact effect
+                // Load GM impact effect (✅ TẠO LỚN HƠN để dễ nhìn - từ 60x60 lên 100x100)
                 try
                 {
-                    gmImpactEffect = CreateColoredImage(60, 60, Color.OrangeRed);
+                    gmImpactEffect = CreateColoredImage(100, 100, Color.OrangeRed);
                 }
                 catch
                 {
-                    gmImpactEffect = CreateColoredImage(60, 60, Color.OrangeRed);
+                    gmImpactEffect = CreateColoredImage(100, 100, Color.OrangeRed);
                 }
 
                 // Load warrior skill effect (projectile)
@@ -398,62 +466,722 @@ namespace DoAn_NT106
                 Console.WriteLine($"Setup error: {ex.Message}");
             }
 
-            SetupStatusBars();
+            // ===== ✅ SETUP UI WITH NEW SYSTEMS =====
+            // OLD: SetupStatusBars();
+            // NEW: Already called in resourceSystem.SetupStatusBars() above
+            // Add bars to form controls
+            this.Controls.Add(resourceSystem.HealthBar1);
+            this.Controls.Add(resourceSystem.StaminaBar1);
+            this.Controls.Add(resourceSystem.ManaBar1);
+            this.Controls.Add(resourceSystem.HealthBar2);
+            this.Controls.Add(resourceSystem.StaminaBar2);
+            this.Controls.Add(resourceSystem.ManaBar2);
+
+            // Add player name labels (keep existing style)
+            int screenWidth = this.ClientSize.Width;
+            int barWidth = screenWidth / 4;
+            int barHeight = 20;
+            int spacing = 5;
+            int startY = 10;
+
+            lblPlayer1Name = new Label
+            {
+                Text = username,
+                Location = new Point(20, startY + 3 * (barHeight + spacing)),
+                Size = new Size(barWidth, 20),
+                ForeColor = Color.Cyan,
+                Font = new Font("Arial", 10, FontStyle.Bold),
+                BackColor = Color.Transparent
+            };
+
+            lblPlayer2Name = new Label
+            {
+                Text = opponent,
+                Location = new Point(screenWidth - barWidth - 20, startY + 3 * (barHeight + spacing)),
+                Size = new Size(barWidth, 20),
+                ForeColor = Color.Orange,
+                Font = new Font("Arial", 10, FontStyle.Bold),
+                TextAlign = ContentAlignment.TopRight,
+                BackColor = Color.Transparent
+            };
+
+            this.Controls.Add(lblPlayer1Name);
+            this.Controls.Add(lblPlayer2Name);
+            // =====================================
+
             SetupControlsInfo();
         }
 
-        private void StartParry(int player)
+        private void GameTimer_Tick(object sender, EventArgs e)
         {
-            if (player == 1)
+            // ===== MOVEMENT LOGIC =====
+            // ✅ UPDATE: Use PlayerState instead of local variables
+            player1State.IsWalking = false;
+            player2State.IsWalking = false;
+            
+            // Player 1 movement - ✅ MIGRATED TO PhysicsSystem
+            if (player1State.CanMove) // Use PlayerState.CanMove instead of checking individual flags
             {
-                if (player1ParryOnCooldown) return;
-                if (player1Stamina < parryStaminaCost) { ShowHitEffect("No Stamina!", Color.Gray); return; }
-
-                player1Stamina -= parryStaminaCost;
-                player1Parrying = true;
-
-                _prevAnimPlayer1 = player1CurrentAnimation;
-                player1CurrentAnimation = "parry";
-
-                // Animate parry
-                var parryImg = player1AnimationManager.GetAnimation("parry");
-                if (parryImg != null && ImageAnimator.CanAnimate(parryImg))
+                if (aPressed)
                 {
-                    try { ImageAnimator.Animate(parryImg, OnFrameChanged); } catch { }
+                    physicsSystem.MovePlayer(player1State, -1);
                 }
-
-                p1ParryTimer.Stop();
-                p1ParryTimer.Interval = parryWindowMs;
-                p1ParryTimer.Start();
-
-                ShowHitEffect("Parry!", Color.Cyan);
-                this.Invalidate();
+                else if (dPressed)
+                {
+                    physicsSystem.MovePlayer(player1State, 1);
+                }
+                else if (!player1State.IsJumping && !player1State.IsParrying && !player1State.IsSkillActive)
+                {
+                    physicsSystem.StopMovement(player1State);
+                }
             }
-            else if (player == 2)
+            
+            // Player 2 movement - ✅ MIGRATED TO PhysicsSystem
+            if (player2State.CanMove)
             {
-                if (player2ParryOnCooldown) return;
-                if (player2Stamina < parryStaminaCost) { ShowHitEffect("No Stamina!", Color.Gray); return; }
-
-                player2Stamina -= parryStaminaCost;
-                player2Parrying = true;
-
-                _prevAnimPlayer2 = player2CurrentAnimation;
-                player2CurrentAnimation = "parry";
-
-                var parryImg = player2AnimationManager.GetAnimation("parry");
-                if (parryImg != null && ImageAnimator.CanAnimate(parryImg))
+                if (leftPressed)
                 {
-                    try { ImageAnimator.Animate(parryImg, OnFrameChanged); } catch { }
+                    physicsSystem.MovePlayer(player2State, -1);
+                }
+                else if (rightPressed)
+                {
+                    physicsSystem.MovePlayer(player2State, 1);
+                }
+                else if (!player2State.IsJumping && !player2State.IsParrying && !player2State.IsSkillActive)
+                {
+                    physicsSystem.StopMovement(player2State);
+                }
+            }
+            
+            // ===== JUMP PHYSICS ===== - ✅ MIGRATED TO PhysicsSystem
+            physicsSystem.UpdateJump(player1State);
+            physicsSystem.UpdateJump(player2State);
+            
+            // ===== SYNC OLD VARIABLES WITH NEW STATE (TEMPORARY - for compatibility) =====
+            // This ensures existing code still works during migration
+            player1X = player1State.X;
+            player1Y = player1State.Y;
+            player2X = player2State.X;
+            player2Y = player2State.Y;
+            player1Jumping = player1State.IsJumping;
+            player2Jumping = player2State.IsJumping;
+            player1Walking = player1State.IsWalking;
+            player2Walking = player2State.IsWalking;
+            player1CurrentAnimation = player1State.CurrentAnimation;
+            player2CurrentAnimation = player2State.CurrentAnimation;
+            player1Facing = player1State.Facing;
+            player2Facing = player2State.Facing;
+            player1Attacking = player1State.IsAttacking;
+            player2Attacking = player2State.IsAttacking;
+            player1Stunned = player1State.IsStunned;
+            player2Stunned = player2State.IsStunned;
+            player1Parrying = player1State.IsParrying;
+            player2Parrying = player2State.IsParrying;
+            player1Dashing = player1State.IsDashing;
+            player2Dashing = player2State.IsDashing;
+            player1Charging = player1State.IsCharging;
+            player2Charging = player2State.IsCharging;
+            player1SkillActive = player1State.IsSkillActive;
+            player2SkillActive = player2State.IsSkillActive;
+            // Health/Stamina/Mana
+            player1Health = player1State.Health;
+            player1Stamina = player1State.Stamina;
+            player1Mana = player1State.Mana;
+            player2Health = player2State.Health;
+            player2Stamina = player2State.Stamina;
+            player2Mana = player2State.Mana;
+            // ====================================================================
+            
+            // ===== UPDATE ANIMATIONS =====
+            // Update ALL animations continuously
+            var p1Img = player1AnimationManager.GetAnimation(player1State.CurrentAnimation);
+            if (p1Img != null && ImageAnimator.CanAnimate(p1Img))
+            {
+                ImageAnimator.UpdateFrames(p1Img);
+            }
+            
+            var p2Img = player2AnimationManager.GetAnimation(player2State.CurrentAnimation);
+            if (p2Img != null && ImageAnimator.CanAnimate(p2Img))
+            {
+                ImageAnimator.UpdateFrames(p2Img);
+            }
+            
+            // ===== UPDATE PROJECTILES ===== - ✅ MIGRATED TO ProjectileManager
+            projectileManager.UpdateFireball(
+                (playerNum, x, y, _) => 
+                {
+                    var p = playerNum == 1 ? player1State : player2State;
+                    return new Rectangle(p.X, p.Y, PLAYER_WIDTH, PLAYER_HEIGHT);
+                },
+                (playerNum) => playerNum == 1 ? player1State.IsParrying : player2State.IsParrying,
+                () => 
+                {
+                    // Reflect logic - handled by ProjectileManager internally
+                },
+                // ✅ TEMPORARY FIX: Comment out until ApplyDamage is implemented
+                //(target, damage) => combatSystem.ApplyDamage(target, damage),
+                (target, damage) => ApplyHurtToPlayer(target, damage, false),
+                ShowHitEffect
+            );
+
+            projectileManager.UpdateWarriorProjectiles(
+                (playerNum, x, y, _) =>
+                {
+                    var p = playerNum == 1 ? player1State : player2State;
+                    return new Rectangle(p.X, p.Y, PLAYER_WIDTH, PLAYER_HEIGHT);
+                },
+                // ✅ TEMPORARY FIX
+                //(target, damage) => combatSystem.ApplyDamage(target, damage),
+                (target, damage) => ApplyHurtToPlayer(target, damage, false),
+                ShowHitEffect
+            );
+
+            projectileManager.UpdateSpellAnimation();
+            
+            // Update fireball - OLD CODE (keep for compatibility)
+            if (fireballActive)
+            {
+                fireballX += 12 * fireballDirection;
+                CheckFireballHit();
+
+                if (fireballX > backgroundWidth || fireballX < -FIREBALL_WIDTH)
+                {
+                    fireballActive = false;
+                }
+                
+                if (fireball != null && ImageAnimator.CanAnimate(fireball))
+                {
+                    ImageAnimator.UpdateFrames(fireball);
+                }
+            }
+            
+            // Update spell animation - OLD CODE
+            if (spellActive && spellAnimation != null && ImageAnimator.CanAnimate(spellAnimation))
+            {
+                ImageAnimator.UpdateFrames(spellAnimation);
+            }
+            
+            // Update warrior projectiles - OLD CODE
+            if (projectile1Active)
+            {
+                projectile1X += PROJECTILE_SPEED * projectile1Direction;
+                
+                Rectangle projRect = new Rectangle(projectile1X, projectile1Y, PROJECTILE_WIDTH, PROJECTILE_HEIGHT);
+                Rectangle targetRect = GetPlayerHurtbox(player2X, player2Y);
+                
+                if (projRect.IntersectsWith(targetRect))
+                {
+                    ApplyHurtToPlayer(2, 20);
+                    projectile1Active = false;
+                    ShowHitEffect("Energy Strike!", Color.Gold);
+                }
+                
+                if (projectile1X > backgroundWidth || projectile1X < -PROJECTILE_WIDTH)
+                {
+                    projectile1Active = false;
+                }
+                
+                if (warriorSkillEffect != null && ImageAnimator.CanAnimate(warriorSkillEffect))
+                {
+                    ImageAnimator.UpdateFrames(warriorSkillEffect);
+                }
+            }
+
+            if (projectile2Active)
+            {
+                projectile2X += PROJECTILE_SPEED * projectile2Direction;
+                
+                Rectangle projRect = new Rectangle(projectile2X, projectile2Y, PROJECTILE_WIDTH, PROJECTILE_HEIGHT);
+                Rectangle targetRect = GetPlayerHurtbox(player1X, player1Y);
+                
+                if (projRect.IntersectsWith(targetRect))
+                {
+                    ApplyHurtToPlayer(1, 20);
+                    projectile2Active = false;
+                    ShowHitEffect("Energy Strike!", Color.Gold);
+                }
+                
+                if (projectile2X > backgroundWidth || projectile2X < -PROJECTILE_WIDTH)
+                {
+                    projectile2Active = false;
+                }
+            }
+            
+            // Update camera
+            UpdateCamera();
+            
+            // ===== REGENERATE RESOURCES ===== - ✅ MIGRATED TO ResourceSystem
+            resourceSystem.RegenerateResources();
+            resourceSystem.UpdateBars();
+
+            // ===== CHECK GAME OVER ===== - ✅ USE PlayerState
+            if (player1State.IsDead || player2State.IsDead)
+            {
+                gameTimer.Stop();
+                walkAnimationTimer.Stop();
+
+                string winner;
+                if (player1State.IsDead && player2State.IsDead)
+                    winner = "Draw";
+                else
+                    winner = player1State.IsDead ? opponent : username;
+
+                ShowGameOver(winner);
+            }
+            
+            this.Invalidate();
+        }
+
+        private void BattleForm_KeyDown(object sender, KeyEventArgs e)
+        {
+            // Player 1 controls
+            switch (e.KeyCode)
+            {
+                case Keys.A: 
+                    if (player1State.CanMove) // ✅ USE PlayerState
+                    {
+                        aPressed = true;
+                        player1State.LeftKeyPressed = true; // ✅ SYNC STATE
+                    }
+                    break;
+                case Keys.D: 
+                    if (player1State.CanMove)
+                    {
+                        dPressed = true;
+                        player1State.RightKeyPressed = true; // ✅ SYNC STATE
+                    }
+                    break;
+                case Keys.W:
+                    // ✅ MIGRATED TO PhysicsSystem
+                    physicsSystem.Jump(player1State);
+                    break;
+                case Keys.J: 
+                    if (player1State.CanAttack) // ✅ USE PlayerState
+                    {
+                        // ✅ MIGRATED TO CombatSystem
+                        combatSystem.ExecuteAttack(1, "punch");
+                    }
+                    break;
+                case Keys.K: 
+                    if (player1State.CanAttack)
+                    {
+                        // ✅ MIGRATED TO CombatSystem
+                        combatSystem.ExecuteAttack(1, "kick");
+                    }
+                    break;
+                case Keys.L: 
+                    if (player1State.CanDash) // ✅ USE PlayerState
+                    {
+                        // ✅ MIGRATED TO CombatSystem
+                        combatSystem.ExecuteDash(1);
+                    }
+                    break;
+                case Keys.U:
+                    if (player1State.CanParry)
+                    {
+                        // ✅ MIGRATED TO CombatSystem
+                        combatSystem.StartParry(1);
+                    }
+                    break;
+                case Keys.I:
+                    if (player1State.CanAttack)
+                    {
+                        // ✅ MIGRATED TO CombatSystem
+                        combatSystem.ToggleSkill(1);
+                    }
+                    break;
+                case Keys.Escape:
+                    BtnBack_Click(null, EventArgs.Empty);
+                    break;
+            }
+
+            // Player 2 controls
+            switch (e.KeyCode)
+            {
+                case Keys.Left: 
+                    if (player2State.CanMove)
+                    {
+                        leftPressed = true;
+                        player2State.LeftKeyPressed = true; // ✅ SYNC STATE
+                    }
+                    break;
+                case Keys.Right: 
+                    if (player2State.CanMove)
+                    {
+                        rightPressed = true;
+                        player2State.RightKeyPressed = true; // ✅ SYNC STATE
+                    }
+                    break;
+                case Keys.Up:
+                    // ✅ MIGRATED TO PhysicsSystem
+                    physicsSystem.Jump(player2State);
+                    break;
+                case Keys.NumPad1: 
+                    if (player2State.CanAttack)
+                    {
+                        // ✅ MIGRATED TO CombatSystem
+                        combatSystem.ExecuteAttack(2, "punch");
+                    }
+                    break;
+                case Keys.NumPad2: 
+                    if (player2State.CanAttack)
+                    {
+                        // ✅ MIGRATED TO CombatSystem
+                        combatSystem.ExecuteAttack(2, "kick");
+                    }
+                    break;
+                case Keys.NumPad3: 
+                    if (player2State.CanDash)
+                    {
+                        // ✅ MIGRATED TO CombatSystem
+                        combatSystem.ExecuteDash(2);
+                    }
+                    break;
+                case Keys.NumPad5:
+                    if (player2State.CanParry)
+                    {
+                        // ✅ MIGRATED TO CombatSystem
+                        combatSystem.StartParry(2);
+                    }
+                    break;
+                case Keys.NumPad4:
+                    if (player2State.CanAttack)
+                    {
+                        // ✅ MIGRATED TO CombatSystem
+                        combatSystem.ToggleSkill(2);
+                    }
+                    break;
+            }
+
+            e.Handled = true;
+        }
+
+        private void BattleForm_KeyUp(object sender, KeyEventArgs e)
+        {
+            switch (e.KeyCode)
+            {
+                case Keys.A: 
+                    aPressed = false;
+                    player1State.LeftKeyPressed = false; // ✅ SYNC STATE
+                    break;
+                case Keys.D: 
+                    dPressed = false;
+                    player1State.RightKeyPressed = false; // ✅ SYNC STATE
+                    break;
+                case Keys.Left: 
+                    leftPressed = false;
+                    player2State.LeftKeyPressed = false; // ✅ SYNC STATE
+                    break;
+                case Keys.Right: 
+                    rightPressed = false;
+                    player2State.RightKeyPressed = false; // ✅ SYNC STATE
+                    break;
+            }
+            e.Handled = true;
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+
+            // Draw background
+            if (background != null)
+            {
+                e.Graphics.DrawImage(background,
+                    new Rectangle(0, 0, this.ClientSize.Width, this.ClientSize.Height),
+                    new Rectangle(viewportX, 0, this.ClientSize.Width, this.ClientSize.Height),
+                    GraphicsUnit.Pixel);
+            }
+
+            // ===== ✅ MIGRATED: Draw effects (behind characters) =====
+            effectManager.DrawEffects(e.Graphics, viewportX, PLAYER_WIDTH, PLAYER_HEIGHT);
+
+            // Draw dash effects - OLD CODE (kept for compatibility)
+            if (dashEffect1Active && dashEffectImage != null)
+            {
+                int effectScreenX = dashEffect1X - viewportX;
+                if (effectScreenX >= -80 && effectScreenX <= this.ClientSize.Width)
+                {
+                    e.Graphics.DrawImage(dashEffectImage, effectScreenX, dashEffect1Y + PLAYER_HEIGHT - 40, 80, 40);
+                }
+            }
+
+            if (dashEffect2Active && dashEffectImage != null)
+            {
+                int effectScreenX = dashEffect2X - viewportX;
+                if (effectScreenX >= -80 && effectScreenX <= this.ClientSize.Width)
+                {
+                    e.Graphics.DrawImage(dashEffectImage, effectScreenX, dashEffect2Y + PLAYER_HEIGHT - 40, 80, 40);
+                }
+            }
+
+            // ===== ✅ MIGRATED: Draw characters using PlayerState =====
+            DrawCharacter(e.Graphics, player1State.X, player1State.Y, player1State.CurrentAnimation, player1State.Facing, player1AnimationManager);
+            DrawCharacter(e.Graphics, player2State.X, player2State.Y, player2State.CurrentAnimation, player2State.Facing, player2AnimationManager);
+
+            // ===== ✅ MIGRATED: Draw hit effects (on top of characters) =====
+            effectManager.DrawHitEffects(e.Graphics, viewportX, PLAYER_WIDTH, PLAYER_HEIGHT);
+
+            // Draw hit effects - OLD CODE (kept for compatibility)
+            foreach (var hitEffect in activeHitEffects.ToList())
+            {
+                int effectScreenX = hitEffect.X - viewportX;
+                if (effectScreenX >= -50 && effectScreenX <= this.ClientSize.Width)
+                {
+                    e.Graphics.DrawImage(hitEffect.EffectImage, 
+                        effectScreenX + PLAYER_WIDTH / 2 - 25, 
+                        hitEffect.Y + PLAYER_HEIGHT / 2 - 25, 
+                        50, 50);
+                }
+            }
+
+            // ===== ✅ MIGRATED: Draw projectiles =====
+            projectileManager.DrawProjectiles(e.Graphics, viewportX);
+
+            // Draw spell effect - OLD CODE (kept for compatibility)
+            if (spellActive && spellAnimation != null)
+            {
+                int spellScreenX = spellX - viewportX;
+                if (spellScreenX >= -SPELL_WIDTH && spellScreenX <= this.ClientSize.Width)
+                {
+                    e.Graphics.DrawImage(spellAnimation, spellScreenX, spellY, SPELL_WIDTH, SPELL_HEIGHT);
+                }
+            }
+
+            // Draw fireball - OLD CODE (kept for compatibility)
+            if (fireballActive && fireball != null)
+            {
+                int fireballScreenX = fireballX - viewportX;
+                if (fireballScreenX >= -FIREBALL_WIDTH && fireballScreenX <= this.ClientSize.Width)
+                {
+                    e.Graphics.DrawImage(fireball, fireballScreenX, fireballY, FIREBALL_WIDTH, FIREBALL_HEIGHT);
+                }
+            }
+            
+            // Draw projectiles (warrior skill) - OLD CODE (kept for compatibility)
+            if (projectile1Active && warriorSkillEffect != null)
+            {
+                int projScreenX = projectile1X - viewportX;
+                if (projScreenX >= -PROJECTILE_WIDTH && projScreenX <= this.ClientSize.Width)
+                {
+                    if (projectile1Direction == -1)
+                    {
+                        e.Graphics.DrawImage(warriorSkillEffect, 
+                            new Rectangle(projScreenX + PROJECTILE_WIDTH, projectile1Y, -PROJECTILE_WIDTH, PROJECTILE_HEIGHT),
+                            new Rectangle(0, 0, warriorSkillEffect.Width, warriorSkillEffect.Height),
+                            GraphicsUnit.Pixel);
+                    }
+                    else
+                    {
+                        e.Graphics.DrawImage(warriorSkillEffect, projScreenX, projectile1Y, PROJECTILE_WIDTH, PROJECTILE_HEIGHT);
+                    }
+                }
+            }
+
+            if (projectile2Active && warriorSkillEffect != null)
+            {
+                int projScreenX = projectile2X - viewportX;
+                if (projScreenX >= -PROJECTILE_WIDTH && projScreenX <= this.ClientSize.Width)
+                {
+                    if (projectile2Direction == -1)
+                    {
+                        e.Graphics.DrawImage(warriorSkillEffect, 
+                            new Rectangle(projScreenX + PROJECTILE_WIDTH, projectile2Y, -PROJECTILE_WIDTH, PROJECTILE_HEIGHT),
+                            new Rectangle(0, 0, warriorSkillEffect.Width, warriorSkillEffect.Height),
+                            GraphicsUnit.Pixel);
+                    }
+                    else
+                    {
+                        e.Graphics.DrawImage(warriorSkillEffect, projScreenX, projectile2Y, PROJECTILE_WIDTH, PROJECTILE_HEIGHT);
+                    }
+                }
+            }
+
+            // ===== ✅ MIGRATED: Draw impact effects =====
+            effectManager.DrawImpactEffects(e.Graphics, viewportX);
+
+            // ===== ✅ MIGRATED: Draw parry indicators using PlayerState =====
+            if (player1State.IsParrying)
+            {
+                int sx = player1State.X - viewportX + PLAYER_WIDTH / 2 - 12;
+                e.Graphics.FillEllipse(new SolidBrush(Color.FromArgb(180, Color.Cyan)), sx, player1State.Y - 28, 24, 24);
+            }
+            if (player2State.IsParrying)
+            {
+                int sx = player2State.X - viewportX + PLAYER_WIDTH / 2 - 12;
+                e.Graphics.FillEllipse(new SolidBrush(Color.FromArgb(180, Color.Cyan)), sx, player2State.Y - 28, 24, 24);
+            }
+
+            // ===== ✅ MIGRATED: Draw stun indicators using PlayerState =====
+            if (player1State.IsStunned)
+            {
+                int sx = player1State.X - viewportX + PLAYER_WIDTH / 2 - 15;
+                using (var font = new Font("Arial", 20, FontStyle.Bold))
+                using (var brush = new SolidBrush(Color.Yellow))
+                {
+                    e.Graphics.DrawString("★", font, brush, sx, player1State.Y - 35);
+                }
+            }
+            if (player2State.IsStunned)
+            {
+                int sx = player2State.X - viewportX + PLAYER_WIDTH / 2 - 15;
+                using (var font = new Font("Arial", 20, FontStyle.Bold))
+                using (var brush = new SolidBrush(Color.Yellow))
+                {
+                    e.Graphics.DrawString("★", font, brush, sx, player2State.Y - 35);
+                }
+            }
+
+            DrawGameUI(e.Graphics);
+        }
+
+        private void UpdateCamera()
+        {
+            // ✅ MIGRATED: Use PlayerState instead of local variables
+            int centerX = (player1State.X + player2State.X) / 2;
+            viewportX = centerX - this.ClientSize.Width / 2;
+            viewportX = Math.Max(0, Math.Min(backgroundWidth - this.ClientSize.Width, viewportX));
+        }
+
+        private void BattleForm_Resize(object sender, EventArgs e)
+        {
+            if (resourceSystem != null && resourceSystem.HealthBar1 != null) // ✅ CHECK NEW SYSTEM
+            {
+                int screenWidth = this.ClientSize.Width;
+
+                // ===== ✅ MIGRATED: Resize bars using ResourceSystem =====
+                resourceSystem.ResizeBars(screenWidth);
+
+                // Update player name labels
+                int barWidth = screenWidth / 4;
+                if (lblPlayer1Name != null)
+                {
+                    lblPlayer1Name.Size = new Size(barWidth, 20);
+                }
+                if (lblPlayer2Name != null)
+                {
+                    lblPlayer2Name.Location = new Point(screenWidth - barWidth - 20, 85);
+                    lblPlayer2Name.Size = new Size(barWidth, 20);
                 }
 
-                p2ParryTimer.Stop();
-                p2ParryTimer.Interval = parryWindowMs;
-                p2ParryTimer.Start();
+                // ===== ✅ MIGRATED: Update ground level in PhysicsSystem =====
+                groundLevel = Math.Max(0, this.ClientSize.Height - groundOffset);
+                physicsSystem.UpdateGroundLevel(groundLevel);
+                UpdateCharacterSize();
 
-                ShowHitEffect("Parry!", Color.Cyan);
-                this.Invalidate();
+                // ===== ✅ MIGRATED: Reset player positions to ground =====
+                physicsSystem.ResetToGround(player1State);
+                physicsSystem.ResetToGround(player2State);
+
+                // Update controls info position
+                if (lblControlsInfo != null)
+                {
+                    lblControlsInfo.Location = new Point(screenWidth / 2 - 350, this.ClientSize.Height - 60);
+                }
             }
         }
+
+        private void UpdateCharacterSize()
+        {
+            int newHeight = Math.Max(24, (int)(this.ClientSize.Height * characterHeightRatio));
+            int spriteOrigW = 64;
+            int spriteOrigH = 64;
+            
+            var standImg = player1AnimationManager?.GetAnimation("stand");
+            if (standImg != null)
+            {
+                spriteOrigW = standImg.Width;
+                spriteOrigH = standImg.Height;
+            }
+            
+            PLAYER_HEIGHT = newHeight;
+            PLAYER_WIDTH = Math.Max(16, (int)(PLAYER_HEIGHT * (float)spriteOrigW / spriteOrigH));
+            
+            // ===== ✅ UPDATE: Update PhysicsSystem with new player size =====
+            physicsSystem.UpdatePlayerSize(PLAYER_WIDTH, PLAYER_HEIGHT);
+            
+            groundLevel = Math.Max(0, this.ClientSize.Height - groundOffset);
+            
+            // ===== ✅ MIGRATED: Reset positions using PhysicsSystem =====
+            if (!player1State.IsJumping) physicsSystem.ResetToGround(player1State);
+            if (!player2State.IsJumping) physicsSystem.ResetToGround(player2State);
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            try { gameTimer?.Stop(); } catch { }
+            try { walkAnimationTimer?.Stop(); } catch { }
+            try { spellDamageTimer?.Stop(); spellDamageTimer?.Dispose(); } catch { }
+            try { player1DashTimer?.Stop(); player1DashTimer?.Dispose(); } catch { }
+            try { player2DashTimer?.Stop(); player2DashTimer?.Dispose(); } catch { }
+            try { player1SkillTimer?.Stop(); player1SkillTimer?.Dispose(); } catch { }
+            try { player2SkillTimer?.Stop(); player2SkillTimer?.Dispose(); } catch { }
+            try { player1ChargeTimer?.Stop(); player1ChargeTimer?.Dispose(); } catch { }
+            try { player2ChargeTimer?.Stop(); player2ChargeTimer?.Dispose(); } catch { }
+            try { impact1Timer?.Stop(); impact1Timer?.Dispose(); } catch { }
+            try { impact2Timer?.Stop(); impact2Timer?.Dispose(); } catch { }
+
+            // Cleanup hit effects - OLD CODE
+            foreach (var hitEffect in activeHitEffects.ToList())
+            {
+                try 
+                { 
+                    hitEffect.Timer?.Stop(); 
+                    hitEffect.Timer?.Dispose(); 
+                } 
+                catch { }
+            }
+            activeHitEffects.Clear();
+
+            // ===== ✅ MIGRATED: Cleanup new systems =====
+            // try { combatSystem?.Cleanup(); } catch { }
+            try { effectManager?.Cleanup(); } catch { }
+            try { projectileManager?.Cleanup(); } catch { }
+            // =========================================
+
+            // Dispose animation managers
+            player1AnimationManager?.Dispose();
+            player2AnimationManager?.Dispose();
+
+            foreach (var s in resourceStreams)
+            {
+                try { s.Dispose(); } catch { }
+            }
+            resourceStreams.Clear();
+
+            base.OnFormClosing(e);
+        }
+
+        // ===========================
+        // ✅ HELPER METHODS (KEPT FROM ORIGINAL)
+        // ===========================
+
+        private void OnFrameChanged(object sender, EventArgs e)
+        {
+            this.Invalidate();
+        }
+
+        private void WalkAnimationTimer_Tick(object sender, EventArgs e)
+        {
+            if (player1Walking)
+            {
+                player1AnimationManager.UpdateFrames();
+            }
+            if (player2Walking)
+            {
+                player2AnimationManager.UpdateFrames();
+            }
+        }
+
+        private Bitmap CreateColoredImage(int width, int height, Color color)
+        {
+            var bmp = new Bitmap(Math.Max(1, width), Math.Max(1, height));
+            using (var g = Graphics.FromImage(bmp))
+            using (var brush = new SolidBrush(color))
+                g.FillRectangle(brush, 0, 0, bmp.Width, bmp.Height);
+            return bmp;
+        }
+
         private void CreateFallbackGraphics()
         {
             // Animation managers will handle fallback
@@ -461,231 +1189,6 @@ namespace DoAn_NT106
             fireball = CreateColoredImage(40, 25, Color.Orange);
         }
 
-        // Apply hurt properly so it's not immediately overwritten by the attack reset logic
-        private void ApplyHurtToPlayer(int player, int damage, bool knockback = true)
-        {
-            void ShowDamage(int dmg)
-            {
-                ShowHitEffect($"-{dmg}", Color.Red);
-            }
-
-            if (player == 1)
-            {
-                // Check if dashing (iframe)
-                if (player1Dashing)
-                {
-                    ShowHitEffect("Miss!", Color.Gray);
-                    return;
-                }
-
-                // Check parry
-                if (player1Parrying)
-                {
-                    player1Stamina = Math.Min(100, player1Stamina + 8);
-                    ShowHitEffect("Blocked!", Color.Cyan);
-                    player2Attacking = false;
-                    
-                    // Cancel attacker's attack
-                    CancelAttack(2);
-
-                    var stunTimer = new System.Windows.Forms.Timer { Interval = 200 };
-                    stunTimer.Tick += (s, e) =>
-                    {
-                        stunTimer.Stop();
-                        stunTimer.Dispose();
-                    };
-                    stunTimer.Start();
-
-                    this.Invalidate();
-                    return;
-                }
-
-                // Already hurt - prevent stacking
-                if (player1CurrentAnimation == "hurt")
-                    return;
-
-                // Apply damage
-                player1Health = Math.Max(0, player1Health - damage);
-                ShowDamage(damage);
-
-                // Show hit effect at player position
-                ShowHitEffectAtPosition(player1X, player1Y);
-
-                // Apply stun
-                player1Stunned = true;
-                
-                // Cancel any ongoing attack/skill
-                CancelAttack(1);
-
-                // Set hurt animation
-                player1CurrentAnimation = "hurt";
-                var hurtImg = player1AnimationManager.GetAnimation("hurt");
-                if (hurtImg != null && ImageAnimator.CanAnimate(hurtImg))
-                {
-                    try { ImageAnimator.Animate(hurtImg, OnFrameChanged); } catch { }
-                }
-
-                // Knockback
-                if (knockback)
-                {
-                    int kb = (player2X > player1X) ? -20 : 20;
-                    player1X = Math.Max(0, Math.Min(backgroundWidth - PLAYER_WIDTH, player1X + kb));
-                }
-
-                this.Invalidate();
-
-                // Restore after stun duration
-                var restoreTimer = new System.Windows.Forms.Timer { Interval = HIT_STUN_DURATION_MS };
-                restoreTimer.Tick += (s, e) =>
-                {
-                    restoreTimer.Stop();
-                    restoreTimer.Dispose();
-                    
-                    player1Stunned = false;
-                    
-                    if (!player1Attacking && !player1Jumping && player1CurrentAnimation == "hurt")
-                    {
-                        player1CurrentAnimation = (aPressed || dPressed) ? "walk" : "stand";
-                    }
-                    this.Invalidate();
-                };
-                restoreTimer.Start();
-
-                return;
-            }
-
-            if (player == 2)
-            {
-                // Check if dashing (iframe)
-                if (player2Dashing)
-                {
-                    ShowHitEffect("Miss!", Color.Gray);
-                    return;
-                }
-
-                // Check parry
-                if (player2Parrying)
-                {
-                    player2Stamina = Math.Min(100, player2Stamina + 8);
-                    ShowHitEffect("Blocked!", Color.Cyan);
-                    player1Attacking = false;
-                    
-                    // Cancel attacker's attack
-                    CancelAttack(1);
-                    
-                    var stunTimer = new System.Windows.Forms.Timer { Interval = 200 };
-                    stunTimer.Tick += (s, e) =>
-                    {
-                        stunTimer.Stop();
-                        stunTimer.Dispose();
-                    };
-                    stunTimer.Start();
-
-                    this.Invalidate();
-                    return;
-                }
-
-                // Already hurt - prevent stacking
-                if (player2CurrentAnimation == "hurt")
-                    return;
-
-                // Apply damage
-                player2Health = Math.Max(0, player2Health - damage);
-                ShowDamage(damage);
-
-                // Show hit effect at player position
-                ShowHitEffectAtPosition(player2X, player2Y);
-
-                // Apply stun
-                player2Stunned = true;
-                
-                // Cancel any ongoing attack/skill
-                CancelAttack(2);
-
-                // Set hurt animation
-                player2CurrentAnimation = "hurt";
-                var hurtImg = player2AnimationManager.GetAnimation("hurt");
-                if (hurtImg != null && ImageAnimator.CanAnimate(hurtImg))
-                {
-                    try { ImageAnimator.Animate(hurtImg, OnFrameChanged); } catch { }
-                }
-
-                // Knockback
-                if (knockback)
-                {
-                    int kb2 = (player1X > player2X) ? -20 : 20;
-                    player2X = Math.Max(0, Math.Min(backgroundWidth - PLAYER_WIDTH, player2X + kb2));
-                }
-
-                this.Invalidate();
-
-                // Restore after stun duration
-                var restoreTimer2 = new System.Windows.Forms.Timer { Interval = HIT_STUN_DURATION_MS };
-                restoreTimer2.Tick += (s, e) =>
-                {
-                    restoreTimer2.Stop();
-                    restoreTimer2.Dispose();
-                    
-                    player2Stunned = false;
-                    
-                    if (!player2Attacking && !player2Jumping && player2CurrentAnimation == "hurt")
-                    {
-                        player2CurrentAnimation = (leftPressed || rightPressed) ? "walk" : "stand";
-                    }
-                    this.Invalidate();
-                };
-                restoreTimer2.Start();
-
-                return;
-            }
-        }
-
-        // Cancel ongoing attack/skill when hit
-        private void CancelAttack(int player)
-        {
-            if (player == 1)
-            {
-                player1Attacking = false;
-                player1SkillActive = false;
-                player1Charging = false;
-                
-                // Stop any pending timers
-                // (They will dispose themselves when triggered)
-            }
-            else if (player == 2)
-            {
-                player2Attacking = false;
-                player2SkillActive = false;
-                player2Charging = false;
-            }
-        }
-
-        // Show hit effect at specific position
-        private void ShowHitEffectAtPosition(int x, int y)
-        {
-            if (hitEffectImage == null) return;
-
-            var effectInstance = new HitEffectInstance
-            {
-                X = x,
-                Y = y,
-                EffectImage = hitEffectImage,
-                Timer = new System.Windows.Forms.Timer { Interval = HIT_EFFECT_DURATION_MS }
-            };
-
-            effectInstance.Timer.Tick += (s, e) =>
-            {
-                effectInstance.Timer.Stop();
-                effectInstance.Timer.Dispose();
-                activeHitEffects.Remove(effectInstance);
-                this.Invalidate();
-            };
-
-            activeHitEffects.Add(effectInstance);
-            effectInstance.Timer.Start();
-        }
-
-        // Safe resource loader: preserves animated GIF streams to keep animation working
         private Image ResourceToImage(object res)
         {
             if (res == null) return null;
@@ -734,26 +1237,14 @@ namespace DoAn_NT106
             return null;
         }
 
-        private Color Lighten(Color color, float factor)
-        {
-            return Color.FromArgb(
-                Math.Min(255, (int)(color.R + (255 - color.R) * factor)),
-                Math.Min(255, (int)(color.G + (255 - color.G) * factor)),
-                Math.Min(255, (int)(color.B + (255 - color.B) * factor))
-            );
-        }
-
-        private Color Darken(Color color, float factor)
-        {
-            return Color.FromArgb(
-                (int)(color.R * (1 - factor)),
-                (int)(color.G * (1 - factor)),
-                (int)(color.B * (1 - factor))
-            );
-        }
-
         private void DrawCharacter(Graphics g, int x, int y, string animation, string facing, CharacterAnimationManager animationManager)
         {
+            // ✅ SKIP DRAWING if player is invisible (teleport dash effect)
+            if (animation == "invisible")
+            {
+                return; // Don't draw anything
+            }
+
             int screenX = x - viewportX;
 
             // nếu off-screen, bỏ qua
@@ -763,13 +1254,37 @@ namespace DoAn_NT106
             var characterImage = animationManager.GetAnimation(animation);
             if (characterImage != null)
             {
+                // ✅ CHARACTER-SPECIFIC SIZE SCALING
+                string charType = "";
+                if (animationManager == player1AnimationManager)
+                    charType = player1CharacterType;
+                else if (animationManager == player2AnimationManager)
+                    charType = player2CharacterType;
+
                 int drawHeight = PLAYER_HEIGHT;
+                float sizeScale = 1.0f;
+                int yOffset = 0;
+
+                // ✅ APPLY CHARACTER-SPECIFIC SCALING + Y OFFSET
+                if (charType == "girlknight")
+                {
+                    sizeScale = 0.7f; // 70% (bằng Goatman)
+                    yOffset = (int)(PLAYER_HEIGHT * (1.0f - sizeScale)); // Nâng lên để chân chạm đất
+                }
+                else if (charType == "bringerofdeath")
+                {
+                    sizeScale = 1.6f; // 160%
+                    yOffset = -50; // ✅ HẠ XUỐNG: -110 → -50 (thấp hơn 60px, gần sàn hơn)
+                }
+
+                drawHeight = (int)(PLAYER_HEIGHT * sizeScale);
+
                 int imgW = Math.Max(1, characterImage.Width);
                 int imgH = Math.Max(1, characterImage.Height);
                 int drawWidth = Math.Max(1, (int)(drawHeight * (float)imgW / imgH));
 
                 int destX = screenX;
-                int destY = y;
+                int destY = y + yOffset; // ✅ APPLY Y OFFSET
 
                 var prevInterpolation = g.InterpolationMode;
                 var prevSmoothing = g.SmoothingMode;
@@ -817,142 +1332,10 @@ namespace DoAn_NT106
             }
         }
 
-        private void UpdateCharacterSize()
+        private void DrawGameUI(Graphics g)
         {
-            int newHeight = Math.Max(24, (int)(this.ClientSize.Height * characterHeightRatio));
-            int spriteOrigW = 64;
-            int spriteOrigH = 64;
-            
-            var standImg = player1AnimationManager?.GetAnimation("stand");
-            if (standImg != null)
-            {
-                spriteOrigW = standImg.Width;
-                spriteOrigH = standImg.Height;
-            }
-            
-            PLAYER_HEIGHT = newHeight;
-            PLAYER_WIDTH = Math.Max(16, (int)(PLAYER_HEIGHT * (float)spriteOrigW / spriteOrigH));
-            groundLevel = Math.Max(0, this.ClientSize.Height - groundOffset);
-            if (!player1Jumping) player1Y = groundLevel - PLAYER_HEIGHT;
-            if (!player2Jumping) player2Y = groundLevel - PLAYER_HEIGHT;
-        }
-
-        private void SetupStatusBars()
-        {
-            int screenWidth = this.ClientSize.Width;
-            int barWidth = screenWidth / 4;
-            int barHeight = 20;
-            int spacing = 5;
-            int startY = 10;
-
-            healthBar1 = new GameProgressBar
-            {
-                Location = new Point(20, startY),
-                Size = new Size(barWidth, barHeight),
-                Maximum = 100,
-                Value = player1Health,
-                CustomForeColor = Color.FromArgb(220, 50, 50),
-                BackColor = Color.FromArgb(50, 50, 50),
-                ForeColor = Color.White
-            };
-
-            staminaBar1 = new GameProgressBar
-            {
-                Location = new Point(20, startY + barHeight + spacing),
-                Size = new Size(barWidth, barHeight),
-                Maximum = 100,
-                Value = player1Stamina,
-                CustomForeColor = Color.FromArgb(50, 220, 50),
-                BackColor = Color.FromArgb(50, 50, 50),
-                ForeColor = Color.White
-            };
-
-            manaBar1 = new GameProgressBar
-            {
-                Location = new Point(20, startY + 2 * (barHeight + spacing)),
-                Size = new Size(barWidth, barHeight),
-                Maximum = 100,
-                Value = player1Mana,
-                CustomForeColor = Color.FromArgb(50, 100, 220),
-                BackColor = Color.FromArgb(50, 50, 50),
-                ForeColor = Color.White
-            };
-
-            lblPlayer1Name = new Label
-            {
-                Text = username,
-                Location = new Point(20, startY + 3 * (barHeight + spacing)),
-                Size = new Size(barWidth, 20),
-                ForeColor = Color.Cyan,
-                Font = new Font("Arial", 10, FontStyle.Bold),
-                BackColor = Color.Transparent
-            };
-
-            healthBar2 = new GameProgressBar
-            {
-                Location = new Point(screenWidth - barWidth - 20, startY),
-                Size = new Size(barWidth, barHeight),
-                Maximum = 100,
-                Value = player2Health,
-                CustomForeColor = Color.FromArgb(220, 50, 50),
-                BackColor = Color.FromArgb(50, 50, 50),
-                ForeColor = Color.White
-            };
-
-            staminaBar2 = new GameProgressBar
-            {
-                Location = new Point(screenWidth - barWidth - 20, startY + barHeight + spacing),
-                Size = new Size(barWidth, barHeight),
-                Maximum = 100,
-                Value = player2Stamina,
-                CustomForeColor = Color.FromArgb(50, 220, 50),
-                BackColor = Color.FromArgb(50, 50, 50),
-                ForeColor = Color.White
-            };
-
-            manaBar2 = new GameProgressBar
-            {
-                Location = new Point(screenWidth - barWidth - 20, startY + 2 * (barHeight + spacing)),
-                Size = new Size(barWidth, barHeight),
-                Maximum = 100,
-                Value = player2Mana,
-                CustomForeColor = Color.FromArgb(50, 100, 220),
-                BackColor = Color.FromArgb(50, 50, 50),
-                ForeColor = Color.White
-            };
-
-            lblPlayer2Name = new Label
-            {
-                Text = opponent,
-                Location = new Point(screenWidth - barWidth - 20, startY + 3 * (barHeight + spacing)),
-                Size = new Size(barWidth, 20),
-                ForeColor = Color.Orange,
-                Font = new Font("Arial", 10, FontStyle.Bold),
-                TextAlign = ContentAlignment.TopRight,
-                BackColor = Color.Transparent
-            };
-
-            this.Controls.AddRange(new Control[] {
-                healthBar1, staminaBar1, manaBar1, lblPlayer1Name,
-                healthBar2, staminaBar2, manaBar2, lblPlayer2Name
-            });
-        }
-
-        private void SetupControlsInfo()
-        {
-            lblControlsInfo = new Label
-            {
-                Text = "Player 1: A/D (Move) | W (Jump) | J (Attack1) | K (Attack2) | L (Dash) | U (Parry) | I (Skill)\n" +
-                       "Player 2: ←/→ (Move) | ↑ (Jump) | Num1 (Attack1) | Num2 (Attack2) | Num3 (Dash) | Num5 (Parry) | Num4 (Skill)",
-                Location = new Point(this.ClientSize.Width / 2 - 350, this.ClientSize.Height - 60),
-                Size = new Size(700, 40),
-                ForeColor = Color.White,
-                Font = new Font("Arial", 8, FontStyle.Bold),
-                BackColor = Color.FromArgb(150, 0, 0, 0),
-                TextAlign = ContentAlignment.MiddleCenter
-            };
-
-            this.Controls.Add(lblControlsInfo);
+            g.FillRectangle(new SolidBrush(Color.FromArgb(180, 0, 0, 0)),
+                0, 0, this.ClientSize.Width, 110);
         }
 
         private void SetupEventHandlers()
@@ -967,2138 +1350,6 @@ namespace DoAn_NT106
             this.Resize += BattleForm_Resize;
         }
 
-        private void BattleForm_Resize(object sender, EventArgs e)
-        {
-            if (healthBar1 != null)
-            {
-                int screenWidth = this.ClientSize.Width;
-                int barWidth = screenWidth / 4;
-
-                healthBar1.Size = new Size(barWidth, 20);
-                staminaBar1.Size = new Size(barWidth, 20);
-                manaBar1.Size = new Size(barWidth, 20);
-                lblPlayer1Name.Size = new Size(barWidth, 20);
-
-                healthBar2.Location = new Point(screenWidth - barWidth - 20, 10);
-                healthBar2.Size = new Size(barWidth, 20);
-                staminaBar2.Location = new Point(screenWidth - barWidth - 20, 35);
-                staminaBar2.Size = new Size(barWidth, 20);
-                manaBar2.Location = new Point(screenWidth - barWidth - 20, 60);
-                manaBar2.Size = new Size(barWidth, 20);
-                lblPlayer2Name.Location = new Point(screenWidth - barWidth - 20, 85);
-                lblPlayer2Name.Size = new Size(barWidth, 20);
-
-                groundLevel = Math.Max(0, this.ClientSize.Height - groundOffset);
-                UpdateCharacterSize();
-
-                lblControlsInfo.Location = new Point(screenWidth / 2 - 350, this.ClientSize.Height - 60);
-            }
-        }
-
-        private void WalkAnimationTimer_Tick(object sender, EventArgs e)
-        {
-            if (player1Walking)
-            {
-                player1AnimationManager.UpdateFrames();
-            }
-            if (player2Walking)
-            {
-                player2AnimationManager.UpdateFrames();
-            }
-        }
-
-        private void BattleForm_KeyDown(object sender, KeyEventArgs e)
-        {
-            // Player 1 controls
-            switch (e.KeyCode)
-            {
-                case Keys.A: 
-                    if (!player1Stunned && !player1Charging) aPressed = true; 
-                    break;
-                case Keys.D: 
-                    if (!player1Stunned && !player1Charging) dPressed = true; 
-                    break;
-                case Keys.W:
-                    if (!player1Stunned && !player1Charging && !player1Jumping && player1Y >= groundLevel - PLAYER_HEIGHT)
-                    {
-                        player1Jumping = true;
-                        player1JumpVelocity = JUMP_FORCE;
-                    }
-                    break;
-                case Keys.J: 
-                    if (!player1Stunned && !player1Charging && !player1Dashing) 
-                        Player1Attack("punch"); 
-                    break;
-                case Keys.K: 
-                    if (!player1Stunned && !player1Charging && !player1Dashing) 
-                        Player1Attack("kick"); 
-                    break;
-                case Keys.L: 
-                    if (!player1Stunned && !player1Charging) 
-                        Player1Dash(); 
-                    break;
-                case Keys.U:
-                    if (!player1Stunned && !player1Charging && !player1Dashing)
-                        StartParry(1);
-                    break;
-                case Keys.I:
-                    if (!player1Stunned && !player1Charging && !player1Dashing)
-                        Player1ToggleSkill();
-                    break;
-                case Keys.Escape:
-                    BtnBack_Click(null, EventArgs.Empty);
-                    break;
-            }
-
-            // Player 2 controls
-            switch (e.KeyCode)
-            {
-                case Keys.Left: 
-                    if (!player2Stunned && !player2Charging) leftPressed = true; 
-                    break;
-                case Keys.Right: 
-                    if (!player2Stunned && !player2Charging) rightPressed = true; 
-                    break;
-                case Keys.Up:
-                    if (!player2Stunned && !player2Charging && !player2Jumping && player2Y >= groundLevel - PLAYER_HEIGHT)
-                    {
-                        player2Jumping = true;
-                        player2JumpVelocity = JUMP_FORCE;
-                    }
-                    break;
-                case Keys.NumPad1: 
-                    if (!player2Stunned && !player2Charging && !player2Dashing) 
-                        Player2Attack("punch"); 
-                    break;
-                case Keys.NumPad2: 
-                    if (!player2Stunned && !player2Charging && !player2Dashing) 
-                        Player2Attack("kick"); 
-                    break;
-                case Keys.NumPad3: 
-                    if (!player2Stunned && !player2Charging) 
-                        Player2Dash(); 
-                    break;
-                case Keys.NumPad5:
-                    if (!player2Stunned && !player2Charging && !player2Dashing)
-                        StartParry(2);
-                    break;
-                case Keys.NumPad4:
-                    if (!player2Stunned && !player2Charging && !player2Dashing)
-                        Player2ToggleSkill();
-                    break;
-            }
-
-            e.Handled = true;
-        }
-
-        private void BattleForm_KeyUp(object sender, KeyEventArgs e)
-        {
-            switch (e.KeyCode)
-            {
-                case Keys.A: aPressed = false; break;
-                case Keys.D: dPressed = false; break;
-                case Keys.Left: leftPressed = false; break;
-                case Keys.Right: rightPressed = false; break;
-            }
-            e.Handled = true;
-        }
-
-        // ===========================
-        // DASH SYSTEM
-        // ===========================
-        private void Player1Dash()
-        {
-            if (player1Dashing || player1Stamina < 20) return;
-
-            player1Stamina -= 20;
-            player1Dashing = true;
-            player1DashDirection = player1Facing == "right" ? 1 : -1;
-
-            // Save start position for dash effect
-            int startX = player1X;
-            int startY = player1Y;
-
-            // Teleport instantly to destination
-            player1X += DASH_DISTANCE * player1DashDirection;
-            player1X = Math.Max(0, Math.Min(backgroundWidth - PLAYER_WIDTH, player1X));
-
-            // Use "slide" animation for dash
-            if (player1AnimationManager.HasAnimation("slide"))
-            {
-                player1CurrentAnimation = "slide";
-                player1AnimationManager.ResetAnimationToFirstFrame("slide");
-            }
-            else
-            {
-                // Show dash effect if no slide animation
-                dashEffect1Active = true;
-                dashEffect1X = startX;
-                dashEffect1Y = startY;
-                dashEffect1Facing = player1Facing;
-
-                // Hide start effect and show arrival effect after short delay
-                var startEffectTimer = new System.Windows.Forms.Timer { Interval = 100 };
-                startEffectTimer.Tick += (s, e) =>
-                {
-                    startEffectTimer.Stop();
-                    startEffectTimer.Dispose();
-                    
-                    // Move effect to arrival position
-                    dashEffect1X = player1X;
-                    dashEffect1Y = player1Y;
-                    
-                    // Hide arrival effect after another delay
-                    var endEffectTimer = new System.Windows.Forms.Timer { Interval = 100 };
-                    endEffectTimer.Tick += (s2, e2) =>
-                    {
-                        dashEffect1Active = false;
-                        endEffectTimer.Stop();
-                        endEffectTimer.Dispose();
-                        this.Invalidate();
-                    };
-                    endEffectTimer.Start();
-                };
-                startEffectTimer.Start();
-            }
-
-            // Dash iframe duration
-            var dashTimer = new System.Windows.Forms.Timer { Interval = DASH_DURATION_MS };
-            dashTimer.Tick += (s, e) =>
-            {
-                player1Dashing = false;
-                
-                // Return to appropriate animation
-                if (!player1Attacking && !player1Jumping && !player1Stunned)
-                {
-                    if (aPressed || dPressed)
-                        player1CurrentAnimation = "walk";
-                    else
-                        player1CurrentAnimation = "stand";
-                }
-                
-                dashTimer.Stop();
-                dashTimer.Dispose();
-            };
-            dashTimer.Start();
-        }
-
-        private void Player2Dash()
-        {
-            if (player2Dashing || player2Stamina < 20) return;
-
-            player2Stamina -= 20;
-            player2Dashing = true;
-            player2DashDirection = player2Facing == "right" ? 1 : -1;
-
-            // Save start position for dash effect
-            int startX = player2X;
-            int startY = player2Y;
-
-            // Teleport instantly to destination
-            player2X += DASH_DISTANCE * player2DashDirection;
-            player2X = Math.Max(0, Math.Min(backgroundWidth - PLAYER_WIDTH, player2X));
-
-            // Use "slide" animation for dash
-            if (player2AnimationManager.HasAnimation("slide"))
-            {
-                player2CurrentAnimation = "slide";
-                player2AnimationManager.ResetAnimationToFirstFrame("slide");
-            }
-            else
-            {
-                // Show dash effect if no slide animation
-                dashEffect2Active = true;
-                dashEffect2X = startX;
-                dashEffect2Y = startY;
-                dashEffect2Facing = player2Facing;
-
-                // Hide start effect and show arrival effect
-                var startEffectTimer = new System.Windows.Forms.Timer { Interval = 100 };
-                startEffectTimer.Tick += (s, e) =>
-                {
-                    startEffectTimer.Stop();
-                    startEffectTimer.Dispose();
-                    
-                    // Move effect to arrival position
-                    dashEffect2X = player2X;
-                    dashEffect2Y = player2Y;
-                    
-                    // Hide arrival effect
-                    var endEffectTimer = new System.Windows.Forms.Timer { Interval = 100 };
-                    endEffectTimer.Tick += (s2, e2) =>
-                    {
-                        dashEffect2Active = false;
-                        endEffectTimer.Stop();
-                        endEffectTimer.Dispose();
-                        this.Invalidate();
-                    };
-                    endEffectTimer.Start();
-                };
-                startEffectTimer.Start();
-            }
-
-            // Dash iframe duration
-            var dashTimer = new System.Windows.Forms.Timer { Interval = DASH_DURATION_MS };
-            dashTimer.Tick += (s, e) =>
-            {
-                player2Dashing = false;
-                
-                // Return to appropriate animation
-                if (!player2Attacking && !player2Jumping && !player2Stunned)
-                {
-                    if (leftPressed || rightPressed)
-                        player2CurrentAnimation = "walk";
-                    else
-                        player2CurrentAnimation = "stand";
-                }
-                
-                dashTimer.Stop();
-                dashTimer.Dispose();
-            };
-            dashTimer.Start();
-        }
-
-        // ===========================
-        // SKILL SYSTEM STUBS
-        // ===========================
-        private void Player1ToggleSkill()
-        {
-            // Knight Girl: Continuous skill
-            if (player1CharacterType == "girlknight")
-            {
-                if (!player1SkillActive)
-                {
-                    // Activate skill
-                    if (player1Mana < 30)
-                    {
-                        ShowHitEffect("Not enough mana!", Color.Gray);
-                        return;
-                    }
-
-                    player1SkillActive = true;
-                    player1CurrentAnimation = "fireball"; // Use fireball animation for skill
-                    player1AnimationManager.ResetAnimationToFirstFrame("fireball");
-                    
-                    // Setup skill timer for mana drain and damage
-                    player1SkillTimer = new System.Windows.Forms.Timer { Interval = 1000 }; // 1 second intervals
-                    player1SkillDamageCounter = 0;
-                    
-                    player1SkillTimer.Tick += (s, e) =>
-                    {
-                        // Drain mana
-                        player1Mana -= 30;
-                        
-                        // Deal damage at 0.5s and 1s marks (using separate timers)
-                        var halfSecondTimer = new System.Windows.Forms.Timer { Interval = 500 };
-                        halfSecondTimer.Tick += (s2, e2) =>
-                        {
-                            halfSecondTimer.Stop();
-                            halfSecondTimer.Dispose();
-                            
-                            // Check if target is in range
-                            Rectangle skillRange = new Rectangle(
-                                player1X - 50, 
-                                player1Y - 50, 
-                                PLAYER_WIDTH + 100, 
-                                PLAYER_HEIGHT + 100
-                            );
-                            Rectangle targetRect = GetPlayerHurtbox(player2X, player2Y);
-                            
-                            if (skillRange.IntersectsWith(targetRect))
-                            {
-                                ApplyHurtToPlayer(2, 5, false); // 5 damage, no knockback
-                                ShowHitEffect("Energy!", Color.Cyan);
-                            }
-                        };
-                        halfSecondTimer.Start();
-                        
-                        // Second hit at 1s
-                        var oneSecondTimer = new System.Windows.Forms.Timer { Interval = 1000 };
-                        oneSecondTimer.Tick += (s3, e3) =>
-                        {
-                            oneSecondTimer.Stop();
-                            oneSecondTimer.Dispose();
-                            
-                            Rectangle skillRange = new Rectangle(
-                                player1X - 50, 
-                                player1Y - 50, 
-                                PLAYER_WIDTH + 100, 
-                                PLAYER_HEIGHT + 100
-                            );
-                            Rectangle targetRect = GetPlayerHurtbox(player2X, player2Y);
-                            
-                            if (skillRange.IntersectsWith(targetRect))
-                            {
-                                ApplyHurtToPlayer(2, 5, false);
-                                ShowHitEffect("Energy!", Color.Cyan);
-                            }
-                        };
-                        oneSecondTimer.Start();
-                        
-                        // Check if should continue
-                        if (player1Mana < 30)
-                        {
-                            // Stop skill - out of mana
-                            player1SkillActive = false;
-                            player1SkillTimer.Stop();
-                            player1SkillTimer.Dispose();
-                            player1SkillTimer = null;
-                            
-                            if (!player1Attacking && !player1Jumping)
-                            {
-                                player1CurrentAnimation = (aPressed || dPressed) ? "walk" : "stand";
-                            }
-                            
-                            ShowHitEffect("Out of Mana!", Color.Gray);
-                        }
-                    };
-                    
-                    player1SkillTimer.Start();
-                    ShowHitEffect("Energy Shield!", Color.Cyan);
-                }
-                else
-                {
-                    // Deactivate skill
-                    player1SkillActive = false;
-                    
-                    if (player1SkillTimer != null)
-                    {
-                        player1SkillTimer.Stop();
-                        player1SkillTimer.Dispose();
-                        player1SkillTimer = null;
-                    }
-                    
-                    if (!player1Attacking && !player1Jumping)
-                    {
-                        player1CurrentAnimation = (aPressed || dPressed) ? "walk" : "stand";
-                    }
-                }
-            }
-            else if (player1CharacterType == "goatman")
-            {
-                // Goatman Charge Skill
-                if (player1Mana >= 30)
-                {
-                    player1Mana -= 30;
-                    player1Charging = true;
-                    player1CurrentAnimation = "fireball"; // Use run animation
-                    player1AnimationManager.ResetAnimationToFirstFrame("fireball");
-                    
-                    int chargeDirection = player1Facing == "right" ? 1 : -1;
-                    
-                    // Charge timer
-                    player1ChargeTimer = new System.Windows.Forms.Timer { Interval = 16 }; // ~60fps
-                    int elapsedMs = 0;
-                    
-                    player1ChargeTimer.Tick += (s, e) =>
-                    {
-                        elapsedMs += 16;
-                        
-                        // Accelerate up to 1.5s, then maintain max speed
-                        if (elapsedMs < 1500)
-                        {
-                            player1ChargeSpeed += CHARGE_ACCELERATION / (1000f / 16); // Per frame
-                            player1ChargeSpeed = Math.Min(CHARGE_MAX_SPEED, player1ChargeSpeed);
-                        }
-                        else
-                        {
-                            player1ChargeSpeed = CHARGE_MAX_SPEED;
-                        }
-                        
-                        // Move player
-                        player1X += (int)(player1ChargeSpeed * chargeDirection);
-                        player1X = Math.Max(0, Math.Min(backgroundWidth - PLAYER_WIDTH, player1X));
-                        
-                        // Check collision with target
-                        Rectangle chargeHitbox = GetPlayerHurtbox(player1X, player1Y);
-                        Rectangle targetHurtbox = GetPlayerHurtbox(player2X, player2Y);
-                        
-                        if (chargeHitbox.IntersectsWith(targetHurtbox))
-                        {
-                            // Hit! Trigger hurt animation (no damage)
-                            player2CurrentAnimation = "hurt";
-                            var hurtImg = player2AnimationManager.GetAnimation("hurt");
-                            if (hurtImg != null && ImageAnimator.CanAnimate(hurtImg))
-                            {
-                                try { ImageAnimator.Animate(hurtImg, OnFrameChanged); } catch { }
-                            }
-                            
-                            // Stop hurt animation after delay
-                            var hurtTimer = new System.Windows.Forms.Timer { Interval = 400 };
-                            hurtTimer.Tick += (s2, e2) =>
-                            {
-                                hurtTimer.Stop();
-                                hurtTimer.Dispose();
-                                
-                                if (player2CurrentAnimation == "hurt")
-                                {
-                                    player2CurrentAnimation = (leftPressed || rightPressed) ? "walk" : "stand";
-                                }
-                            };
-                            hurtTimer.Start();
-                            
-                            ShowHitEffect("Charged!", Color.Gold);
-                            
-                            // Stop charge
-                            player1Charging = false;
-                            player1ChargeSpeed = 0;
-                            player1ChargeTimer.Stop();
-                            player1ChargeTimer.Dispose();
-                            
-                            if (!player1Attacking && !player1Jumping)
-                            {
-                                player1CurrentAnimation = (aPressed || dPressed) ? "walk" : "stand";
-                            }
-                        }
-                        
-                        // Time limit: 3 seconds
-                        if (elapsedMs >= CHARGE_DURATION_MS)
-                        {
-                            player1Charging = false;
-                            player1ChargeSpeed = 0;
-                            player1ChargeTimer.Stop();
-                            player1ChargeTimer.Dispose();
-                            
-                            if (!player1Attacking && !player1Jumping)
-                            {
-                                player1CurrentAnimation = (aPressed || dPressed) ? "walk" : "stand";
-                            }
-                            
-                            ShowHitEffect("Charge Ended", Color.Gray);
-                        }
-                    };
-                    player1ChargeTimer.Start();
-                    
-                    ShowHitEffect("CHARGE!", Color.Gold);
-                }
-            }
-            else
-            {
-                // Other characters - use special attack
-                if (player1Mana >= 30)
-                {
-                    Player1Attack("special");
-                }
-            }
-        }
-
-        private void Player2ToggleSkill()
-        {
-            // Knight Girl: Continuous skill
-            if (player2CharacterType == "girlknight")
-            {
-                if (!player2SkillActive)
-                {
-                    // Activate skill
-                    if (player2Mana < 30)
-                    {
-                        ShowHitEffect("Not enough mana!", Color.Gray);
-                        return;
-                    }
-
-                    player2SkillActive = true;
-                    player2CurrentAnimation = "fireball";
-                    player2AnimationManager.ResetAnimationToFirstFrame("fireball");
-                    
-                    player2SkillTimer = new System.Windows.Forms.Timer { Interval = 1000 };
-                    player2SkillDamageCounter = 0;
-                    
-                    player2SkillTimer.Tick += (s, e) =>
-                    {
-                        player2Mana -= 30;
-                        
-                        var halfSecondTimer = new System.Windows.Forms.Timer { Interval = 500 };
-                        halfSecondTimer.Tick += (s2, e2) =>
-                        {
-                            halfSecondTimer.Stop();
-                            halfSecondTimer.Dispose();
-                            
-                            Rectangle skillRange = new Rectangle(
-                                player2X - 50, 
-                                player2Y - 50, 
-                                PLAYER_WIDTH + 100, 
-                                PLAYER_HEIGHT + 100
-                            );
-                            Rectangle targetRect = GetPlayerHurtbox(player1X, player1Y);
-                            
-                            if (skillRange.IntersectsWith(targetRect))
-                            {
-                                ApplyHurtToPlayer(1, 5, false);
-                                ShowHitEffect("Energy!", Color.Cyan);
-                            }
-                        };
-                        halfSecondTimer.Start();
-                        
-                        var oneSecondTimer = new System.Windows.Forms.Timer { Interval = 1000 };
-                        oneSecondTimer.Tick += (s3, e3) =>
-                        {
-                            oneSecondTimer.Stop();
-                            oneSecondTimer.Dispose();
-                            
-                            Rectangle skillRange = new Rectangle(
-                                player2X - 50, 
-                                player2Y - 50, 
-                                PLAYER_WIDTH + 100, 
-                                PLAYER_HEIGHT + 100
-                            );
-                            Rectangle targetRect = GetPlayerHurtbox(player1X, player1Y);
-                            
-                            if (skillRange.IntersectsWith(targetRect))
-                            {
-                                ApplyHurtToPlayer(1, 5, false);
-                                ShowHitEffect("Energy!", Color.Cyan);
-                            }
-                        };
-                        oneSecondTimer.Start();
-                        
-                        if (player2Mana < 30)
-                        {
-                            player2SkillActive = false;
-                            player2SkillTimer.Stop();
-                            player2SkillTimer.Dispose();
-                            player2SkillTimer = null;
-                            
-                            if (!player2Attacking && !player2Jumping)
-                            {
-                                player2CurrentAnimation = (leftPressed || rightPressed) ? "walk" : "stand";
-                            }
-                            
-                            ShowHitEffect("Out of Mana!", Color.Gray);
-                        }
-                    };
-                    
-                    player2SkillTimer.Start();
-                    ShowHitEffect("Energy Shield!", Color.Cyan);
-                }
-                else
-                {
-                    // Deactivate skill
-                    player2SkillActive = false;
-                    
-                    if (player2SkillTimer != null)
-                    {
-                        player2SkillTimer.Stop();
-                        player2SkillTimer.Dispose();
-                        player2SkillTimer = null;
-                    }
-                    
-                    if (!player2Attacking && !player2Jumping)
-                    {
-                        player2CurrentAnimation = (leftPressed || rightPressed) ? "walk" : "stand";
-                    }
-                }
-            }
-            else if (player2CharacterType == "goatman")
-            {
-                // Goatman Charge Skill
-                if (player2Mana >= 30)
-                {
-                    player2Mana -= 30;
-                    player2Charging = true;
-                    player2CurrentAnimation = "fireball"; // Use run animation
-                    player2AnimationManager.ResetAnimationToFirstFrame("fireball");
-                    
-                    int chargeDirection = player2Facing == "right" ? 1 : -1;
-                    
-                    player2ChargeTimer = new System.Windows.Forms.Timer { Interval = 16 };
-                    int elapsedMs = 0;
-                    
-                    player2ChargeTimer.Tick += (s, e) =>
-                    {
-                        elapsedMs += 16;
-                        
-                        if (elapsedMs < 1500)
-                        {
-                            player2ChargeSpeed += CHARGE_ACCELERATION / (1000f / 16);
-                            player2ChargeSpeed = Math.Min(CHARGE_MAX_SPEED, player2ChargeSpeed);
-                        }
-                        else
-                        {
-                            player2ChargeSpeed = CHARGE_MAX_SPEED;
-                        }
-                        
-                        player2X += (int)(player2ChargeSpeed * chargeDirection);
-                        player2X = Math.Max(0, Math.Min(backgroundWidth - PLAYER_WIDTH, player2X));
-                        
-                        Rectangle chargeHitbox = GetPlayerHurtbox(player2X, player2Y);
-                        Rectangle targetHurtbox = GetPlayerHurtbox(player1X, player1Y);
-                        
-                        if (chargeHitbox.IntersectsWith(targetHurtbox))
-                        {
-                            // Hit! Trigger hurt animation (no damage)
-                            player1CurrentAnimation = "hurt";
-                            var hurtImg = player1AnimationManager.GetAnimation("hurt");
-                            if (hurtImg != null && ImageAnimator.CanAnimate(hurtImg))
-                            {
-                                try { ImageAnimator.Animate(hurtImg, OnFrameChanged); } catch { }
-                            }
-                            
-                            // Stop hurt animation after delay
-                            var hurtTimer = new System.Windows.Forms.Timer { Interval = 400 };
-                            hurtTimer.Tick += (s2, e2) =>
-                            {
-                                hurtTimer.Stop();
-                                hurtTimer.Dispose();
-                                
-                                if (player1CurrentAnimation == "hurt")
-                                {
-                                    player1CurrentAnimation = (aPressed || dPressed) ? "walk" : "stand";
-                                }
-                            };
-                            hurtTimer.Start();
-                            
-                            ShowHitEffect("Charged!", Color.Gold);
-                            
-                            player2Charging = false;
-                            player2ChargeSpeed = 0;
-                            player2ChargeTimer.Stop();
-                            player2ChargeTimer.Dispose();
-                            
-                            if (!player2Attacking && !player2Jumping)
-                            {
-                                player2CurrentAnimation = (leftPressed || rightPressed) ? "walk" : "stand";
-                            }
-                        }
-                        
-                        // Time limit: 3 seconds
-                        if (elapsedMs >= CHARGE_DURATION_MS)
-                        {
-                            player2Charging = false;
-                            player2ChargeSpeed = 0;
-                            player2ChargeTimer.Stop();
-                            player2ChargeTimer.Dispose();
-                            
-                            if (!player2Attacking && !player2Jumping)
-                            {
-                                player2CurrentAnimation = (leftPressed || rightPressed) ? "walk" : "stand";
-                            }
-                            
-                            ShowHitEffect("Charge Ended", Color.Gray);
-                        }
-                    };
-                    player2ChargeTimer.Start();
-                    
-                    ShowHitEffect("CHARGE!", Color.Gold);
-                }
-            }
-            else
-            {
-                // Other characters
-                if (player2Mana >= 30)
-                {
-                    Player2Attack("special");
-                }
-            }
-        }
-
-        private void GameTimer_Tick(object sender, EventArgs e)
-        {
-            player1Walking = false;
-            player2Walking = false;
-            
-            // Update fireball
-            if (fireballActive)
-            {
-                fireballX += 12 * fireballDirection;
-                CheckFireballHit();
-
-                if (fireballX > backgroundWidth || fireballX < -FIREBALL_WIDTH)
-                {
-                    fireballActive = false;
-                }
-            }
-            
-            // Update warrior projectiles
-            if (projectile1Active)
-            {
-                projectile1X += PROJECTILE_SPEED * projectile1Direction;
-                
-                // Check collision with player2
-                Rectangle projRect = new Rectangle(projectile1X, projectile1Y, PROJECTILE_WIDTH, PROJECTILE_HEIGHT);
-                Rectangle targetRect = GetPlayerHurtbox(player2X, player2Y);
-                
-                if (projRect.IntersectsWith(targetRect))
-                {
-                    ApplyHurtToPlayer(2, 20);
-                    projectile1Active = false;
-                    ShowHitEffect("Energy Strike!", Color.Gold);
-                }
-                
-                // Off-screen check
-                if (projectile1X > backgroundWidth || projectile1X < -PROJECTILE_WIDTH)
-                {
-                    projectile1Active = false;
-                }
-            }
-
-            if (projectile2Active)
-            {
-                projectile2X += PROJECTILE_SPEED * projectile2Direction;
-                
-                Rectangle projRect = new Rectangle(projectile2X, projectile2Y, PROJECTILE_WIDTH, PROJECTILE_HEIGHT);
-                Rectangle targetRect = GetPlayerHurtbox(player1X, player1Y);
-                
-                if (projRect.IntersectsWith(targetRect))
-                {
-                    ApplyHurtToPlayer(1, 20);
-                    projectile2Active = false;
-                    ShowHitEffect("Energy Strike!", Color.Gold);
-                }
-                
-                if (projectile2X > backgroundWidth || projectile2X < -PROJECTILE_WIDTH)
-                {
-                    projectile2Active = false;
-                }
-            }
-            
-            // Regenerate resources
-            RegenerateResources();
-
-            // Update health, stamina, mana bars
-            healthBar1.Value = Math.Max(0, Math.Min(100, player1Health));
-            staminaBar1.Value = Math.Max(0, Math.Min(100, player1Stamina));
-            manaBar1.Value = Math.Max(0, Math.Min(100, player1Mana));
-            healthBar2.Value = Math.Max(0, Math.Min(100, player2Health));
-            staminaBar2.Value = Math.Max(0, Math.Min(100, player2Stamina));
-            manaBar2.Value = Math.Max(0, Math.Min(100, player2Mana));
-
-            // Check for game over conditions
-            if (player1Health <= 0 || player2Health <= 0)
-            {
-                gameTimer.Stop();
-                walkAnimationTimer.Stop();
-
-                string winner;
-                if (player1Health <= 0 && player2Health <= 0)
-                    winner = "Draw";
-                else
-                    winner = player1Health <= 0 ? opponent : username;
-
-                ShowGameOver(winner);
-            }
-        }
-
-        private void UpdateCamera()
-        {
-            int centerX = (player1X + player2X) / 2;
-            viewportX = centerX - this.ClientSize.Width / 2;
-            viewportX = Math.Max(0, Math.Min(backgroundWidth - this.ClientSize.Width, viewportX));
-        }
-
-        private void UpdateGame()
-        {
-            // Update animation frames
-            player1AnimationManager.SetCurrentAnimation(player1CurrentAnimation);
-            player1AnimationManager.UpdateFrames();
-            
-            player2AnimationManager.SetCurrentAnimation(player2CurrentAnimation);
-            player2AnimationManager.UpdateFrames();
-
-            if (fireball != null && fireballActive && ImageAnimator.CanAnimate(fireball))
-            {
-                ImageAnimator.UpdateFrames(fireball);
-            }
-
-            if (spellAnimation != null && spellActive && ImageAnimator.CanAnimate(spellAnimation))
-            {
-                ImageAnimator.UpdateFrames(spellAnimation);
-            }
-
-            if (fireballActive)
-            {
-                fireballX += 12 * fireballDirection;
-                CheckFireballHit();
-
-                if (fireballX > backgroundWidth || fireballX < -FIREBALL_WIDTH)
-                {
-                    fireballActive = false;
-                }
-            }
-            
-            // Update warrior projectiles
-            if (projectile1Active)
-            {
-                projectile1X += PROJECTILE_SPEED * projectile1Direction;
-                
-                // Check collision with player2
-                Rectangle projRect = new Rectangle(projectile1X, projectile1Y, PROJECTILE_WIDTH, PROJECTILE_HEIGHT);
-                Rectangle targetRect = GetPlayerHurtbox(player2X, player2Y);
-                
-                if (projRect.IntersectsWith(targetRect))
-                {
-                    ApplyHurtToPlayer(2, 20);
-                    projectile1Active = false;
-                    ShowHitEffect("Energy Strike!", Color.Gold);
-                }
-                
-                // Off-screen check
-                if (projectile1X > backgroundWidth || projectile1X < -PROJECTILE_WIDTH)
-                {
-                    projectile1Active = false;
-                }
-            }
-
-            if (projectile2Active)
-            {
-                projectile2X += PROJECTILE_SPEED * projectile2Direction;
-                
-                Rectangle projRect = new Rectangle(projectile2X, projectile2Y, PROJECTILE_WIDTH, PROJECTILE_HEIGHT);
-                Rectangle targetRect = GetPlayerHurtbox(player1X, player1Y);
-                
-                if (projRect.IntersectsWith(targetRect))
-                {
-                    ApplyHurtToPlayer(1, 20);
-                    projectile2Active = false;
-                    ShowHitEffect("Energy Strike!", Color.Gold);
-                }
-                
-                if (projectile2X > backgroundWidth || projectile2X < -PROJECTILE_WIDTH)
-                {
-                    projectile2Active = false;
-                }
-            }
-            
-            // Regenerate resources
-            RegenerateResources();
-
-            // Update health, stamina, mana bars
-            healthBar1.Value = Math.Max(0, Math.Min(100, player1Health));
-            staminaBar1.Value = Math.Max(0, Math.Min(100, player1Stamina));
-            manaBar1.Value = Math.Max(0, Math.Min(100, player1Mana));
-            healthBar2.Value = Math.Max(0, Math.Min(100, player2Health));
-            staminaBar2.Value = Math.Max(0, Math.Min(100, player2Stamina));
-            manaBar2.Value = Math.Max(0, Math.Min(100, player2Mana));
-
-            // Check for game over conditions
-            if (player1Health <= 0 || player2Health <= 0)
-            {
-                gameTimer.Stop();
-                walkAnimationTimer.Stop();
-
-                string winner;
-                if (player1Health <= 0 && player2Health <= 0)
-                    winner = "Draw";
-                else
-                    winner = player1Health <= 0 ? opponent : username;
-
-                ShowGameOver(winner);
-            }
-        }
-
-        private void RegenerateResources()
-        {
-            if (player1Stamina < 100) player1Stamina += 2;
-            if (player2Stamina < 100) player2Stamina += 2;
-            if (player1Mana < 100) player1Mana = Math.Min(100, player1Mana + 1);
-            if (player2Mana < 100) player2Mana = Math.Min(100, player2Mana + 1);
-        }
-
-        // Reset animation về frame đầu tiên - CHỈ gọi khi bắt đầu animation MỚI
-        private void ResetAnimationToFirstFrame(Image animation)
-        {
-            if (animation != null && ImageAnimator.CanAnimate(animation))
-            {
-                try
-                {
-                    ImageAnimator.StopAnimate(animation, OnFrameChanged);
-                    // Reset về frame đầu tiên
-                    animation.SelectActiveFrame(System.Drawing.Imaging.FrameDimension.Time, 0);
-                    ImageAnimator.Animate(animation, OnFrameChanged);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error resetting animation: {ex.Message}");
-                }
-            }
-        }
-
-        private void Player1Attack(string attackType)
-        {
-            if (player1Attacking) return;
-
-            player1Attacking = true;
-            player1Walking = false;
-
-            switch (attackType)
-            {
-                case "punch":
-                    if (player1Stamina >= 10)
-                    {
-                        player1Stamina -= 10;
-                        player1CurrentAnimation = "punch";
-                        player1AnimationManager.ResetAnimationToFirstFrame("punch");
-                        
-                        // Check if Warrior (multi-hit)
-                        bool isWarrior = player1CharacterType == "warrior";
-                        
-                        if (isWarrior)
-                        {
-                            // Warrior: 2 hits at frame 6 and frame 10
-                            var multiHitTimings = player1AnimationManager.GetMultiHitTimings("punch");
-                            
-
-
-                            if (multiHitTimings != null && multiHitTimings.Count > 0)
-                            {
-                                foreach (var timing in multiHitTimings)
-                                {
-                                    System.Windows.Forms.Timer hitTimer = new System.Windows.Forms.Timer();
-                                    hitTimer.Interval = timing;
-                                    hitTimer.Tick += (s, e) =>
-                                    {
-                                        hitTimer.Stop();
-                                        hitTimer.Dispose();
-                                        
-                                        Rectangle attackHitbox = GetAttackHitbox(player1X, player1Y, player1Facing);
-                                        Rectangle targetHurtbox = GetPlayerHurtbox(player2X, player2Y);
-                                        
-                                        if (attackHitbox.IntersectsWith(targetHurtbox))
-                                        {
-                                            ApplyHurtToPlayer(2, 10);
-                                            ShowHitEffect("Strike!", Color.Yellow);
-                                        }
-                                    };
-                                    hitTimer.Start();
-                                }
-                            }
-                        }
-                        else
-                        {
-                            // Normal single hit
-                            int hitDelay = player1AnimationManager.GetHitFrameDelay("punch");
-                            System.Windows.Forms.Timer hitTimer = new System.Windows.Forms.Timer();
-                            hitTimer.Interval = hitDelay;
-                            hitTimer.Tick += (s, e) =>
-                            {
-                                hitTimer.Stop();
-                                hitTimer.Dispose();
-                        
-                                Rectangle attackHitbox = GetAttackHitbox(player1X, player1Y, player1Facing);
-                                Rectangle targetHurtbox = GetPlayerHurtbox(player2X, player2Y);
-                        
-                                if (attackHitbox.IntersectsWith(targetHurtbox))
-                                {
-                                    ApplyHurtToPlayer(2, 10);
-                                    ShowHitEffect("Punch!", Color.Orange);
-                                }
-                            };
-                            hitTimer.Start();
-                        }
-                        
-                        int duration = player1AnimationManager.GetAnimationDuration("punch");
-                        ResetAttackAnimation(duration, 1);
-                    }
-                    else
-                    {
-                        player1Attacking = false;
-                    }
-                    break;
-                case "kick":
-                    if (player1Stamina >= 15)
-                    {
-                        player1Stamina -= 15;
-                        player1CurrentAnimation = "kick";
-                        player1AnimationManager.ResetAnimationToFirstFrame("kick");
-                        
-                        bool isGoatman = player1CharacterType == "goatman";
-                        bool isGirlKnight = player1CharacterType == "girlknight";
-                        int slideDistance = player1AnimationManager.GetSlideDistance("kick");
-                        int hitDelay = player1AnimationManager.GetHitFrameDelay("kick");
-                        
-                        if (isGoatman)
-                        {
-                            // Goatman: GM_impact + strong knockback
-                            int knockbackDistance = player1AnimationManager.GetKnockbackDistance("kick");
-                            
-
-                            System.Windows.Forms.Timer hitTimer = new System.Windows.Forms.Timer();
-                            hitTimer.Interval = hitDelay;
-                            hitTimer.Tick += (s, e) =>
-                            {
-                                hitTimer.Stop();
-                                hitTimer.Dispose();
-                                        
-                                Rectangle attackHitbox = GetAttackHitbox(player1X, player1Y, player1Facing);
-                                Rectangle targetHurtbox = GetPlayerHurtbox(player2X, player2Y);
-                        
-                                if (attackHitbox.IntersectsWith(targetHurtbox))
-                                {
-                                    // Show GM_impact at hitbox end
-                                    int impactX = player1Facing == "right" 
-                                        ? attackHitbox.X + attackHitbox.Width 
-                                        : attackHitbox.X - 60;
-                                    int impactY = attackHitbox.Y;
-                                    
-                                    impact1Active = true;
-                                    impact1X = impactX;
-                                    impact1Y = impactY;
-                                    impact1Facing = player1Facing;
-                                    
-                                    impact1Timer = new System.Windows.Forms.Timer { Interval = 250 };
-                                    impact1Timer.Tick += (s2, e2) =>
-                                    {
-                                        impact1Active = false;
-                                        impact1Timer.Stop();
-                                        impact1Timer.Dispose();
-                                        this.Invalidate();
-                                    };
-                                    impact1Timer.Start();
-                                    
-                                    // Apply damage
-                                    ApplyHurtToPlayer(2, 15, false);
-                                    
-                                    // Apply smooth strong knockback
-                                    int knockbackDir = player1Facing == "right" ? 1 : -1;
-                                    int knockbackRemaining = knockbackDistance;
-                                    
-                                    var knockbackTimer = new System.Windows.Forms.Timer { Interval = 16 };
-                                    float knockbackSpeed = (float)knockbackDistance / 167 * 16; // 167ms duration
-                                    
-                                    knockbackTimer.Tick += (s3, e3) =>
-                                    {
-                                        if (knockbackRemaining > 0)
-                                        {
-                                            int moveAmount = Math.Min(knockbackRemaining, (int)Math.Ceiling(knockbackSpeed));
-                                            player1X += moveAmount * knockbackDir;
-                                            player1X = Math.Max(0, Math.Min(backgroundWidth - PLAYER_WIDTH, player1X));
-                                            knockbackRemaining -= moveAmount;
-                                        }
-
-                                        if (knockbackRemaining <= 0)
-                                        {
-                                            knockbackTimer.Stop();
-                                            knockbackTimer.Dispose();
-                                        }
-                                    };
-                                    knockbackTimer.Start();
-                                    
-                                    ShowHitEffect("Heavy Impact!", Color.OrangeRed);
-                                }
-                            };
-                            hitTimer.Start();
-                        }
-                        else if (isGirlKnight)
-                        {
-                            // Girl Knight: Slide mechanic (existing code)
-                            bool hasSlide = slideDistance > 0;
-                            System.Windows.Forms.Timer slideTimer = null;
-                            int slideDuration = player1AnimationManager.GetAnimationDuration("kick") - hitDelay;
-                            float slideSpeed = hasSlide ? (float)slideDistance / slideDuration * 16 : 0;
-                            
-                            if (hasSlide)
-                            {
-                                slideTimer = new System.Windows.Forms.Timer { Interval = 16 };
-                                int slideDirection = player1Facing == "right" ? 1 : -1;
-                                int slideRemaining = slideDistance;
-                                
-                                slideTimer.Tick += (s, e) =>
-                                {
-                                    if (slideRemaining > 0)
-                                    {
-                                        int moveAmount = Math.Min(slideRemaining, (int)Math.Ceiling(slideSpeed));
-                                        player1X += moveAmount * slideDirection;
-                                        player1X = Math.Max(0, Math.Min(backgroundWidth - PLAYER_WIDTH, player1X));
-                                        slideRemaining -= moveAmount;
-                                        
-                                        Rectangle attackHitbox = GetAttackHitbox(player1X, player1Y, player1Facing);
-                                        Rectangle targetHurtbox = GetPlayerHurtbox(player2X, player2Y);
-                        
-                                        if (attackHitbox.IntersectsWith(targetHurtbox))
-                                        {
-                                            ApplyHurtToPlayer(2, 15);
-                                            ShowHitEffect("Slide Kick!", Color.Red);
-                                            slideTimer.Stop();
-                                            slideTimer.Dispose();
-                                        }
-                                    }
-                                    else
-                                    {
-                                        slideTimer.Stop();
-                                        slideTimer.Dispose();
-                                    }
-                                };
-                            }
-                        
-                            System.Windows.Forms.Timer hitTimer = new System.Windows.Forms.Timer();
-                            hitTimer.Interval = hitDelay;
-                            hitTimer.Tick += (s, e) =>
-                            {
-                                hitTimer.Stop();
-                                hitTimer.Dispose();
-                                
-                                if (hasSlide && slideTimer != null)
-                                {
-                                    slideTimer.Start();
-                                }
-                                
-                                if (!hasSlide)
-                                {
-                                    Rectangle attackHitbox = GetAttackHitbox(player1X, player1Y, player1Facing);
-                                    Rectangle targetHurtbox = GetPlayerHurtbox(player2X, player2Y);
-                        
-                                    if (attackHitbox.IntersectsWith(targetHurtbox))
-                                    {
-                                        ApplyHurtToPlayer(2, 15);
-                                        ShowHitEffect("Kick!", Color.Red);
-                                    }
-                                }
-                            };
-                            hitTimer.Start();
-                        }
-                        else if (player1CharacterType == "warrior")
-                        {
-                            // Warrior: Slide 3 frames then hit
-                            int slideDuration = 300; // 3 frames @ 10fps = 300ms
-                            
-                            // Slide first
-                            System.Windows.Forms.Timer slideTimer = new System.Windows.Forms.Timer { Interval = 16 };
-                            int slideDirection = player1Facing == "right" ? 1 : -1;
-                            int slideRemaining = slideDistance;
-                            float slideSpeed = (float)slideDistance / slideDuration * 16;
-                            
-                            slideTimer.Tick += (s, e) =>
-                            {
-                                if (slideRemaining > 0)
-                                {
-                                    int moveAmount = Math.Min(slideRemaining, (int)Math.Ceiling(slideSpeed));
-                                    player1X += moveAmount * slideDirection;
-                                    player1X = Math.Max(0, Math.Min(backgroundWidth - PLAYER_WIDTH, player1X));
-                                    slideRemaining -= moveAmount;
-                                }
-                                else
-                                {
-                                    slideTimer.Stop();
-                                    slideTimer.Dispose();
-                                }
-                            };
-                            slideTimer.Start();
-                            
-                            // Hit at frame 4
-                            System.Windows.Forms.Timer hitTimer = new System.Windows.Forms.Timer();
-                            hitTimer.Interval = hitDelay; // 400ms
-                            hitTimer.Tick += (s, e) =>
-                            {
-                                hitTimer.Stop();
-                                hitTimer.Dispose();
-                                
-                                // Hit at NEW position after slide
-                                Rectangle attackHitbox = GetAttackHitbox(player1X, player1Y, player1Facing);
-                                Rectangle targetHurtbox = GetPlayerHurtbox(player2X, player2Y);
-                                
-                                if (attackHitbox.IntersectsWith(targetHurtbox))
-                                {
-                                    ApplyHurtToPlayer(2, 15);
-                                    ShowHitEffect("Power Kick!", Color.Gold);
-                                }
-                            };
-                            hitTimer.Start();
-                        }
-                        else
-                        {
-                            // Default: Simple kick
-                            System.Windows.Forms.Timer hitTimer = new System.Windows.Forms.Timer();
-                            hitTimer.Interval = hitDelay;
-                            hitTimer.Tick += (s, e) =>
-                            {
-                                hitTimer.Stop();
-                                hitTimer.Dispose();
-                                
-                                Rectangle attackHitbox = GetAttackHitbox(player1X, player1Y, player1Facing);
-                                Rectangle targetHurtbox = GetPlayerHurtbox(player2X, player2Y);
-                        
-                                if (attackHitbox.IntersectsWith(targetHurtbox))
-                                {
-                                    ApplyHurtToPlayer(2, 15);
-                                    ShowHitEffect("Kick!", Color.Red);
-                                }
-                            };
-                            hitTimer.Start();
-                        }
-                        
-                        int duration = player1AnimationManager.GetAnimationDuration("kick");
-                        ResetAttackAnimation(duration, 1);
-                    }
-                    else
-                    {
-                        player1Attacking = false;
-                    }
-                    break;
-                case "special":
-                    if (player1Mana >= 30)
-                    {
-                        player1Mana -= 30;
-                        player1CurrentAnimation = "fireball";
-                        player1AnimationManager.ResetAnimationToFirstFrame("fireball");
-                        
-                        int hitDelay = player1AnimationManager.GetHitFrameDelay("special");
-                        System.Windows.Forms.Timer hitTimer = new System.Windows.Forms.Timer();
-                        hitTimer.Interval = hitDelay;
-                        hitTimer.Tick += (s, e) =>
-                        {
-                            hitTimer.Stop();
-                            hitTimer.Dispose();
-                        
-                            // Check character type for different special attacks
-                            if (player1CharacterType == "bringerofdeath")
-                            {
-                                // Spawn spell at player2's current position
-                                SpawnSpell(player2X, player2Y, 1, 2);
-                            }
-                            else if (player1CharacterType == "warrior")
-                            {
-                                // Warrior: Spawn projectile
-                                int direction = player1Facing == "right" ? 1 : -1;
-                                int startX = player1Facing == "right" ? player1X + PLAYER_WIDTH : player1X;
-                                int startY = player1Y + PLAYER_HEIGHT / 2 - PROJECTILE_HEIGHT / 2;
-                        
-                                SpawnWarriorProjectile(startX, startY, direction, 1, 2);
-                            }
-                            else
-                            {
-                                // Normal fireball for other characters
-                                int direction = player1Facing == "right" ? 1 : -1;
-                                int startX = player1Facing == "right" ? player1X + PLAYER_WIDTH : player1X - FIREBALL_WIDTH;
-                                ShootFireball(startX, player1Y + 30, direction, 1);
-                            }
-                        };
-                        hitTimer.Start();
-                        
-                        int duration = player1AnimationManager.GetAnimationDuration("special");
-                        ResetAttackAnimation(duration, 1);
-                    }
-                    else
-                    {
-                        player1Attacking = false;
-                    }
-                    break;
-            }
-        }
-
-        private void Player2Attack(string attackType)
-        {
-            if (player2Attacking) return;
-
-            player2Attacking = true;
-            player2Walking = false;
-
-            switch (attackType)
-            {
-                case "punch":
-                    if (player2Stamina >= 10)
-                    {
-                        player2Stamina -= 10;
-                        player2CurrentAnimation = "punch";
-                        player2AnimationManager.ResetAnimationToFirstFrame("punch");
-                        
-                        // Check if Warrior (multi-hit)
-                        bool isWarrior = player2CharacterType == "warrior";
-                        
-                        if (isWarrior)
-                        {
-                            // Warrior: 2 hits at frame 6 and frame 10
-                            var multiHitTimings = player2AnimationManager.GetMultiHitTimings("punch");
-                            
-
-
-                            if (multiHitTimings != null && multiHitTimings.Count > 0)
-                            {
-                                foreach (var timing in multiHitTimings)
-                                {
-                                    System.Windows.Forms.Timer hitTimer = new System.Windows.Forms.Timer();
-                                    hitTimer.Interval = timing;
-                                    hitTimer.Tick += (s, e) =>
-                                    {
-                                        hitTimer.Stop();
-                                        hitTimer.Dispose();
-                                        
-                                        Rectangle attackHitbox = GetAttackHitbox(player2X, player2Y, player2Facing);
-                                        Rectangle targetHurtbox = GetPlayerHurtbox(player1X, player1Y);
-                                        
-                                        if (attackHitbox.IntersectsWith(targetHurtbox))
-                                        {
-                                            ApplyHurtToPlayer(1, 10);
-                                            ShowHitEffect("Strike!", Color.Yellow);
-                                        }
-                                    };
-                                    hitTimer.Start();
-                                }
-                            }
-                        }
-                        else
-                        {
-                            // Normal single hit
-                            int hitDelay = player2AnimationManager.GetHitFrameDelay("punch");
-                            System.Windows.Forms.Timer hitTimer = new System.Windows.Forms.Timer();
-                            hitTimer.Interval = hitDelay;
-                            hitTimer.Tick += (s, e) =>
-                            {
-                                hitTimer.Stop();
-                                hitTimer.Dispose();
-                        
-                                Rectangle attackHitbox = GetAttackHitbox(player2X, player2Y, player2Facing);
-                                Rectangle targetHurtbox = GetPlayerHurtbox(player1X, player1Y);
-                        
-                                if (attackHitbox.IntersectsWith(targetHurtbox))
-                                {
-                                    ApplyHurtToPlayer(1, 10);
-                                    ShowHitEffect("Punch!", Color.Orange);
-                                }
-                            };
-                            hitTimer.Start();
-                        }
-                        
-                        int duration = player2AnimationManager.GetAnimationDuration("punch");
-                        ResetAttackAnimation(duration, 2);
-                    }
-                    else
-                    {
-                        player2Attacking = false;
-                    }
-                    break;
-                case "kick":
-                    if (player2Stamina >= 15)
-                    {
-                        player2Stamina -= 15;
-                        player2CurrentAnimation = "kick";
-                        player2AnimationManager.ResetAnimationToFirstFrame("kick");
-                        
-                        bool isGoatman = player2CharacterType == "goatman";
-                        bool isGirlKnight = player2CharacterType == "girlknight";
-                        int slideDistance = player2AnimationManager.GetSlideDistance("kick");
-                        int hitDelay = player2AnimationManager.GetHitFrameDelay("kick");
-                        
-                        if (isGoatman)
-                        {
-                            // Goatman: GM_impact + strong knockback
-                            int knockbackDistance = player2AnimationManager.GetKnockbackDistance("kick");
-                            
-
-                            System.Windows.Forms.Timer hitTimer = new System.Windows.Forms.Timer();
-                            hitTimer.Interval = hitDelay;
-                            hitTimer.Tick += (s, e) =>
-                            {
-                                hitTimer.Stop();
-                                hitTimer.Dispose();
-                                        
-                                Rectangle attackHitbox = GetAttackHitbox(player2X, player2Y, player2Facing);
-                                Rectangle targetHurtbox = GetPlayerHurtbox(player1X, player1Y);
-                        
-                                if (attackHitbox.IntersectsWith(targetHurtbox))
-                                {
-                                    // Show GM_impact at hitbox end
-                                    int impactX = player2Facing == "right" 
-                                        ? attackHitbox.X + attackHitbox.Width 
-                                        : attackHitbox.X - 60;
-                                    int impactY = attackHitbox.Y;
-                                    
-                                    impact2Active = true;
-                                    impact2X = impactX;
-                                    impact2Y = impactY;
-                                    impact2Facing = player2Facing;
-                                    
-                                    impact2Timer = new System.Windows.Forms.Timer { Interval = 250 };
-                                    impact2Timer.Tick += (s2, e2) =>
-                                    {
-                                        impact2Active = false;
-                                        impact2Timer.Stop();
-                                        impact2Timer.Dispose();
-                                        this.Invalidate();
-                                    };
-                                    impact2Timer.Start();
-                                    
-                                    // Apply damage
-                                    ApplyHurtToPlayer(1, 15, false);
-                                    
-                                    // Apply smooth strong knockback
-                                    int knockbackDir = player2Facing == "right" ? 1 : -1;
-                                    int knockbackRemaining = knockbackDistance;
-                                    
-                                    var knockbackTimer = new System.Windows.Forms.Timer { Interval = 16 };
-                                    float knockbackSpeed = (float)knockbackDistance / 167 * 16; // 167ms duration
-                                    
-                                    knockbackTimer.Tick += (s3, e3) =>
-                                    {
-                                        if (knockbackRemaining > 0)
-                                        {
-                                            int moveAmount = Math.Min(knockbackRemaining, (int)Math.Ceiling(knockbackSpeed));
-                                            player1X += moveAmount * knockbackDir;
-                                            player1X = Math.Max(0, Math.Min(backgroundWidth - PLAYER_WIDTH, player1X));
-                                            knockbackRemaining -= moveAmount;
-                                        }
-
-                                        if (knockbackRemaining <= 0)
-                                        {
-                                            knockbackTimer.Stop();
-                                            knockbackTimer.Dispose();
-                                        }
-                                    };
-                                    knockbackTimer.Start();
-                                    
-                                    ShowHitEffect("Heavy Impact!", Color.OrangeRed);
-                                }
-                            };
-                            hitTimer.Start();
-                        }
-                        else if (isGirlKnight)
-                        {
-                            // Girl Knight: Slide mechanic
-                            bool hasSlide = slideDistance > 0;
-                            System.Windows.Forms.Timer slideTimer = null;
-                            int slideDuration = player2AnimationManager.GetAnimationDuration("kick") - hitDelay;
-                            float slideSpeed = hasSlide ? (float)slideDistance / slideDuration * 16 : 0;
-                            
-                            if (hasSlide)
-                            {
-                                slideTimer = new System.Windows.Forms.Timer { Interval = 16 };
-                                int slideDirection = player2Facing == "right" ? 1 : -1;
-                                int slideRemaining = slideDistance;
-                                
-                                slideTimer.Tick += (s, e) =>
-                                {
-                                    if (slideRemaining > 0)
-                                    {
-                                        int moveAmount = Math.Min(slideRemaining, (int)Math.Ceiling(slideSpeed));
-                                        player2X += moveAmount * slideDirection;
-                                        player2X = Math.Max(0, Math.Min(backgroundWidth - PLAYER_WIDTH, player2X));
-                                        slideRemaining -= moveAmount;
-                                        
-                                        Rectangle attackHitbox = GetAttackHitbox(player2X, player2Y, player2Facing);
-                                        Rectangle targetHurtbox = GetPlayerHurtbox(player1X, player1Y);
-                        
-                                        if (attackHitbox.IntersectsWith(targetHurtbox))
-                                        {
-                                            ApplyHurtToPlayer(1, 15);
-                                            ShowHitEffect("Slide Kick!", Color.Red);
-                                            slideTimer.Stop();
-                                            slideTimer.Dispose();
-                                        }
-                                    }
-                                    else
-                                    {
-                                        slideTimer.Stop();
-                                        slideTimer.Dispose();
-                                    }
-                                };
-                            }
-                        
-                            System.Windows.Forms.Timer hitTimer = new System.Windows.Forms.Timer();
-                            hitTimer.Interval = hitDelay;
-                            hitTimer.Tick += (s, e) =>
-                            {
-                                hitTimer.Stop();
-                                hitTimer.Dispose();
-                                
-                                if (hasSlide && slideTimer != null)
-                                {
-                                    slideTimer.Start();
-                                }
-                                
-                                if (!hasSlide)
-                                {
-                                    Rectangle attackHitbox = GetAttackHitbox(player2X, player2Y, player2Facing);
-                                    Rectangle targetHurtbox = GetPlayerHurtbox(player1X, player1Y);
-                        
-                                    if (attackHitbox.IntersectsWith(targetHurtbox))
-                                    {
-                                        ApplyHurtToPlayer(1, 15);
-                                        ShowHitEffect("Kick!", Color.Red);
-                                    }
-                                }
-                            };
-                            hitTimer.Start();
-                        }
-                        else if (player2CharacterType == "warrior")
-                        {
-                            // Warrior: Slide then hit
-                            int slideDuration = 300;
-                            
-                            System.Windows.Forms.Timer slideTimer = new System.Windows.Forms.Timer { Interval = 16 };
-                            int slideDirection = player2Facing == "right" ? 1 : -1;
-                            int slideRemaining = slideDistance;
-                            float slideSpeed = (float)slideDistance / slideDuration * 16;
-                            
-                            slideTimer.Tick += (s, e) =>
-                            {
-                                if (slideRemaining > 0)
-                                {
-                                    int moveAmount = Math.Min(slideRemaining, (int)Math.Ceiling(slideSpeed));
-                                    player2X += moveAmount * slideDirection;
-                                    player2X = Math.Max(0, Math.Min(backgroundWidth - PLAYER_WIDTH, player2X));
-                                    slideRemaining -= moveAmount;
-                                }
-                                else
-                                {
-                                    slideTimer.Stop();
-                                    slideTimer.Dispose();
-                                }
-                            };
-                            slideTimer.Start();
-                            
-                            System.Windows.Forms.Timer hitTimer = new System.Windows.Forms.Timer();
-                            hitTimer.Interval = hitDelay;
-                            hitTimer.Tick += (s, e) =>
-                            {
-                                hitTimer.Stop();
-                                hitTimer.Dispose();
-                                
-                                Rectangle attackHitbox = GetAttackHitbox(player2X, player2Y, player2Facing);
-                                Rectangle targetHurtbox = GetPlayerHurtbox(player1X, player1Y);
-                                
-                                if (attackHitbox.IntersectsWith(targetHurtbox))
-                                {
-                                    ApplyHurtToPlayer(1, 15);
-                                    ShowHitEffect("Power Kick!", Color.Gold);
-                                }
-                            };
-                            hitTimer.Start();
-                        }
-                        else
-                        {
-                            // Default: Simple kick
-                            System.Windows.Forms.Timer hitTimer = new System.Windows.Forms.Timer();
-                            hitTimer.Interval = hitDelay;
-                            hitTimer.Tick += (s, e) =>
-                            {
-                                hitTimer.Stop();
-                                hitTimer.Dispose();
-                                
-                                Rectangle attackHitbox = GetAttackHitbox(player2X, player2Y, player2Facing);
-                                Rectangle targetHurtbox = GetPlayerHurtbox(player1X, player1Y);
-                        
-                                if (attackHitbox.IntersectsWith(targetHurtbox))
-                                {
-                                    ApplyHurtToPlayer(1, 15);
-                                    ShowHitEffect("Kick!", Color.Red);
-                                }
-                            };
-                            hitTimer.Start();
-                        }
-                        
-                        int duration = player2AnimationManager.GetAnimationDuration("kick");
-                        ResetAttackAnimation(duration, 2);
-                    }
-                    else
-                    {
-                        player2Attacking = false;
-                    }
-                    break;
-                case "special":
-                    if (player2Mana >= 30)
-                    {
-                        player2Mana -= 30;
-                        player2CurrentAnimation = "fireball";
-                        player2AnimationManager.ResetAnimationToFirstFrame("fireball");
-                        
-                        int hitDelay = player2AnimationManager.GetHitFrameDelay("special");
-                        System.Windows.Forms.Timer hitTimer = new System.Windows.Forms.Timer();
-                        hitTimer.Interval = hitDelay;
-                        hitTimer.Tick += (s, e) =>
-                        {
-                            hitTimer.Stop();
-                            hitTimer.Dispose();
-                        
-                            // Check character type for different special attacks
-                            if (player2CharacterType == "bringerofdeath")
-                            {
-                                // Spawn spell at player1's current position
-                                SpawnSpell(player1X, player1Y, 2, 1);
-                            }
-                            else if (player2CharacterType == "warrior")
-                            {
-                                // Warrior: Spawn projectile
-                                int direction = player2Facing == "right" ? 1 : -1;
-                                int startX = player2Facing == "right" ? player2X + PLAYER_WIDTH : player2X;
-                                int startY = player2Y + PLAYER_HEIGHT / 2 - PROJECTILE_HEIGHT / 2;
-                                
-                                SpawnWarriorProjectile(startX, startY, direction, 2, 1);
-                            }
-                            else
-                            {
-                                // Normal fireball for other characters
-                                int direction = player2Facing == "right" ? 1 : -1;
-                                int startX = player2Facing == "right" ? player2X + PLAYER_WIDTH : player2X - FIREBALL_WIDTH;
-                                ShootFireball(startX, player2Y + 30, direction, 2);
-                            }
-                        };
-                        hitTimer.Start();
-                        
-                        int duration = player2AnimationManager.GetAnimationDuration("special");
-                        ResetAttackAnimation(duration, 2);
-                    }
-                    else
-                    {
-                        player2Attacking = false;
-                    }
-                    break;
-            }
-        }
-
-        // delay: ms, player: 0 = both, 1 = player1, 2 = player2
-        private void ResetAttackAnimation(int delay, int player)
-        {
-            System.Windows.Forms.Timer resetTimer = new System.Windows.Forms.Timer();
-            resetTimer.Interval = delay;
-            resetTimer.Tick += (s, e) =>
-            {
-                if (player == 0 || player == 1) player1Attacking = false;
-                if (player == 0 || player == 2) player2Attacking = false;
-
-                if (!player1Attacking)
-                {
-                    if (player1CurrentAnimation != "hurt" && player1CurrentAnimation != "parry")
-                    {
-                        if (aPressed || dPressed)
-                        {
-                            player1CurrentAnimation = "walk";
-                            player1Walking = true;
-                        }
-                        else
-                        {
-                            player1CurrentAnimation = "stand";
-                        }
-                    }
-                }
-
-                if (!player2Attacking)
-                {
-                    if (player2CurrentAnimation != "hurt" && player2CurrentAnimation != "parry")
-                    {
-                        if (leftPressed || rightPressed)
-                        {
-                            player2CurrentAnimation = "walk";
-                            player2Walking = true;
-                        }
-                        else
-                        {
-                            player2CurrentAnimation = "stand";
-                        }
-                    }
-                }
-
-                resetTimer.Stop();
-                resetTimer.Dispose();
-            };
-            resetTimer.Start();
-        }
-
-        private void ShootFireball(int x, int y, int direction, int owner)
-        {
-            fireballActive = true;
-            fireballX = x;
-            fireballY = y;
-            fireballDirection = direction;
-            fireballOwner = owner;
-            if (fireball != null && ImageAnimator.CanAnimate(fireball))
-                ImageAnimator.Animate(fireball, OnFrameChanged);
-        }
-
-        private void SpawnSpell(int targetX, int targetY, int owner, int targetPlayer)
-        {
-            spellActive = true;
-            spellX = targetX;
-            spellY = targetY;
-            spellOwner = owner;
-
-            // Reset spell animation to first frame
-            if (spellAnimation != null && ImageAnimator.CanAnimate(spellAnimation))
-            {
-                try
-                {
-                    ImageAnimator.StopAnimate(spellAnimation, OnFrameChanged);
-                    spellAnimation.SelectActiveFrame(System.Drawing.Imaging.FrameDimension.Time, 0);
-                    ImageAnimator.Animate(spellAnimation, OnFrameChanged);
-                }
-                catch { }
-            }
-
-            // Create timer to deal damage after delay
-            if (spellDamageTimer != null)
-            {
-                spellDamageTimer.Stop();
-                spellDamageTimer.Dispose();
-            }
-
-            spellDamageTimer = new System.Windows.Forms.Timer();
-            spellDamageTimer.Interval = SPELL_DAMAGE_DELAY_MS;
-            spellDamageTimer.Tick += (s, e) =>
-            {
-                spellDamageTimer.Stop();
-                spellDamageTimer.Dispose();
-                spellDamageTimer = null;
-
-                // Check if target is still in spell area
-                int targetCurrentX = targetPlayer == 1 ? player1X : player2X;
-                int targetCurrentY = targetPlayer == 1 ? player1Y : player2Y;
-
-                Rectangle spellRect = new Rectangle(spellX, spellY, SPELL_WIDTH, SPELL_HEIGHT);
-                Rectangle targetRect = new Rectangle(targetCurrentX, targetCurrentY, PLAYER_WIDTH, PLAYER_HEIGHT);
-
-                if (spellRect.IntersectsWith(targetRect))
-                {
-                    ApplyHurtToPlayer(targetPlayer, 25); // 25 damage
-                    ShowHitEffect("Dark Magic!", Color.Purple);
-                }
-                else
-                {
-                    ShowHitEffect("Dodged!", Color.LightGray);
-                }
-
-                // Deactivate spell after some time
-                var deactivateTimer = new System.Windows.Forms.Timer { Interval = 300 };
-                deactivateTimer.Tick += (s2, e2) =>
-                {
-                    spellActive = false;
-                    deactivateTimer.Stop();
-                    deactivateTimer.Dispose();
-                };
-                deactivateTimer.Start();
-            };
-            spellDamageTimer.Start();
-        }
-
-        private void SpawnWarriorProjectile(int x, int y, int direction, int owner, int targetPlayer)
-        {
-            if (owner == 1)
-            {
-                projectile1Active = true;
-                projectile1X = x;
-                projectile1Y = y;
-                projectile1Direction = direction;
-                
-                // Auto-destroy after 3 seconds
-                System.Windows.Forms.Timer destroyTimer = new System.Windows.Forms.Timer { Interval = 3000 };
-                destroyTimer.Tick += (s, e) =>
-                {
-                    projectile1Active = false;
-                    destroyTimer.Stop();
-                    destroyTimer.Dispose();
-                };
-                destroyTimer.Start();
-            }
-            else if (owner == 2)
-            {
-                projectile2Active = true;
-                projectile2X = x;
-                projectile2Y = y;
-                projectile2Direction = direction;
-                
-                System.Windows.Forms.Timer destroyTimer = new System.Windows.Forms.Timer { Interval = 3000 };
-                destroyTimer.Tick += (s, e) =>
-                {
-                    projectile2Active = false;
-                    destroyTimer.Stop();
-                    destroyTimer.Dispose();
-                };
-                destroyTimer.Start();
-            }
-        }
-
-        private void CheckFireballHit()
-        {
-            if (!fireballActive) return;
-
-            Rectangle fireRect = new Rectangle(fireballX, fireballY, FIREBALL_WIDTH, FIREBALL_HEIGHT);
-
-            if (fireballOwner == 1)
-            {
-                Rectangle p2Rect = new Rectangle(player2X, player2Y, PLAYER_WIDTH, PLAYER_HEIGHT);
-                if (fireRect.IntersectsWith(p2Rect))
-                {
-                    if (player2Parrying)
-                    {
-                        // reflect: send fireball back
-                        fireballDirection *= -1;
-                        fireballOwner = 2;
-                        // reposition just in front of parrier
-                        fireballX = player2X + (player2Facing == "right" ? PLAYER_WIDTH + 5 : -FIREBALL_WIDTH - 5);
-                        ShowHitEffect("Reflected!", Color.Orange);
-                    }
-                    else
-                    {
-                        ApplyHurtToPlayer(2, 20);
-                        fireballActive = false;
-                        ShowHitEffect("Fireball Hit!", Color.Yellow);
-                    }
-                }
-            }
-            else if (fireballOwner == 2)
-            {
-                Rectangle p1Rect = new Rectangle(player1X, player1Y, PLAYER_WIDTH, PLAYER_HEIGHT);
-                if (fireRect.IntersectsWith(p1Rect))
-                {
-                    if (player2Parrying)
-                    {
-                        // reflect: send fireball back
-                        fireballDirection *= -1;
-                        fireballOwner = 2;
-                        // reposition just in front of parrier
-                        fireballX = player2X + (player2Facing == "right" ? PLAYER_WIDTH + 5 : -FIREBALL_WIDTH - 5);
-                        ShowHitEffect("Reflected!", Color.Orange);
-                    }
-                    else
-                    {
-                        ApplyHurtToPlayer(2, 20);
-                        fireballActive = false;
-                        ShowHitEffect("Fireball Hit!", Color.Yellow);
-                    }
-                }
-            }
-        }
-
-        private bool CheckCollisionRect(int x1, int y1, int w1, int h1, int x2, int y2, int w2, int h2)
-        {
-            Rectangle r1 = new Rectangle(x1, y1, w1, h1);
-            Rectangle r2 = new Rectangle(x2, y2, w2, h2);
-            return r1.IntersectsWith(r2);
-        }
-
-        // Tạo hitbox attack từ giữa nhân vật, hướng theo facing
-        private Rectangle GetAttackHitbox(int playerX, int playerY, string facing)
-        {
-            int hitboxWidth = PLAYER_WIDTH / HITBOX_WIDTH_RATIO;
-            int hitboxHeight = PLAYER_HEIGHT / HITBOX_HEIGHT_RATIO;
-            int hitboxY = playerY + (PLAYER_HEIGHT - hitboxHeight) / 2;
-            int hitboxX = facing == "right" ? playerX + PLAYER_WIDTH / 2 : playerX + PLAYER_WIDTH / 2 - hitboxWidth;
-            return new Rectangle(hitboxX, hitboxY, hitboxWidth, hitboxHeight);
-        }
-
-        // Lấy hurtbox của nhân vật
-        private Rectangle GetPlayerHurtbox(int playerX, int playerY)
-        {
-            return new Rectangle(playerX, playerY, PLAYER_WIDTH, PLAYER_HEIGHT);
-        }
-
-        private void ShowHitEffect(string message, Color color)
-        {
-            var hitLabel = new Label
-            {
-                Text = message,
-                ForeColor = color,
-                BackColor = Color.FromArgb(150, 255, 255, 255),
-                Font = new Font("Arial", 12, FontStyle.Bold),
-                AutoSize = true,
-                Location = new Point(this.ClientSize.Width / 2 - 40, 150)
-            };
-
-            this.Controls.Add(hitLabel);
-            hitLabel.BringToFront();
-
-            System.Windows.Forms.Timer removeTimer = new System.Windows.Forms.Timer();
-            removeTimer.Interval = 800;
-            removeTimer.Tick += (s, e) =>
-            {
-                this.Controls.Remove(hitLabel);
-                removeTimer.Stop();
-                removeTimer.Dispose();
-            };
-            removeTimer.Start();
-        }
-
-        protected override void OnPaint(PaintEventArgs e)
-        {
-            base.OnPaint(e);
-
-            if (background != null)
-            {
-                e.Graphics.DrawImage(background,
-                    new Rectangle(0, 0, this.ClientSize.Width, this.ClientSize.Height),
-                    new Rectangle(viewportX, 0, this.ClientSize.Width, this.ClientSize.Height),
-                    GraphicsUnit.Pixel);
-            }
-
-            // Draw dash effects (behind characters)
-            if (dashEffect1Active && dashEffectImage != null)
-            {
-                int effectScreenX = dashEffect1X - viewportX;
-                if (effectScreenX >= -80 && effectScreenX <= this.ClientSize.Width)
-                {
-                    e.Graphics.DrawImage(dashEffectImage, effectScreenX, dashEffect1Y + PLAYER_HEIGHT - 40, 80, 40);
-                }
-            }
-
-            if (dashEffect2Active && dashEffectImage != null)
-            {
-                int effectScreenX = dashEffect2X - viewportX;
-                if (effectScreenX >= -80 && effectScreenX <= this.ClientSize.Width)
-                {
-                    e.Graphics.DrawImage(dashEffectImage, effectScreenX, dashEffect2Y + PLAYER_HEIGHT - 40, 80, 40);
-                }
-            }
-
-            // Draw characters
-            DrawCharacter(e.Graphics, player1X, player1Y, player1CurrentAnimation, player1Facing, player1AnimationManager);
-            DrawCharacter(e.Graphics, player2X, player2Y, player2CurrentAnimation, player2Facing, player2AnimationManager);
-
-            // Draw hit effects (on top of characters)
-            foreach (var hitEffect in activeHitEffects.ToList())
-            {
-                int effectScreenX = hitEffect.X - viewportX;
-                if (effectScreenX >= -50 && effectScreenX <= this.ClientSize.Width)
-                {
-                    e.Graphics.DrawImage(hitEffect.EffectImage, 
-                        effectScreenX + PLAYER_WIDTH / 2 - 25, 
-                        hitEffect.Y + PLAYER_HEIGHT / 2 - 25, 
-                        50, 50);
-                }
-            }
-
-            // Draw spell effect
-            if (spellActive && spellAnimation != null)
-            {
-                int spellScreenX = spellX - viewportX;
-                if (spellScreenX >= -SPELL_WIDTH && spellScreenX <= this.ClientSize.Width)
-                {
-                    e.Graphics.DrawImage(spellAnimation, spellScreenX, spellY, SPELL_WIDTH, SPELL_HEIGHT);
-                }
-            }
-
-            // Draw fireball
-            if (fireballActive && fireball != null)
-            {
-                int fireballScreenX = fireballX - viewportX;
-                if (fireballScreenX >= -FIREBALL_WIDTH && fireballScreenX <= this.ClientSize.Width)
-                {
-                    e.Graphics.DrawImage(fireball, fireballScreenX, fireballY, FIREBALL_WIDTH, FIREBALL_HEIGHT);
-                }
-            }
-            
-            // Draw projectiles (warrior skill)
-            if (projectile1Active && warriorSkillEffect != null)
-            {
-                int projScreenX = projectile1X - viewportX;
-                if (projScreenX >= -PROJECTILE_WIDTH && projScreenX <= this.ClientSize.Width)
-                {
-                    e.Graphics.DrawImage(warriorSkillEffect, projScreenX, projectile1Y, PROJECTILE_WIDTH, PROJECTILE_HEIGHT);
-                }
-            }
-
-            if (projectile2Active && warriorSkillEffect != null)
-            {
-                int projScreenX = projectile2X - viewportX;
-                if (projScreenX >= -PROJECTILE_WIDTH && projScreenX <= this.ClientSize.Width)
-                {
-                    e.Graphics.DrawImage(warriorSkillEffect, projScreenX, projectile2Y, PROJECTILE_WIDTH, PROJECTILE_HEIGHT);
-                }
-            }
-
-            // Draw GM impact effects
-            if (impact1Active && gmImpactEffect != null)
-            {
-                int effectScreenX = impact1X - viewportX;
-                if (effectScreenX >= -60 && effectScreenX <= this.ClientSize.Width)
-                {
-                    // Flip if facing left
-                    if (impact1Facing == "left")
-                    {
-                        e.Graphics.DrawImage(gmImpactEffect, 
-                            new Rectangle(effectScreenX + 60, impact1Y, -60, 60),
-                            new Rectangle(0, 0, gmImpactEffect.Width, gmImpactEffect.Height),
-                            GraphicsUnit.Pixel);
-                    }
-                    else
-                    {
-                        e.Graphics.DrawImage(gmImpactEffect, effectScreenX, impact1Y, 60, 60);
-                    }
-                }
-            }
-
-            if (impact2Active && gmImpactEffect != null)
-            {
-                int effectScreenX = impact2X - viewportX;
-                if (effectScreenX >= -60 && effectScreenX <= this.ClientSize.Width)
-                {
-                    if (impact2Facing == "left")
-                    {
-                        e.Graphics.DrawImage(gmImpactEffect, 
-                            new Rectangle(effectScreenX + 60, impact2Y, -60, 60),
-                            new Rectangle(0, 0, gmImpactEffect.Width, gmImpactEffect.Height),
-                            GraphicsUnit.Pixel);
-                    }
-                    else
-                    {
-                        e.Graphics.DrawImage(gmImpactEffect, effectScreenX, impact2Y, 60, 60);
-                    }
-                }
-            }
-
-            // Draw parry indicators
-            if (player1Parrying)
-            {
-                int sx = player1X - viewportX + PLAYER_WIDTH / 2 - 12;
-                e.Graphics.FillEllipse(new SolidBrush(Color.FromArgb(180, Color.Cyan)), sx, player1Y - 28, 24, 24);
-            }
-            if (player2Parrying)
-            {
-                int sx = player2X - viewportX + PLAYER_WIDTH / 2 - 12;
-                e.Graphics.FillEllipse(new SolidBrush(Color.FromArgb(180, Color.Cyan)), sx, player2Y - 28, 24, 24);
-            }
-
-            // Draw skill aura (Knight Girl)
-            if (player1SkillActive && player1CharacterType == "girlknight")
-            {
-                int sx = player1X - viewportX;
-                using (var brush = new SolidBrush(Color.FromArgb(80, Color.Cyan)))
-                using (var pen = new Pen(Color.Cyan, 2))
-                {
-                    e.Graphics.FillEllipse(brush, sx - 50, player1Y - 50, PLAYER_WIDTH + 100, PLAYER_HEIGHT + 100);
-                    e.Graphics.DrawEllipse(pen, sx - 50, player1Y - 50, PLAYER_WIDTH + 100, PLAYER_HEIGHT + 100);
-                }
-            }
-            
-            if (player2SkillActive && player2CharacterType == "girlknight")
-            {
-                int sx = player2X - viewportX;
-                using (var brush = new SolidBrush(Color.FromArgb(80, Color.Cyan)))
-                using (var pen = new Pen(Color.Cyan, 2))
-                {
-                    e.Graphics.FillEllipse(brush, sx - 50, player2Y - 50, PLAYER_WIDTH + 100, PLAYER_HEIGHT + 100);
-                    e.Graphics.DrawEllipse(pen, sx - 50, player2Y - 50, PLAYER_WIDTH + 100, PLAYER_HEIGHT + 100);
-                }
-            }
-
-            // Draw stun indicators
-            if (player1Stunned)
-            {
-                int sx = player1X - viewportX + PLAYER_WIDTH / 2 - 15;
-                using (var font = new Font("Arial", 20, FontStyle.Bold))
-                using (var brush = new SolidBrush(Color.Yellow))
-                {
-                    e.Graphics.DrawString("★", font, brush, sx, player1Y - 35);
-                }
-            }
-            if (player2Stunned)
-            {
-                int sx = player2X - viewportX + PLAYER_WIDTH / 2 - 15;
-                using (var font = new Font("Arial", 20, FontStyle.Bold))
-                using (var brush = new SolidBrush(Color.Yellow))
-                {
-                    e.Graphics.DrawString("★", font, brush, sx, player2Y - 35);
-                }
-            }
-
-            DrawGameUI(e.Graphics);
-        }
-
-        private void DrawGameUI(Graphics g)
-        {
-            g.FillRectangle(new SolidBrush(Color.FromArgb(180, 0, 0, 0)),
-                0, 0, this.ClientSize.Width, 110);
-        }
-
-        private Bitmap CreateColoredImage(int width, int height, Color color)
-        {
-            var bmp = new Bitmap(Math.Max(1, width), Math.Max(1, height));
-            using (var g = Graphics.FromImage(bmp))
-            using (var brush = new SolidBrush(color))
-                g.FillRectangle(brush, 0, 0, bmp.Width, bmp.Height);
-            return bmp;
-        }
-
-        private void OnFrameChanged(object sender, EventArgs e)
-        {
-            this.Invalidate();
-        }
-
         private void CmbBackground_SelectedIndexChanged(object sender, EventArgs e)
         {
             if (cmbBackground.SelectedIndex >= 0 && cmbBackground.SelectedIndex < backgroundImages.Count)
@@ -3108,6 +1359,7 @@ namespace DoAn_NT106
                 SetBackground(bgName);
             }
         }
+
         private void SetBackground(string backgroundName)
         {
             try
@@ -3146,6 +1398,24 @@ namespace DoAn_NT106
                 background = CreateColoredImage(backgroundWidth, this.ClientSize.Height, Color.DarkGreen);
             }
         }
+
+        private void SetupControlsInfo()
+        {
+            lblControlsInfo = new Label
+            {
+                Text = "Player 1: A/D (Move) | W (Jump) | J (Attack1) | K (Attack2) | L (Dash) | U (Parry) | I (Skill)\n" +
+                       "Player 2: ←/→ (Move) | ↑ (Jump) | Num1 (Attack1) | Num2 (Attack2) | Num3 (Dash) | Num5 (Parry) | Num4 (Skill)",
+                Location = new Point(this.ClientSize.Width / 2 - 350, this.ClientSize.Height - 60),
+                Size = new Size(700, 40),
+                ForeColor = Color.White,
+                Font = new Font("Arial", 8, FontStyle.Bold),
+                BackColor = Color.FromArgb(150, 0, 0, 0),
+                TextAlign = ContentAlignment.MiddleCenter
+            };
+
+            this.Controls.Add(lblControlsInfo);
+        }
+
         private void BtnBack_Click(object sender, EventArgs e)
         {
             try { gameTimer?.Stop(); } catch { }
@@ -3183,44 +1453,276 @@ namespace DoAn_NT106
             BtnBack_Click(null, EventArgs.Empty);
         }
 
-        protected override void OnFormClosing(FormClosingEventArgs e)
+        private void ShowHitEffect(string message, Color color)
         {
-            try { gameTimer?.Stop(); } catch { }
-            try { walkAnimationTimer?.Stop(); } catch { }
-            try { spellDamageTimer?.Stop(); spellDamageTimer?.Dispose(); } catch { }
-            try { player1DashTimer?.Stop(); player1DashTimer?.Dispose(); } catch { }
-            try { player2DashTimer?.Stop(); player2DashTimer?.Dispose(); } catch { }
-            try { player1SkillTimer?.Stop(); player1SkillTimer?.Dispose(); } catch { }
-            try { player2SkillTimer?.Stop(); player2SkillTimer?.Dispose(); } catch { }
-            try { player1ChargeTimer?.Stop(); player1ChargeTimer?.Dispose(); } catch { }
-            try { player2ChargeTimer?.Stop(); player2ChargeTimer?.Dispose(); } catch { }
-            try { impact1Timer?.Stop(); impact1Timer?.Dispose(); } catch { }
-            try { impact2Timer?.Stop(); impact2Timer?.Dispose(); } catch { }
-
-            // Cleanup hit effects
-            foreach (var hitEffect in activeHitEffects.ToList())
+            var hitLabel = new Label
             {
-                try 
-                { 
-                    hitEffect.Timer?.Stop(); 
-                    hitEffect.Timer?.Dispose(); 
-                } 
-                catch { }
-            }
-            activeHitEffects.Clear();
+                Text = message,
+                ForeColor = color,
+                BackColor = Color.FromArgb(150, 255, 255, 255),
+                Font = new Font("Arial", 12, FontStyle.Bold),
+                AutoSize = true,
+                Location = new Point(this.ClientSize.Width / 2 - 40, 150)
+            };
 
-            // Dispose animation managers
-            player1AnimationManager?.Dispose();
-            player2AnimationManager?.Dispose();
+            this.Controls.Add(hitLabel);
+            hitLabel.BringToFront();
 
-            foreach (var s in resourceStreams)
+            System.Windows.Forms.Timer removeTimer = new System.Windows.Forms.Timer();
+            removeTimer.Interval = 800;
+            removeTimer.Tick += (s, e) =>
             {
-                try { s.Dispose(); } catch { }
-            }
-            resourceStreams.Clear();
+                this.Controls.Remove(hitLabel);
+                removeTimer.Stop();
+                removeTimer.Dispose();
+            };
+            removeTimer.Start();
+        }
 
-            base.OnFormClosing(e);
+        private Rectangle GetPlayerHurtbox(int playerX, int playerY)
+        {
+            return new Rectangle(playerX, playerY, PLAYER_WIDTH, PLAYER_HEIGHT);
+        }
+
+        private void CheckFireballHit()
+        {
+            if (!fireballActive) return;
+
+            Rectangle fireRect = new Rectangle(fireballX, fireballY, FIREBALL_WIDTH, FIREBALL_HEIGHT);
+
+            if (fireballOwner == 1)
+            {
+                Rectangle p2Rect = new Rectangle(player2X, player2Y, PLAYER_WIDTH, PLAYER_HEIGHT);
+                if (fireRect.IntersectsWith(p2Rect))
+                {
+                    if (player2Parrying)
+                    {
+                        // reflect: send fireball back
+                        fireballDirection *= -1;
+                        fireballOwner = 2;
+                        // reposition just in front of parrier
+                        fireballX = player2X + (player2Facing == "right" ? PLAYER_WIDTH + 5 : -FIREBALL_WIDTH - 5);
+                        ShowHitEffect("Reflected!", Color.Orange);
+                    }
+                    else
+                    {
+                        ApplyHurtToPlayer(2, 20);
+                        fireballActive = false;
+                        ShowHitEffect("Fireball Hit!", Color.Yellow);
+                    }
+                }
+            }
+            else if (fireballOwner == 2)
+            {
+                Rectangle p1Rect = new Rectangle(player1X, player1Y, PLAYER_WIDTH, PLAYER_HEIGHT);
+                if (fireRect.IntersectsWith(p1Rect))
+                {
+                    if (player1Parrying)
+                    {
+                        // reflect: send fireball back
+                        fireballDirection *= -1;
+                        fireballOwner = 1;
+                        // reposition just in front of parrier
+                        fireballX = player1X + (player1Facing == "right" ? PLAYER_WIDTH + 5 : -FIREBALL_WIDTH - 5);
+                        ShowHitEffect("Reflected!", Color.Orange);
+                    }
+                    else
+                    {
+                        ApplyHurtToPlayer(1, 20);
+                        fireballActive = false;
+                        ShowHitEffect("Fireball Hit!", Color.Yellow);
+                    }
+                }
+            }
+        }
+
+        // Apply hurt properly - KEEP OLD IMPLEMENTATION FOR NOW (COMPATIBILITY)
+        private void ApplyHurtToPlayer(int player, int damage, bool knockback = true)
+        {
+            // ✅ TEMPORARY: Comment out until ApplyDamage is implemented in CombatSystem
+            // combatSystem.ApplyDamage(player, damage);
+            
+            // OLD CODE KEPT FOR COMPATIBILITY (to be removed later)
+            void ShowDamage(int dmg)
+            {
+                ShowHitEffect($"-{dmg}", Color.Red);
+            }
+
+            if (player == 1)
+            {
+                // Check if dashing (iframe)
+                if (player1Dashing)
+                {
+                    ShowHitEffect("Miss!", Color.Gray);
+                    return;
+                }
+
+                // Check parry
+                if (player1Parrying)
+                {
+                    player1Stamina = Math.Min(100, player1Stamina + 8);
+                    ShowHitEffect("Blocked!", Color.Cyan);
+                    player2Attacking = false;
+                    
+                    // Cancel attacker's attack - already handled by CombatSystem
+                    
+                    var stunTimer = new System.Windows.Forms.Timer { Interval = 200 };
+                    stunTimer.Tick += (s, e) =>
+                    {
+                        stunTimer.Stop();
+                        stunTimer.Dispose();
+                    };
+                    stunTimer.Start();
+
+                    this.Invalidate();
+                    return;
+                }
+
+                // Already hurt - prevent stacking
+                if (player1CurrentAnimation == "hurt")
+                    return;
+
+                // Apply damage - SYNC WITH PlayerState
+                player1State.Health = Math.Max(0, player1State.Health - damage);
+                player1Health = player1State.Health;
+                ShowDamage(damage);
+
+                // Show hit effect at player position - handled by EffectManager
+                
+                // Apply stun - handled by PlayerState
+                player1State.IsStunned = true;
+                player1Stunned = true;
+                
+                // Cancel any ongoing attack/skill - handled by CombatSystem
+
+                // Set hurt animation
+                player1State.CurrentAnimation = "hurt";
+                player1CurrentAnimation = "hurt";
+                var hurtImg = player1AnimationManager.GetAnimation("hurt");
+                if (hurtImg != null && ImageAnimator.CanAnimate(hurtImg))
+                {
+                    try { ImageAnimator.Animate(hurtImg, OnFrameChanged); } catch { }
+                }
+
+                // Knockback
+                if (knockback)
+                {
+                    int kb = (player2X > player1X) ? -20 : 20;
+                    player1State.X = Math.Max(0, Math.Min(backgroundWidth - PLAYER_WIDTH, player1State.X + kb));
+                    player1X = player1State.X;
+                }
+
+                this.Invalidate();
+
+                // Restore after stun duration
+                var restoreTimer = new System.Windows.Forms.Timer { Interval = HIT_STUN_DURATION_MS };
+                restoreTimer.Tick += (s, e) =>
+                {
+                    restoreTimer.Stop();
+                    restoreTimer.Dispose();
+                    
+                    player1State.IsStunned = false;
+                    player1Stunned = false;
+                    
+                    if (!player1Attacking && !player1Jumping && player1CurrentAnimation == "hurt")
+                    {
+                        player1State.CurrentAnimation = (aPressed || dPressed) ? "walk" : "stand";
+                        player1CurrentAnimation = player1State.CurrentAnimation;
+                    }
+                    this.Invalidate();
+                };
+                restoreTimer.Start();
+
+                return;
+            }
+
+            if (player == 2)
+            {
+                // Check if dashing (iframe)
+                if (player2Dashing)
+                {
+                    ShowHitEffect("Miss!", Color.Gray);
+                    return;
+                }
+
+                // Check parry
+                if (player2Parrying)
+                {
+                    player2Stamina = Math.Min(100, player2Stamina + 8);
+                    ShowHitEffect("Blocked!", Color.Cyan);
+                    player1Attacking = false;
+                    
+                    // Cancel attacker's attack - handled by CombatSystem
+                    
+                    var stunTimer = new System.Windows.Forms.Timer { Interval = 200 };
+                    stunTimer.Tick += (s, e) =>
+                    {
+                        stunTimer.Stop();
+                        stunTimer.Dispose();
+                    };
+                    stunTimer.Start();
+
+                    this.Invalidate();
+                    return;
+                }
+
+                // Already hurt - prevent stacking
+                if (player2CurrentAnimation == "hurt")
+                    return;
+
+                // Apply damage - SYNC WITH PlayerState
+                player2State.Health = Math.Max(0, player2State.Health - damage);
+                player2Health = player2State.Health;
+                ShowDamage(damage);
+
+                // Show hit effect at player position - handled by EffectManager
+
+                // Apply stun - handled by PlayerState
+                player2State.IsStunned = true;
+                player2Stunned = true;
+                
+                // Cancel any ongoing attack/skill - handled by CombatSystem
+
+                // Set hurt animation
+                player2State.CurrentAnimation = "hurt";
+                player2CurrentAnimation = "hurt";
+                var hurtImg = player2AnimationManager.GetAnimation("hurt");
+                if (hurtImg != null && ImageAnimator.CanAnimate(hurtImg))
+                {
+                    try { ImageAnimator.Animate(hurtImg, OnFrameChanged); } catch { }
+                }
+
+                // Knockback
+                if (knockback)
+                {
+                    int kb2 = (player1X > player2X) ? -20 : 20;
+                    player2State.X = Math.Max(0, Math.Min(backgroundWidth - PLAYER_WIDTH, player2State.X + kb2));
+                    player2X = player2State.X;
+                }
+
+                this.Invalidate();
+
+                // Restore after stun duration
+                var restoreTimer2 = new System.Windows.Forms.Timer { Interval = HIT_STUN_DURATION_MS };
+                restoreTimer2.Tick += (s, e) =>
+                {
+                    restoreTimer2.Stop();
+                    restoreTimer2.Dispose();
+                    
+                    player2State.IsStunned = false;
+                    player2Stunned = false;
+                    
+                    if (!player2Attacking && !player2Jumping && player2CurrentAnimation == "hurt")
+                    {
+                        player2State.CurrentAnimation = (leftPressed || rightPressed) ? "walk" : "stand";
+                        player2CurrentAnimation = player2State.CurrentAnimation;
+                    }
+                    this.Invalidate();
+                };
+                restoreTimer2.Start();
+
+                return;
+            }
         }
     }
-
 }
