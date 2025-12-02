@@ -86,7 +86,13 @@ namespace DoAn_NT106
         private bool player1Attacking = false;
         private bool player2Attacking = false;
         private System.Windows.Forms.Timer walkAnimationTimer;
-
+        private bool player1AttackHitProcessed = false;
+        private bool player2AttackHitProcessed = false;
+        private int player1AttackFrameCounter = 0;
+        private int player2AttackFrameCounter = 0;
+        // ✅ THÊM: Theo dõi hit nào đã xử lý (cho đòn đánh nhiều lần như Warrior attack1)
+        private HashSet<int> player1ProcessedHitFrames = new HashSet<int>();
+        private HashSet<int> player2ProcessedHitFrames = new HashSet<int>();
         // Progress bars (assume GameProgressBar exists in project)
         private GameProgressBar healthBar1, healthBar2;
         private GameProgressBar staminaBar1, staminaBar2;
@@ -161,6 +167,11 @@ namespace DoAn_NT106
         private const int SKILL_DAMAGE_INTERVAL_MS = 500;
         private int player1SkillDamageCounter = 0;
         private int player2SkillDamageCounter = 0;
+        // Xử lý skill Knight Girl (10fps, 5 frame, đánh 2 lần ở 0.5s và 1s)
+        private int player1SkillHitCounter = 0;
+        private int player2SkillHitCounter = 0;
+        private const int KNIGHT_SKILL_HIT_INTERVAL_MS = 500; // 0.5s giữa 2 lần đánh
+
 
         // Goatman Charge System
         private bool player1Charging = false;
@@ -211,11 +222,303 @@ namespace DoAn_NT106
         private int PLAYER_WIDTH = 80;
         private int PLAYER_HEIGHT = 120;
         private float characterHeightRatio = 0.30f; // relative to ClientSize.Height
+        private float globalCharacterScale = 1.5f;
 
         // Hitbox configuration - nhỏ hơn và hướng theo facing
         private int HITBOX_WIDTH_RATIO = 2; // Hitbox = PLAYER_WIDTH / 2
         private int HITBOX_HEIGHT_RATIO = 2; // Hitbox = PLAYER_HEIGHT / 2
+                                             // ✅ THÊM: Class cấu hình vùng tấn công
+        public class AttackHitboxConfig
+        {
+            public float WidthPercent { get; set; }      // Chiều rộng vùng tấn công
+            public float HeightPercent { get; set; }     // Chiều cao vùng tấn công
+            public float RangePercent { get; set; }      // Khoảng cách tấn công (nhân với PLAYER_WIDTH)
+            public float OffsetYPercent { get; set; }    // Độ cao của vùng tấn công
+        }
 
+        public class AttackAnimationConfig
+        {
+            public int FPS { get; set; }
+            public int TotalFrames { get; set; }
+            public List<int> HitFrames { get; set; } // Các frame gây sát thương
+            public int Duration => (int)((TotalFrames / (float)FPS) * 1000); // ms
+        }
+
+        private Dictionary<string, Dictionary<string, AttackAnimationConfig>> characterAnimationConfigs = new Dictionary<string, Dictionary<string, AttackAnimationConfig>>
+        {
+            ["goatman"] = new Dictionary<string, AttackAnimationConfig>
+            {
+                ["attack1"] = new AttackAnimationConfig
+                {
+                    FPS = 11,
+                    TotalFrames = 6,
+                    HitFrames = new List<int> { 4 }
+                },
+                ["attack2"] = new AttackAnimationConfig
+                {
+                    FPS = 9,
+                    TotalFrames = 5,
+                    HitFrames = new List<int> { 4 }
+                },
+                ["punch"] = new AttackAnimationConfig
+                {
+                    FPS = 10,
+                    TotalFrames = 5,
+                    HitFrames = new List<int> { 3 }
+                },
+                ["kick"] = new AttackAnimationConfig
+                {
+                    FPS = 8,
+                    TotalFrames = 5,
+                    HitFrames = new List<int> { 3 }
+                }
+                ,
+                 ["skill"] = new AttackAnimationConfig
+                 {
+                     FPS = 12,
+                     TotalFrames = 8,
+                     HitFrames = new List<int> { 3, 4, 5, 6 } // Đâm liên tục khi charge
+                 }
+            },
+            ["bringerofdeath"] = new Dictionary<string, AttackAnimationConfig>
+            {
+                ["attack1"] = new AttackAnimationConfig
+                {
+                    FPS = 8,
+                    TotalFrames = 10,
+                    HitFrames = new List<int> { 6 }
+                },
+                ["attack2"] = new AttackAnimationConfig
+                {
+                    FPS = 18,
+                    TotalFrames = 10,
+                    HitFrames = new List<int> { 6 }
+                },
+                ["punch"] = new AttackAnimationConfig
+                {
+                    FPS = 10,
+                    TotalFrames = 8,
+                    HitFrames = new List<int> { 5 }
+                },
+                ["kick"] = new AttackAnimationConfig
+                {
+                    FPS = 10,
+                    TotalFrames = 8,
+                    HitFrames = new List<int> { 5 }
+                },
+                ["skill"] = new AttackAnimationConfig
+                {
+                    FPS = 10,
+                    TotalFrames = 13,
+                    HitFrames = new List<int> { 8 } // Cast spell ở frame 8
+                }
+            },
+            ["girlknight"] = new Dictionary<string, AttackAnimationConfig>
+            {
+                ["attack1"] = new AttackAnimationConfig
+                {
+                    FPS = 6,
+                    TotalFrames = 6,
+                    HitFrames = new List<int> { 3 }
+                },
+                ["attack2"] = new AttackAnimationConfig
+                {
+                    FPS = 6,
+                    TotalFrames = 9,
+                    HitFrames = new List<int> { 6 }
+                },
+                ["punch"] = new AttackAnimationConfig
+                {
+                    FPS = 8,
+                    TotalFrames = 5,
+                    HitFrames = new List<int> { 3 }
+                },
+                ["kick"] = new AttackAnimationConfig
+                {
+                    FPS = 8,
+                    TotalFrames = 9,
+                    HitFrames = new List<int> { 3 }
+                },
+                ["skill"] = new AttackAnimationConfig
+                {
+                    FPS = 10,
+                    TotalFrames = 5,
+                    HitFrames = new List<int> { } // Xử lý riêng bởi timer (hit ở 0.5s và 1s)
+                }
+            },
+            ["warrior"] = new Dictionary<string, AttackAnimationConfig>
+            {
+                ["attack1"] = new AttackAnimationConfig
+                {
+                    FPS = 12,
+                    TotalFrames = 12,
+                    HitFrames = new List<int> { 6, 10 } // Đánh 2 lần
+                },
+                ["attack2"] = new AttackAnimationConfig
+                {
+                    FPS = 10,
+                    TotalFrames = 10,
+                    HitFrames = new List<int> { 4 } // Frame 4 sau khi lướt
+                },
+                ["punch"] = new AttackAnimationConfig
+                {
+                    FPS = 10,
+                    TotalFrames = 6,
+                    HitFrames = new List<int> { 4 }
+                },
+                ["kick"] = new AttackAnimationConfig
+                {
+                    FPS = 10,
+                    TotalFrames = 6,
+                    HitFrames = new List<int> { 4 }
+                }
+                 ,
+                ["skill"] = new AttackAnimationConfig
+                {
+                    FPS = 7,
+                    TotalFrames = 5,
+                    HitFrames = new List<int> { 3 } // Đánh ở frame 3
+                }
+            }
+        };
+
+        // Cấu hình Attack Hitbox cho từng loại tấn công của từng nhân vật
+        private Dictionary<string, Dictionary<string, AttackHitboxConfig>> characterAttackConfigs = new Dictionary<string, Dictionary<string, AttackHitboxConfig>>
+        {
+            ["girlknight"] = new Dictionary<string, AttackHitboxConfig>
+            {
+                ["punch"] = new AttackHitboxConfig
+                {
+                    WidthPercent = 0.6f,      // ✅ Tăng từ 0.5f lên 0.6f
+                    HeightPercent = 0.5f,     // ✅ Tăng từ 0.4f lên 0.5f
+                    RangePercent = 0.55f,     // ✅ Tăng từ 0.35f lên 0.55f (tầm xa hơn)
+                    OffsetYPercent = 0.30f    // ✅ Giảm từ 0.35f xuống 0.30f (cao hơn)
+                },
+                ["kick"] = new AttackHitboxConfig
+                {
+                    WidthPercent = 0.7f,      // ✅ Tăng từ 0.6f lên 0. 7f
+                    HeightPercent = 0.45f,    // ✅ Tăng từ 0.35f lên 0.45f
+                    RangePercent = 0.7f,      // ✅ Tăng từ 0.5f lên 0. 7f
+                    OffsetYPercent = 0.50f    // ✅ Giảm từ 0. 55f xuống 0.50f
+                }, 
+                ["skill"] = new AttackHitboxConfig
+                {
+                    WidthPercent = 1.5f,      // ✅ Tăng từ 1.2f lên 1. 5f
+                    HeightPercent = 1.0f,     // ✅ Tăng từ 0.8f lên 1.0f
+                    RangePercent = 1.2f,      // ✅ Tăng từ 0.8f lên 1.2f (skill vùng gần)
+                    OffsetYPercent = 0.10f    // ✅ Giảm từ 0.15f xuống 0.10f
+                }
+            },
+            ["bringerofdeath"] = new Dictionary<string, AttackHitboxConfig>
+            {
+                ["punch"] = new AttackHitboxConfig
+                {
+                    WidthPercent = 0.6f,
+                    HeightPercent = 0.4f,
+                    RangePercent = 0.4f,      // ✅ GIẢM từ 0. 6f xuống 0.4f
+                    OffsetYPercent = 0.30f
+                },
+                ["kick"] = new AttackHitboxConfig
+                {
+                    WidthPercent = 0.7f,
+                    HeightPercent = 0.35f,
+                    RangePercent = 0.5f,
+                    OffsetYPercent = 0.50f
+                },
+                ["skill"] = new AttackHitboxConfig
+                {
+                    WidthPercent = 1.5f,
+                    HeightPercent = 0.9f,
+                    RangePercent = 1.8f,      // ✅ GIẢM từ 2.6f xuống 1.8f (spell xa hơn)
+                    OffsetYPercent = 0.10f
+                }
+            },
+            ["goatman"] = new Dictionary<string, AttackHitboxConfig>
+            {
+                ["punch"] = new AttackHitboxConfig
+                {
+                    WidthPercent = 0.7f,
+                    HeightPercent = 0.5f,
+                    RangePercent = 0.8f,      // ✅ TĂNG từ 0. 4f lên 0.8f
+                    OffsetYPercent = 0.30f    // ✅ GIẢM từ 0.35f xuống 0.30f (cao hơn)
+                },
+                ["kick"] = new AttackHitboxConfig
+                {
+                    WidthPercent = 0.8f,
+                    HeightPercent = 0.5f,     // ✅ TĂNG từ 0.4f lên 0.5f
+                    RangePercent = 0.9f,      // ✅ TĂNG từ 0.6f lên 0. 9f
+                    OffsetYPercent = 0.40f    // ✅ GIẢM từ 0.45f xuống 0.40f
+                },
+                ["skill"] = new AttackHitboxConfig
+                {
+                    WidthPercent = 1.2f,      // ✅ TĂNG từ 1.0f lên 1. 2f
+                    HeightPercent = 0.8f,     // ✅ TĂNG từ 0.7f lên 0.8f
+                    RangePercent = 1.4f,      // ✅ TĂNG từ 1.0f lên 1.4f
+                    OffsetYPercent = 0.15f    // ✅ GIẢM từ 0. 18f xuống 0.15f
+                }
+            },
+            ["warrior"] = new Dictionary<string, AttackHitboxConfig>
+            {
+                ["punch"] = new AttackHitboxConfig
+                {
+                    WidthPercent = 0.8f,      // ✅ TĂNG từ 0.7f lên 0.8f
+                    HeightPercent = 0.5f,     // ✅ TĂNG từ 0.4f lên 0.5f
+                    RangePercent = 0.5f,      // ✅ TĂNG từ 0.35f lên 0.5f
+                    OffsetYPercent = 0.35f
+                },
+                ["kick"] = new AttackHitboxConfig
+                {
+                    WidthPercent = 0.7f,
+                    HeightPercent = 0.35f,
+                    RangePercent = 0.5f,      // ✅ GIẢM từ 0. 7f xuống 0.5f
+                    OffsetYPercent = 0.50f
+                },
+                ["skill"] = new AttackHitboxConfig
+                {
+                    WidthPercent = 1.2f,      // ✅ Giảm từ 1.8f
+                    HeightPercent = 0.6f,
+                    RangePercent = 2.0f,      // ✅ GIẢM từ 2.8f xuống 2.0f (projectile nên xa hơn)
+                    OffsetYPercent = 0.25f
+                }
+            }
+        };
+        // Cấu hình hitbox chi tiết cho từng loại nhân vật
+        private Dictionary<string, HitboxConfig> characterHitboxConfigs = new Dictionary<string, HitboxConfig>
+        {
+            ["girlknight"] = new HitboxConfig
+            {
+                WidthPercent = 0.5f,
+                HeightPercent = 0.80f,
+                OffsetYPercent = 0.20f
+            },
+            ["bringerofdeath"] = new HitboxConfig
+            {
+                WidthPercent = 0.24f,
+                HeightPercent = 0.50f,
+                OffsetYPercent = 0.35f,
+                OffsetXPercent = 0.08f
+            },
+            ["goatman"] = new HitboxConfig
+            {
+                WidthPercent = 0.60f,
+                HeightPercent = 0.78f,
+                OffsetYPercent = 0.12f,
+                OffsetXPercent = -0.05f
+            },
+            ["warrior"] = new HitboxConfig
+            {
+                WidthPercent = 0.48f,
+                HeightPercent = 0.75f,
+                OffsetYPercent = 0.18f
+            }
+        };
+        public class HitboxConfig
+        {
+            public float WidthPercent { get; set; }
+            public float HeightPercent { get; set; }
+            public float OffsetYPercent { get; set; }
+            public float OffsetXPercent { get; set; } = 0f;
+        }
         // Hurt handling
         private const int HURT_DISPLAY_MS = 400;
         private string _prevAnimPlayer1 = null;
@@ -260,8 +563,6 @@ namespace DoAn_NT106
                 player2AnimationManager = new CharacterAnimationManager(player2CharacterType, OnFrameChanged);
                 player2AnimationManager.LoadAnimations();
 
-                // ❌ XÓA DÒNG NÀY - CHƯA CÓ physicsSystem!
-                // UpdateCharacterSize();
 
                 // ===== ✅ INITIALIZE NEW SYSTEMS =====
                 // 1. Initialize PlayerState instances
@@ -296,13 +597,15 @@ namespace DoAn_NT106
 
                 // 6. Initialize CombatSystem
                 combatSystem = new CombatSystem(
-                    player1State, player2State,
-                    player1AnimationManager, player2AnimationManager,
-                    effectManager, projectileManager,
-                    PLAYER_WIDTH, PLAYER_HEIGHT, backgroundWidth,
-                    () => this.Invalidate(),
-                    ShowHitEffect
-                );
+                player1State, player2State,
+                player1AnimationManager, player2AnimationManager,
+                effectManager, projectileManager,
+                PLAYER_WIDTH, PLAYER_HEIGHT, backgroundWidth,
+                () => this.Invalidate(),
+                ShowHitEffect,
+                GetAttackHitbox,
+                GetPlayerHitbox
+);
                 // =====================================
 
                 // ✅ THÊM DÒNG NÀY - SAU KHI ĐÃ CÓ physicsSystem!
@@ -459,6 +762,7 @@ namespace DoAn_NT106
                 player2ChargeTimer = new System.Windows.Forms.Timer();
                 impact1Timer = new System.Windows.Forms.Timer();
                 impact2Timer = new System.Windows.Forms.Timer();
+                gameTimer.Interval = 16;
             }
             catch (Exception ex)
             {
@@ -512,53 +816,35 @@ namespace DoAn_NT106
             SetupControlsInfo();
         }
 
+        // In BattleForm.cs - GameTimer_Tick() - VERSION CLEAN
+
         private void GameTimer_Tick(object sender, EventArgs e)
         {
             // ===== MOVEMENT LOGIC =====
-            // ✅ UPDATE: Use PlayerState instead of local variables
             player1State.IsWalking = false;
             player2State.IsWalking = false;
-            
-            // Player 1 movement - ✅ MIGRATED TO PhysicsSystem
-            if (player1State.CanMove) // Use PlayerState.CanMove instead of checking individual flags
+
+            if (player1State.CanMove)
             {
-                if (aPressed)
-                {
-                    physicsSystem.MovePlayer(player1State, -1);
-                }
-                else if (dPressed)
-                {
-                    physicsSystem.MovePlayer(player1State, 1);
-                }
+                if (aPressed) physicsSystem.MovePlayer(player1State, -1);
+                else if (dPressed) physicsSystem.MovePlayer(player1State, 1);
                 else if (!player1State.IsJumping && !player1State.IsParrying && !player1State.IsSkillActive)
-                {
                     physicsSystem.StopMovement(player1State);
-                }
             }
-            
-            // Player 2 movement - ✅ MIGRATED TO PhysicsSystem
+
             if (player2State.CanMove)
             {
-                if (leftPressed)
-                {
-                    physicsSystem.MovePlayer(player2State, -1);
-                }
-                else if (rightPressed)
-                {
-                    physicsSystem.MovePlayer(player2State, 1);
-                }
+                if (leftPressed) physicsSystem.MovePlayer(player2State, -1);
+                else if (rightPressed) physicsSystem.MovePlayer(player2State, 1);
                 else if (!player2State.IsJumping && !player2State.IsParrying && !player2State.IsSkillActive)
-                {
                     physicsSystem.StopMovement(player2State);
-                }
             }
-            
-            // ===== JUMP PHYSICS ===== - ✅ MIGRATED TO PhysicsSystem
+
+            // ===== JUMP PHYSICS =====
             physicsSystem.UpdateJump(player1State);
             physicsSystem.UpdateJump(player2State);
-            
-            // ===== SYNC OLD VARIABLES WITH NEW STATE (TEMPORARY - for compatibility) =====
-            // This ensures existing code still works during migration
+
+            // ===== SYNC OLD VARIABLES =====
             player1X = player1State.X;
             player1Y = player1State.Y;
             player2X = player2State.X;
@@ -583,43 +869,31 @@ namespace DoAn_NT106
             player2Charging = player2State.IsCharging;
             player1SkillActive = player1State.IsSkillActive;
             player2SkillActive = player2State.IsSkillActive;
-            // Health/Stamina/Mana
             player1Health = player1State.Health;
             player1Stamina = player1State.Stamina;
             player1Mana = player1State.Mana;
             player2Health = player2State.Health;
             player2Stamina = player2State.Stamina;
             player2Mana = player2State.Mana;
-            // ====================================================================
-            
+
             // ===== UPDATE ANIMATIONS =====
-            // Update ALL animations continuously
             var p1Img = player1AnimationManager.GetAnimation(player1State.CurrentAnimation);
             if (p1Img != null && ImageAnimator.CanAnimate(p1Img))
-            {
                 ImageAnimator.UpdateFrames(p1Img);
-            }
-            
+
             var p2Img = player2AnimationManager.GetAnimation(player2State.CurrentAnimation);
             if (p2Img != null && ImageAnimator.CanAnimate(p2Img))
-            {
                 ImageAnimator.UpdateFrames(p2Img);
-            }
-            
-            // ===== UPDATE PROJECTILES ===== - ✅ MIGRATED TO ProjectileManager
+
+            // ===== UPDATE PROJECTILES =====
             projectileManager.UpdateFireball(
-                (playerNum, x, y, _) => 
+                (playerNum, x, y, _) =>
                 {
                     var p = playerNum == 1 ? player1State : player2State;
                     return new Rectangle(p.X, p.Y, PLAYER_WIDTH, PLAYER_HEIGHT);
                 },
                 (playerNum) => playerNum == 1 ? player1State.IsParrying : player2State.IsParrying,
-                () => 
-                {
-                    // Reflect logic - handled by ProjectileManager internally
-                },
-                // ✅ TEMPORARY FIX: Comment out until ApplyDamage is implemented
-                //(target, damage) => combatSystem.ApplyDamage(target, damage),
+                () => { },
                 (target, damage) => ApplyHurtToPlayer(target, damage, false),
                 ShowHitEffect
             );
@@ -630,105 +904,78 @@ namespace DoAn_NT106
                     var p = playerNum == 1 ? player1State : player2State;
                     return new Rectangle(p.X, p.Y, PLAYER_WIDTH, PLAYER_HEIGHT);
                 },
-                // ✅ TEMPORARY FIX
-                //(target, damage) => combatSystem.ApplyDamage(target, damage),
                 (target, damage) => ApplyHurtToPlayer(target, damage, false),
                 ShowHitEffect
             );
 
             projectileManager.UpdateSpellAnimation();
-            
-            // Update fireball - OLD CODE (keep for compatibility)
+
+            // ===== OLD PROJECTILE CODE (compatibility) =====
             if (fireballActive)
             {
                 fireballX += 12 * fireballDirection;
                 CheckFireballHit();
-
                 if (fireballX > backgroundWidth || fireballX < -FIREBALL_WIDTH)
-                {
                     fireballActive = false;
-                }
-                
                 if (fireball != null && ImageAnimator.CanAnimate(fireball))
-                {
                     ImageAnimator.UpdateFrames(fireball);
-                }
             }
-            
-            // Update spell animation - OLD CODE
+
             if (spellActive && spellAnimation != null && ImageAnimator.CanAnimate(spellAnimation))
-            {
                 ImageAnimator.UpdateFrames(spellAnimation);
-            }
-            
-            // Update warrior projectiles - OLD CODE
+
             if (projectile1Active)
             {
                 projectile1X += PROJECTILE_SPEED * projectile1Direction;
-                
                 Rectangle projRect = new Rectangle(projectile1X, projectile1Y, PROJECTILE_WIDTH, PROJECTILE_HEIGHT);
-                Rectangle targetRect = GetPlayerHurtbox(player2X, player2Y);
-                
+                Rectangle targetRect = GetPlayerHitbox(player2State);
                 if (projRect.IntersectsWith(targetRect))
                 {
                     ApplyHurtToPlayer(2, 20);
                     projectile1Active = false;
                     ShowHitEffect("Energy Strike!", Color.Gold);
                 }
-                
                 if (projectile1X > backgroundWidth || projectile1X < -PROJECTILE_WIDTH)
-                {
                     projectile1Active = false;
-                }
-                
                 if (warriorSkillEffect != null && ImageAnimator.CanAnimate(warriorSkillEffect))
-                {
                     ImageAnimator.UpdateFrames(warriorSkillEffect);
-                }
             }
 
             if (projectile2Active)
             {
                 projectile2X += PROJECTILE_SPEED * projectile2Direction;
-                
                 Rectangle projRect = new Rectangle(projectile2X, projectile2Y, PROJECTILE_WIDTH, PROJECTILE_HEIGHT);
-                Rectangle targetRect = GetPlayerHurtbox(player1X, player1Y);
-                
+                Rectangle targetRect = GetPlayerHitbox(player1State);
                 if (projRect.IntersectsWith(targetRect))
                 {
                     ApplyHurtToPlayer(1, 20);
                     projectile2Active = false;
                     ShowHitEffect("Energy Strike!", Color.Gold);
                 }
-                
                 if (projectile2X > backgroundWidth || projectile2X < -PROJECTILE_WIDTH)
-                {
                     projectile2Active = false;
-                }
             }
-            
-            // Update camera
+
+            // ===== UPDATE CAMERA =====
             UpdateCamera();
-            
-            // ===== REGENERATE RESOURCES ===== - ✅ MIGRATED TO ResourceSystem
+
+            // ===== REGENERATE RESOURCES =====
             resourceSystem.RegenerateResources();
             resourceSystem.UpdateBars();
 
-            // ===== CHECK GAME OVER ===== - ✅ USE PlayerState
+            // ===== CHECK GAME OVER =====
             if (player1State.IsDead || player2State.IsDead)
             {
                 gameTimer.Stop();
                 walkAnimationTimer.Stop();
-
                 string winner;
                 if (player1State.IsDead && player2State.IsDead)
                     winner = "Draw";
                 else
                     winner = player1State.IsDead ? opponent : username;
-
                 ShowGameOver(winner);
             }
-            
+
             this.Invalidate();
         }
 
@@ -759,14 +1006,14 @@ namespace DoAn_NT106
                     if (player1State.CanAttack) // ✅ USE PlayerState
                     {
                         // ✅ MIGRATED TO CombatSystem
-                        combatSystem.ExecuteAttack(1, "punch");
+                        ExecuteAttackWithHitbox(1, "punch", 10, 15);
                     }
                     break;
                 case Keys.K: 
                     if (player1State.CanAttack)
                     {
                         // ✅ MIGRATED TO CombatSystem
-                        combatSystem.ExecuteAttack(1, "kick");
+                        ExecuteAttackWithHitbox(1, "kick", 15, 20);
                     }
                     break;
                 case Keys.L: 
@@ -820,14 +1067,14 @@ namespace DoAn_NT106
                     if (player2State.CanAttack)
                     {
                         // ✅ MIGRATED TO CombatSystem
-                        combatSystem.ExecuteAttack(2, "punch");
+                        ExecuteAttackWithHitbox(2, "punch", 10, 15);
                     }
                     break;
                 case Keys.NumPad2: 
                     if (player2State.CanAttack)
                     {
                         // ✅ MIGRATED TO CombatSystem
-                        combatSystem.ExecuteAttack(2, "kick");
+                        ExecuteAttackWithHitbox(2, "kick", 15, 20);
                     }
                     break;
                 case Keys.NumPad3: 
@@ -928,9 +1175,9 @@ namespace DoAn_NT106
                 int effectScreenX = hitEffect.X - viewportX;
                 if (effectScreenX >= -50 && effectScreenX <= this.ClientSize.Width)
                 {
-                    e.Graphics.DrawImage(hitEffect.EffectImage, 
-                        effectScreenX + PLAYER_WIDTH / 2 - 25, 
-                        hitEffect.Y + PLAYER_HEIGHT / 2 - 25, 
+                    e.Graphics.DrawImage(hitEffect.EffectImage,
+                        effectScreenX + PLAYER_WIDTH / 2 - 25,
+                        hitEffect.Y + PLAYER_HEIGHT / 2 - 25,
                         50, 50);
                 }
             }
@@ -957,7 +1204,7 @@ namespace DoAn_NT106
                     e.Graphics.DrawImage(fireball, fireballScreenX, fireballY, FIREBALL_WIDTH, FIREBALL_HEIGHT);
                 }
             }
-            
+
             // Draw projectiles (warrior skill) - OLD CODE (kept for compatibility)
             if (projectile1Active && warriorSkillEffect != null)
             {
@@ -966,7 +1213,7 @@ namespace DoAn_NT106
                 {
                     if (projectile1Direction == -1)
                     {
-                        e.Graphics.DrawImage(warriorSkillEffect, 
+                        e.Graphics.DrawImage(warriorSkillEffect,
                             new Rectangle(projScreenX + PROJECTILE_WIDTH, projectile1Y, -PROJECTILE_WIDTH, PROJECTILE_HEIGHT),
                             new Rectangle(0, 0, warriorSkillEffect.Width, warriorSkillEffect.Height),
                             GraphicsUnit.Pixel);
@@ -985,7 +1232,7 @@ namespace DoAn_NT106
                 {
                     if (projectile2Direction == -1)
                     {
-                        e.Graphics.DrawImage(warriorSkillEffect, 
+                        e.Graphics.DrawImage(warriorSkillEffect,
                             new Rectangle(projScreenX + PROJECTILE_WIDTH, projectile2Y, -PROJECTILE_WIDTH, PROJECTILE_HEIGHT),
                             new Rectangle(0, 0, warriorSkillEffect.Width, warriorSkillEffect.Height),
                             GraphicsUnit.Pixel);
@@ -1031,10 +1278,88 @@ namespace DoAn_NT106
                     e.Graphics.DrawString("★", font, brush, sx, player2State.Y - 35);
                 }
             }
+            // ===== ✅ DEBUG HITBOXES =====
+            // 1. Draw attack hitbox (green) when attacking
+            if (player1State.IsAttacking)
+            {
+                var attackBox = GetAttackHitbox(player1State, player1State.CurrentAnimation);
+                using (var pen = new Pen(Color.Lime, 3))
+                {
+                    e.Graphics.DrawRectangle(pen,
+                        attackBox.X - viewportX,
+                        attackBox.Y,
+                        attackBox.Width,
+                        attackBox.Height);
+                }
+            }
 
-            DrawGameUI(e.Graphics);
+            if (player2State.IsAttacking)
+            {
+                var attackBox = GetAttackHitbox(player2State, player2State.CurrentAnimation);
+                using (var pen = new Pen(Color.Lime, 3))
+                {
+                    e.Graphics.DrawRectangle(pen,
+                        attackBox.X - viewportX,
+                        attackBox.Y,
+                        attackBox.Width,
+                        attackBox.Height);
+                }
+            }
+
+            // 2.  Draw skill hitbox (green) when skill is active
+            if (player1State.IsSkillActive)
+            {
+                if (characterAttackConfigs.ContainsKey(player1CharacterType) &&
+                    characterAttackConfigs[player1CharacterType].ContainsKey("skill"))
+                {
+                    var skillBox = GetAttackHitbox(player1State, "skill");
+                    using (var pen = new Pen(Color.Lime, 3))
+                    {
+                        e.Graphics.DrawRectangle(pen,
+                            skillBox.X - viewportX,
+                            skillBox.Y,
+                            skillBox.Width,
+                            skillBox.Height);
+                    }
+                }
+            }
+
+            if (player2State.IsSkillActive)
+            {
+                if (characterAttackConfigs.ContainsKey(player2CharacterType) &&
+                    characterAttackConfigs[player2CharacterType].ContainsKey("skill"))
+                {
+                    var skillBox = GetAttackHitbox(player2State, "skill");
+                    using (var pen = new Pen(Color.Lime, 3))
+                    {
+                        e.Graphics.DrawRectangle(pen,
+                            skillBox.X - viewportX,
+                            skillBox.Y,
+                            skillBox.Width,
+                            skillBox.Height);
+                    }
+                }
+            }
+
+            // 3. Draw hurtbox (red) always
+            var p1Hurtbox = GetPlayerHitbox(player1State);
+            var p2Hurtbox = GetPlayerHitbox(player2State);
+
+            using (var pen = new Pen(Color.Red, 2))
+            {
+                e.Graphics.DrawRectangle(pen,
+                    p1Hurtbox.X - viewportX,
+                    p1Hurtbox.Y,
+                    p1Hurtbox.Width,
+                    p1Hurtbox.Height);
+
+                e.Graphics.DrawRectangle(pen,
+                    p2Hurtbox.X - viewportX,
+                    p2Hurtbox.Y,
+                    p2Hurtbox.Width,
+                    p2Hurtbox.Height);
+            }
         }
-
         private void UpdateCamera()
         {
             // ✅ MIGRATED: Use PlayerState instead of local variables
@@ -1080,28 +1405,78 @@ namespace DoAn_NT106
                 }
             }
         }
+        private (int actualWidth, int actualHeight, int yOffset, int groundAdjustment) GetActualCharacterSize(string characterType)
+        {
+            float sizeScale = 1.0f;
+            int yOffset = 0;
+            int groundAdjustment = 0; // ✅ THÊM: Điều chỉnh vị trí so với mặt đất
 
+            if (characterType == "girlknight")
+            {
+                sizeScale = 0.7f;
+                yOffset = (int)(PLAYER_HEIGHT * (1.0f - sizeScale));
+                groundAdjustment = 0; // Vị trí chuẩn
+            }
+            else if (characterType == "bringerofdeath")
+            {
+                sizeScale = 1.6f;
+                // ✅ SỬA: yOffset = 0, groundAdjustment âm để nâng lên
+                yOffset = 0;
+                groundAdjustment = -95; // Nâng lên 40px so với mặt đất
+            }
+            else if (characterType == "goatman")
+            {
+                sizeScale = 0.7f;
+                yOffset = (int)(PLAYER_HEIGHT * (1.0f - sizeScale));
+                groundAdjustment = 0;
+            }
+            else if (characterType == "warrior")
+            {
+                sizeScale = 1.0f;
+                yOffset = 0;
+                groundAdjustment = 0;
+            }
+
+            int actualHeight = (int)(PLAYER_HEIGHT * sizeScale);
+            int actualWidth = actualHeight;
+
+            CharacterAnimationManager animManager = characterType == player1CharacterType ?
+                player1AnimationManager : player2AnimationManager;
+
+            var standImg = animManager?.GetAnimation("stand");
+            if (standImg != null)
+            {
+                int imgW = Math.Max(1, standImg.Width);
+                int imgH = Math.Max(1, standImg.Height);
+                actualWidth = Math.Max(16, (int)(actualHeight * (float)imgW / imgH));
+            }
+
+            return (actualWidth, actualHeight, yOffset, groundAdjustment);
+        }
         private void UpdateCharacterSize()
         {
-            int newHeight = Math.Max(24, (int)(this.ClientSize.Height * characterHeightRatio));
+            // ✅ SỬA: Áp dụng hệ số nhân toàn cục
+            int baseHeight = Math.Max(24, (int)(this.ClientSize.Height * characterHeightRatio));
+            int newHeight = (int)(baseHeight * globalCharacterScale); // Nhân với hệ số toàn cục
+
             int spriteOrigW = 64;
             int spriteOrigH = 64;
-            
+
             var standImg = player1AnimationManager?.GetAnimation("stand");
             if (standImg != null)
             {
                 spriteOrigW = standImg.Width;
                 spriteOrigH = standImg.Height;
             }
-            
+
             PLAYER_HEIGHT = newHeight;
             PLAYER_WIDTH = Math.Max(16, (int)(PLAYER_HEIGHT * (float)spriteOrigW / spriteOrigH));
-            
+
             // ===== ✅ UPDATE: Update PhysicsSystem with new player size =====
             physicsSystem.UpdatePlayerSize(PLAYER_WIDTH, PLAYER_HEIGHT);
-            
+
             groundLevel = Math.Max(0, this.ClientSize.Height - groundOffset);
-            
+
             // ===== ✅ MIGRATED: Reset positions using PhysicsSystem =====
             if (!player1State.IsJumping) physicsSystem.ResetToGround(player1State);
             if (!player2State.IsJumping) physicsSystem.ResetToGround(player2State);
@@ -1155,7 +1530,15 @@ namespace DoAn_NT106
         // ===========================
         // ✅ HELPER METHODS (KEPT FROM ORIGINAL)
         // ===========================
+        // ✅ THÊM: Xử lý tấn công với attack hitbox mới
+        // ✅ SỬA LẦN 2: Xử lý tấn công với frame counter
+        // In BattleForm. cs - THAY THẾ HÀM ExecuteAttackWithHitbox()
 
+        private void ExecuteAttackWithHitbox(int playerNum, string attackType, int damage, int staminaCost)
+        {
+            Console.WriteLine($"[BattleForm] Player {playerNum} attempts {attackType}");
+            combatSystem.ExecuteAttack(playerNum, attackType);
+        }
         private void OnFrameChanged(object sender, EventArgs e)
         {
             this.Invalidate();
@@ -1261,20 +1644,22 @@ namespace DoAn_NT106
                 else if (animationManager == player2AnimationManager)
                     charType = player2CharacterType;
 
+                var actualSize = GetActualCharacterSize(charType);
                 int drawHeight = PLAYER_HEIGHT;
                 float sizeScale = 1.0f;
                 int yOffset = 0;
+                int groundAdjustment = actualSize.groundAdjustment;
 
-                // ✅ APPLY CHARACTER-SPECIFIC SCALING + Y OFFSET
+                // ✅ SỬA: APPLY CHARACTER-SPECIFIC SCALING + Y OFFSET (đã bao gồm globalCharacterScale)
                 if (charType == "girlknight")
                 {
-                    sizeScale = 0.7f; // 70% (bằng Goatman)
+                    sizeScale = 0.7f; // 70% (bằng Goatman) - GIỮ NGUYÊN tỷ lệ tương đối
                     yOffset = (int)(PLAYER_HEIGHT * (1.0f - sizeScale)); // Nâng lên để chân chạm đất
                 }
                 else if (charType == "bringerofdeath")
                 {
-                    sizeScale = 1.6f; // 160%
-                    yOffset = -50; // ✅ HẠ XUỐNG: -110 → -50 (thấp hơn 60px, gần sàn hơn)
+                    sizeScale = 1.6f; // 160% - GIỮ NGUYÊN tỷ lệ tương đối
+                    yOffset += (int)(10 * globalCharacterScale);
                 }
 
                 drawHeight = (int)(PLAYER_HEIGHT * sizeScale);
@@ -1284,7 +1669,7 @@ namespace DoAn_NT106
                 int drawWidth = Math.Max(1, (int)(drawHeight * (float)imgW / imgH));
 
                 int destX = screenX;
-                int destY = y + yOffset; // ✅ APPLY Y OFFSET
+                int destY = y + yOffset + groundAdjustment;
 
                 var prevInterpolation = g.InterpolationMode;
                 var prevSmoothing = g.SmoothingMode;
@@ -1478,12 +1863,148 @@ namespace DoAn_NT106
             };
             removeTimer.Start();
         }
-
-        private Rectangle GetPlayerHurtbox(int playerX, int playerY)
+        // Phương thức tính hitbox theo cấu hình nhân vật
+        private Rectangle GetPlayerHitbox(int playerX, int playerY, string characterType, string facing)
         {
-            return new Rectangle(playerX, playerY, PLAYER_WIDTH, PLAYER_HEIGHT);
+            if (!characterHitboxConfigs.ContainsKey(characterType))
+            {
+                return new Rectangle(playerX, playerY, PLAYER_WIDTH, PLAYER_HEIGHT);
+            }
+
+            var config = characterHitboxConfigs[characterType];
+
+            int hitboxWidth = (int)(PLAYER_WIDTH * config.WidthPercent);
+            int hitboxHeight = (int)(PLAYER_HEIGHT * config.HeightPercent);
+
+            // Căn giữa hitbox, KHÔNG phụ thuộc vào facing
+            int offsetX = (PLAYER_WIDTH - hitboxWidth) / 2;  // ⭐ THAY ĐỔI DUY NHẤT
+            int offsetY = (int)(PLAYER_HEIGHT * config.OffsetYPercent);
+
+            return new Rectangle(
+                playerX + offsetX,
+                playerY + offsetY,
+                hitboxWidth,
+                hitboxHeight
+            );
         }
 
+        // Overload để lấy hitbox từ PlayerState
+        private Rectangle GetPlayerHitbox(PlayerState player)
+        {
+            var actualSize = GetActualCharacterSize(player.CharacterType);
+            int actualWidth = actualSize.actualWidth;
+            int actualHeight = actualSize.actualHeight;
+            int yOffset = actualSize.yOffset;
+            int groundAdjustment = actualSize.groundAdjustment;
+
+            if (!characterHitboxConfigs.ContainsKey(player.CharacterType))
+            {
+                return new Rectangle(player.X, player.Y + yOffset + groundAdjustment, actualWidth, actualHeight);
+            }
+
+            var config = characterHitboxConfigs[player.CharacterType];
+
+            // Width/Height dựa trên actualSize
+            int hitboxWidth = (int)(actualWidth * config.WidthPercent);
+            int hitboxHeight = (int)(actualHeight * config.HeightPercent);
+
+            // Căn giữa theo actualWidth
+            int offsetX = (actualWidth - hitboxWidth) / 2;
+            int offsetY = (int)(actualHeight * config.OffsetYPercent);
+
+            // Áp dụng OffsetXPercent chung cho mọi nhân vật
+            offsetX += (int)(actualWidth * (config.OffsetXPercent));
+
+            // HARD FIX: Goatman sprite có padding → cộng thêm 65px
+            if (player.CharacterType == "goatman")
+            {
+                offsetX += 65;
+            }
+
+            Console.WriteLine($"[{player.CharacterType}] Hurtbox: PlayerX={player.X}, ActualW={actualWidth}, HitboxW={hitboxWidth}, OffsetX={offsetX}, FinalX={player.X + offsetX}");
+
+            return new Rectangle(
+                player.X + offsetX,
+                player.Y + yOffset + groundAdjustment + offsetY,
+                hitboxWidth,
+                hitboxHeight
+            );
+        }
+        // ✅ THÊM: Phương thức tính vùng tấn công của nhân vật
+        private Rectangle GetAttackHitbox(PlayerState attacker, string attackType)
+        {
+            if (!characterAttackConfigs.ContainsKey(attacker.CharacterType) ||
+                !characterAttackConfigs[attacker.CharacterType].ContainsKey(attackType))
+            {
+                Console.WriteLine($"⚠️ No attack config for {attacker.CharacterType}.{attackType}, using default");
+
+                var actualSize = GetActualCharacterSize(attacker.CharacterType);
+                int attackWidth = (int)(actualSize.actualWidth * 0.8f);
+                int attackHeight = (int)(actualSize.actualHeight * 0.6f);
+                int attackRange = (int)(actualSize.actualWidth * 0.7f);
+
+                int defaultCenterX = attacker.X + (actualSize.actualWidth / 2);
+                int attackX = attacker.Facing == "right" ? defaultCenterX : defaultCenterX - attackRange;
+                int attackY = attacker.Y + actualSize.yOffset + actualSize.groundAdjustment + (int)(actualSize.actualHeight * 0.3f);
+
+                return new Rectangle(attackX, attackY, attackRange, attackHeight);
+            }
+
+            var config = characterAttackConfigs[attacker.CharacterType][attackType];
+            var actualSizeWithConfig = GetActualCharacterSize(attacker.CharacterType);
+
+            int actualWidth = actualSizeWithConfig.actualWidth;
+            int actualHeight = actualSizeWithConfig.actualHeight;
+            int yOffset = actualSizeWithConfig.yOffset;
+            int groundAdjustment = actualSizeWithConfig.groundAdjustment;
+
+            int attackWidthValue = (int)(actualWidth * config.WidthPercent);
+            int attackHeightValue = (int)(actualHeight * config.HeightPercent);
+            int attackRangeValue = (int)(actualWidth * config.RangePercent);
+            int offsetY = (int)(actualHeight * config.OffsetYPercent);
+
+            int configCenterX = attacker.X + (actualWidth / 2);
+            if (attacker.CharacterType == "goatman")
+            {
+                configCenterX += 60;
+            }
+
+            int finalAttackX, finalAttackY;
+            if (attacker.Facing == "right")
+            {
+                finalAttackX = configCenterX;
+                finalAttackY = attacker.Y + yOffset + groundAdjustment + offsetY;
+            }
+            else
+            {
+                finalAttackX = configCenterX - attackRangeValue;
+                finalAttackY = attacker.Y + yOffset + groundAdjustment + offsetY;
+            }
+
+            Console.WriteLine($"[GetAttackHitbox] {attacker.CharacterType}.{attackType}: X={finalAttackX}, Y={finalAttackY}, W={attackRangeValue}, H={attackHeightValue}");
+            return new Rectangle(finalAttackX, finalAttackY, attackRangeValue, attackHeightValue);
+        }
+        // ✅ THÊM: Kiểm tra va chạm giữa attack hitbox và hurtbox
+        private bool CheckAttackHit(PlayerState attacker, PlayerState defender, string attackType)
+        {
+            // Lấy vùng tấn công của attacker
+            Rectangle attackBox = GetAttackHitbox(attacker, attackType);
+
+            // Lấy vùng nhận sát thương của defender
+            Rectangle hurtBox = GetPlayerHitbox(defender);
+
+            // ✅ THÊM DEBUG
+            Console.WriteLine($"[CHECK HIT] Attack Box: ({attackBox.X}, {attackBox.Y}, {attackBox.Width}x{attackBox.Height})");
+            Console.WriteLine($"[CHECK HIT] Hurt Box: ({hurtBox.X}, {hurtBox.Y}, {hurtBox.Width}x{hurtBox.Height})");
+
+            // Kiểm tra va chạm
+            bool hit = attackBox.IntersectsWith(hurtBox);
+
+            // ✅ THÊM DEBUG
+            Console.WriteLine($"[CHECK HIT] Result: {(hit ? "✅ HIT" : "❌ MISS")}");
+
+            return hit;
+        }
         private void CheckFireballHit()
         {
             if (!fireballActive) return;
@@ -1492,7 +2013,8 @@ namespace DoAn_NT106
 
             if (fireballOwner == 1)
             {
-                Rectangle p2Rect = new Rectangle(player2X, player2Y, PLAYER_WIDTH, PLAYER_HEIGHT);
+                // Sử dụng hitbox động
+                Rectangle p2Rect = GetPlayerHitbox(player2State);
                 if (fireRect.IntersectsWith(p2Rect))
                 {
                     if (player2Parrying)
@@ -1514,7 +2036,8 @@ namespace DoAn_NT106
             }
             else if (fireballOwner == 2)
             {
-                Rectangle p1Rect = new Rectangle(player1X, player1Y, PLAYER_WIDTH, PLAYER_HEIGHT);
+                //  Sử dụng hitbox động
+                Rectangle p1Rect = GetPlayerHitbox(player1State);
                 if (fireRect.IntersectsWith(p1Rect))
                 {
                     if (player1Parrying)
@@ -1539,190 +2062,16 @@ namespace DoAn_NT106
         // Apply hurt properly - KEEP OLD IMPLEMENTATION FOR NOW (COMPATIBILITY)
         private void ApplyHurtToPlayer(int player, int damage, bool knockback = true)
         {
-            // ✅ TEMPORARY: Comment out until ApplyDamage is implemented in CombatSystem
-            // combatSystem.ApplyDamage(player, damage);
-            
-            // OLD CODE KEPT FOR COMPATIBILITY (to be removed later)
-            void ShowDamage(int dmg)
-            {
-                ShowHitEffect($"-{dmg}", Color.Red);
-            }
+            // ✅ GỌI COMBATSYSTEM TRỰC TIẾP - ĐÃ XỬ LÝ ĐẦY ĐỦ
+            combatSystem.ApplyDamage(player, damage, knockback);
 
-            if (player == 1)
-            {
-                // Check if dashing (iframe)
-                if (player1Dashing)
-                {
-                    ShowHitEffect("Miss!", Color.Gray);
-                    return;
-                }
-
-                // Check parry
-                if (player1Parrying)
-                {
-                    player1Stamina = Math.Min(100, player1Stamina + 8);
-                    ShowHitEffect("Blocked!", Color.Cyan);
-                    player2Attacking = false;
-                    
-                    // Cancel attacker's attack - already handled by CombatSystem
-                    
-                    var stunTimer = new System.Windows.Forms.Timer { Interval = 200 };
-                    stunTimer.Tick += (s, e) =>
-                    {
-                        stunTimer.Stop();
-                        stunTimer.Dispose();
-                    };
-                    stunTimer.Start();
-
-                    this.Invalidate();
-                    return;
-                }
-
-                // Already hurt - prevent stacking
-                if (player1CurrentAnimation == "hurt")
-                    return;
-
-                // Apply damage - SYNC WITH PlayerState
-                player1State.Health = Math.Max(0, player1State.Health - damage);
-                player1Health = player1State.Health;
-                ShowDamage(damage);
-
-                // Show hit effect at player position - handled by EffectManager
-                
-                // Apply stun - handled by PlayerState
-                player1State.IsStunned = true;
-                player1Stunned = true;
-                
-                // Cancel any ongoing attack/skill - handled by CombatSystem
-
-                // Set hurt animation
-                player1State.CurrentAnimation = "hurt";
-                player1CurrentAnimation = "hurt";
-                var hurtImg = player1AnimationManager.GetAnimation("hurt");
-                if (hurtImg != null && ImageAnimator.CanAnimate(hurtImg))
-                {
-                    try { ImageAnimator.Animate(hurtImg, OnFrameChanged); } catch { }
-                }
-
-                // Knockback
-                if (knockback)
-                {
-                    int kb = (player2X > player1X) ? -20 : 20;
-                    player1State.X = Math.Max(0, Math.Min(backgroundWidth - PLAYER_WIDTH, player1State.X + kb));
-                    player1X = player1State.X;
-                }
-
-                this.Invalidate();
-
-                // Restore after stun duration
-                var restoreTimer = new System.Windows.Forms.Timer { Interval = HIT_STUN_DURATION_MS };
-                restoreTimer.Tick += (s, e) =>
-                {
-                    restoreTimer.Stop();
-                    restoreTimer.Dispose();
-                    
-                    player1State.IsStunned = false;
-                    player1Stunned = false;
-                    
-                    if (!player1Attacking && !player1Jumping && player1CurrentAnimation == "hurt")
-                    {
-                        player1State.CurrentAnimation = (aPressed || dPressed) ? "walk" : "stand";
-                        player1CurrentAnimation = player1State.CurrentAnimation;
-                    }
-                    this.Invalidate();
-                };
-                restoreTimer.Start();
-
-                return;
-            }
-
-            if (player == 2)
-            {
-                // Check if dashing (iframe)
-                if (player2Dashing)
-                {
-                    ShowHitEffect("Miss!", Color.Gray);
-                    return;
-                }
-
-                // Check parry
-                if (player2Parrying)
-                {
-                    player2Stamina = Math.Min(100, player2Stamina + 8);
-                    ShowHitEffect("Blocked!", Color.Cyan);
-                    player1Attacking = false;
-                    
-                    // Cancel attacker's attack - handled by CombatSystem
-                    
-                    var stunTimer = new System.Windows.Forms.Timer { Interval = 200 };
-                    stunTimer.Tick += (s, e) =>
-                    {
-                        stunTimer.Stop();
-                        stunTimer.Dispose();
-                    };
-                    stunTimer.Start();
-
-                    this.Invalidate();
-                    return;
-                }
-
-                // Already hurt - prevent stacking
-                if (player2CurrentAnimation == "hurt")
-                    return;
-
-                // Apply damage - SYNC WITH PlayerState
-                player2State.Health = Math.Max(0, player2State.Health - damage);
-                player2Health = player2State.Health;
-                ShowDamage(damage);
-
-                // Show hit effect at player position - handled by EffectManager
-
-                // Apply stun - handled by PlayerState
-                player2State.IsStunned = true;
-                player2Stunned = true;
-                
-                // Cancel any ongoing attack/skill - handled by CombatSystem
-
-                // Set hurt animation
-                player2State.CurrentAnimation = "hurt";
-                player2CurrentAnimation = "hurt";
-                var hurtImg = player2AnimationManager.GetAnimation("hurt");
-                if (hurtImg != null && ImageAnimator.CanAnimate(hurtImg))
-                {
-                    try { ImageAnimator.Animate(hurtImg, OnFrameChanged); } catch { }
-                }
-
-                // Knockback
-                if (knockback)
-                {
-                    int kb2 = (player1X > player2X) ? -20 : 20;
-                    player2State.X = Math.Max(0, Math.Min(backgroundWidth - PLAYER_WIDTH, player2State.X + kb2));
-                    player2X = player2State.X;
-                }
-
-                this.Invalidate();
-
-                // Restore after stun duration
-                var restoreTimer2 = new System.Windows.Forms.Timer { Interval = HIT_STUN_DURATION_MS };
-                restoreTimer2.Tick += (s, e) =>
-                {
-                    restoreTimer2.Stop();
-                    restoreTimer2.Dispose();
-                    
-                    player2State.IsStunned = false;
-                    player2Stunned = false;
-                    
-                    if (!player2Attacking && !player2Jumping && player2CurrentAnimation == "hurt")
-                    {
-                        player2State.CurrentAnimation = (leftPressed || rightPressed) ? "walk" : "stand";
-                        player2CurrentAnimation = player2State.CurrentAnimation;
-                    }
-                    this.Invalidate();
-                };
-                restoreTimer2.Start();
-
-                return;
-            }
+            // ✅ SYNC LẠI BIẾN CŨ (để UI hoạt động)
+            player1Health = player1State.Health;
+            player2Health = player2State.Health;
+            player1Stunned = player1State.IsStunned;
+            player2Stunned = player2State.IsStunned;
+            player1CurrentAnimation = player1State.CurrentAnimation;
+            player2CurrentAnimation = player2State.CurrentAnimation;
         }
     }
 }

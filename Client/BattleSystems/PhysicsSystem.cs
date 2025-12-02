@@ -1,10 +1,10 @@
-using System;
+ï»¿using System;
 using System.Drawing;
 
 namespace DoAn_NT106.Client.BattleSystems
 {
     /// <summary>
-    /// X? lý v?t lý: jump, gravity, movement
+    /// X? lÃ½ v?t lÃ½: jump, gravity, movement
     /// </summary>
     public class PhysicsSystem
     {

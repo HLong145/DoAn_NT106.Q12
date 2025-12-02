@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
@@ -37,18 +37,19 @@ namespace DoAn_NT106.Client.BattleSystems
 
         private Action invalidateCallback;
         private Action<string, Color> showHitEffectCallback;
+        private Func<PlayerState, string, Rectangle> getAttackHitboxCallback;
 
         private readonly Dictionary<string, Dictionary<string, float>> frameTimings = new Dictionary<string, Dictionary<string, float>>
         {
             ["goatman"] = new Dictionary<string, float>
             {
                 ["punch"] = 1000f / 11f,
-                ["kick"] = 1000f / 9f
+                ["kick"] = 1000f / 8f
             },
             ["girlknight"] = new Dictionary<string, float>
             {
-                ["punch"] = 1000f / 6f,
-                ["kick"] = 1000f / 6f,
+                ["punch"] = 1000f / 8f,
+                ["kick"] = 1000f / 8f,
                 ["special"] = 1000f / 10f
             },
             ["warrior"] = new Dictionary<string, float>
@@ -65,11 +66,18 @@ namespace DoAn_NT106.Client.BattleSystems
             }
         };
 
-        public CombatSystem(PlayerState p1, PlayerState p2, 
+        private Func<PlayerState, Rectangle> getPlayerHurtboxCallback;
+
+        public CombatSystem(
+            PlayerState p1, PlayerState p2,
             CharacterAnimationManager p1AnimManager, CharacterAnimationManager p2AnimManager,
             EffectManager effectMgr, ProjectileManager projectileMgr,
             int playerWidth, int playerHeight, int backgroundWidth,
-            Action invalidateCallback, Action<string, Color> showHitEffectCallback)
+            Action invalidateCallback,
+            Action<string, Color> showHitEffectCallback,
+            Func<PlayerState, string, Rectangle> getAttackHitboxCallback,
+            Func<PlayerState, Rectangle> getPlayerHurtboxCallback // NEW
+        )
         {
             this.player1 = p1;
             this.player2 = p2;
@@ -82,10 +90,10 @@ namespace DoAn_NT106.Client.BattleSystems
             this.backgroundWidth = backgroundWidth;
             this.invalidateCallback = invalidateCallback;
             this.showHitEffectCallback = showHitEffectCallback;
-
+            this.getAttackHitboxCallback = getAttackHitboxCallback;
+            this.getPlayerHurtboxCallback = getPlayerHurtboxCallback;
             SetupParryTimers();
         }
-
         private void SetupParryTimers()
         {
             p1ParryTimer = new Timer { Interval = PARRY_WINDOW_MS };
@@ -166,9 +174,19 @@ namespace DoAn_NT106.Client.BattleSystems
 
             if (!attacker.CanAttack || attacker.IsDashing || attacker.IsAttacking)
             {
-                Console.WriteLine($"?? Player{playerNum} kh�ng th? attack!");
+                Console.WriteLine($"⚠️ Player{playerNum} không thể attack!");
                 return;
             }
+
+            int staminaCost = attackType == "kick" ? 15 : (attackType == "special" ? 30 : 10);
+            if (!attacker.ConsumeStamina(staminaCost))
+            {
+                showHitEffectCallback?.Invoke("No Stamina!", Color.Gray);
+                Console.WriteLine($"❌ Player{playerNum} không đủ stamina! Need {staminaCost}, have {attacker.Stamina}");
+                return;
+            }
+
+            Console.WriteLine($"✅ Player{playerNum} consumed {staminaCost} stamina, remaining: {attacker.Stamina}");
 
             attacker.IsAttacking = true;
             attacker.IsWalking = false;
@@ -188,84 +206,94 @@ namespace DoAn_NT106.Client.BattleSystems
             attacker.CurrentAnimation = attackType;
             animMgr.ResetAnimationToFirstFrame(attackType);
 
-            if (attackType == "punch")
-            {
-                attacker.Stamina = Math.Max(0, attacker.Stamina - 10);
-                ExecutePunchAttack(playerNum, attacker, defender, animMgr);
-            }
-            else if (attackType == "kick")
-            {
-                attacker.Stamina = Math.Max(0, attacker.Stamina - 15);
-                ExecuteKickAttack(playerNum, attacker, defender, animMgr);
-            }
-            else if (attackType == "special")
-            {
-                ExecuteSpecialAttack(playerNum, attacker, defender, animMgr);
-            }
+            if (attackType == "punch") ExecutePunchAttack(playerNum, attacker, defender, animMgr);
+            else if (attackType == "kick") ExecuteKickAttack(playerNum, attacker, defender, animMgr);
+            else if (attackType == "special") ExecuteSpecialAttack(playerNum, attacker, defender, animMgr);
 
             invalidateCallback?.Invoke();
         }
-
         private void ExecutePunchAttack(int playerNum, PlayerState attacker, PlayerState defender, CharacterAnimationManager animMgr)
         {
             string charType = attacker.CharacterType;
+            Console.WriteLine($"[ExecutePunch] START - Player={playerNum}, Char={charType}");
 
             if (charType == "warrior")
             {
                 int hitFrame6 = GetFrameTiming("warrior", "punch", 6);
                 int hitFrame10 = GetFrameTiming("warrior", "punch", 10);
 
+                Console.WriteLine($"[ExecutePunch] Warrior hit timings: Frame6={hitFrame6}ms, Frame10={hitFrame10}ms");
+
                 var hitTimer1 = new Timer { Interval = hitFrame6 };
                 hitTimer1.Tick += (s, e) =>
                 {
                     hitTimer1.Stop();
                     hitTimer1.Dispose();
-                    if (attacker.IsStunned || attacker.CurrentAnimation == "hurt")
+
+                    Console.WriteLine($"[ExecutePunch] ⏰ HIT TIMER 1 FIRED at {hitFrame6}ms");
+
+                    // Luôn kiểm tra collision với hitbox của punch
+                    Rectangle attackBox = getAttackHitboxCallback(attacker, "punch");
+                    Rectangle hurtBox = getPlayerHurtboxCallback(defender);
+
+                    Console.WriteLine($"[ExecutePunch] Attack Box: X={attackBox.X}, Y={attackBox.Y}, W={attackBox.Width}, H={attackBox.Height}");
+                    Console.WriteLine($"[ExecutePunch] Hurt Box:   X={hurtBox.X}, Y={hurtBox.Y}, W={hurtBox.Width}, H={hurtBox.Height}");
+
+                    bool hit = attackBox.IntersectsWith(hurtBox);
+                    Console.WriteLine($"[ExecutePunch] Collision: {(hit ? "✅ HIT!" : "❌ MISS")}");
+
+                    if (hit)
                     {
-                        Console.WriteLine($"?? Warrior punch hit 1 interrupted!");
-                        return;
-                    }
-                    if (CheckAttackHit(attacker, defender))
-                    {
+                        Console.WriteLine($"[ExecutePunch] 💥 APPLYING DAMAGE 10 to Player {(playerNum == 1 ? 2 : 1)}");
                         ApplyDamage(playerNum == 1 ? 2 : 1, 10);
                         showHitEffectCallback?.Invoke("Strike!", Color.Yellow);
                     }
                 };
                 hitTimer1.Start();
+                Console.WriteLine($"[ExecutePunch] Timer 1 STARTED");
 
                 var hitTimer2 = new Timer { Interval = hitFrame10 };
                 hitTimer2.Tick += (s, e) =>
                 {
                     hitTimer2.Stop();
                     hitTimer2.Dispose();
-                    if (attacker.IsStunned || attacker.CurrentAnimation == "hurt")
+
+                    Console.WriteLine($"[ExecutePunch] ⏰ HIT TIMER 2 FIRED at {hitFrame10}ms");
+
+                    // Không chặn bởi IsStunned/hurt để đảm bảo frame hit vẫn check
+                    Rectangle attackBox = getAttackHitboxCallback(attacker, "punch");
+                    Rectangle hurtBox = getPlayerHurtboxCallback(defender);
+
+                    bool hit = attackBox.IntersectsWith(hurtBox);
+                    if (hit)
                     {
-                        Console.WriteLine($"?? Warrior punch hit 2 interrupted!");
-                        return;
-                    }
-                    if (CheckAttackHit(attacker, defender))
-                    {
+                        Console.WriteLine($"[ExecutePunch] 💥 APPLYING DAMAGE 10 to Player {(playerNum == 1 ? 2 : 1)}");
                         ApplyDamage(playerNum == 1 ? 2 : 1, 10);
                         showHitEffectCallback?.Invoke("Strike!", Color.Orange);
                     }
                 };
                 hitTimer2.Start();
+                Console.WriteLine($"[ExecutePunch] Timer 2 STARTED");
             }
             else if (charType == "goatman")
             {
                 int hitDelay = GetFrameTiming("goatman", "punch", 4);
+                Console.WriteLine($"[ExecutePunch] Goatman hit at {hitDelay}ms");
+
                 var hitTimer = new Timer { Interval = hitDelay };
                 hitTimer.Tick += (s, e) =>
                 {
                     hitTimer.Stop();
                     hitTimer.Dispose();
-                    if (attacker.IsStunned || attacker.CurrentAnimation == "hurt")
+
+                    Console.WriteLine($"[ExecutePunch] ⏰ Goatman HIT TIMER FIRED");
+
+                    Rectangle attackBox = getAttackHitboxCallback(attacker, "punch");
+                    Rectangle hurtBox = getPlayerHurtboxCallback(defender);
+
+                    if (attackBox.IntersectsWith(hurtBox))
                     {
-                        Console.WriteLine($"?? Goatman punch interrupted!");
-                        return;
-                    }
-                    if (CheckAttackHit(attacker, defender))
-                    {
+                        Console.WriteLine($"[ExecutePunch] 💥 Goatman DAMAGE 10");
                         ApplyDamage(playerNum == 1 ? 2 : 1, 10);
                         showHitEffectCallback?.Invoke("Punch!", Color.Orange);
                     }
@@ -275,18 +303,22 @@ namespace DoAn_NT106.Client.BattleSystems
             else if (charType == "girlknight")
             {
                 int hitDelay = GetFrameTiming("girlknight", "punch", 3);
+                Console.WriteLine($"[ExecutePunch] GirlKnight hit at {hitDelay}ms");
+
                 var hitTimer = new Timer { Interval = hitDelay };
                 hitTimer.Tick += (s, e) =>
                 {
                     hitTimer.Stop();
                     hitTimer.Dispose();
-                    if (attacker.IsStunned || attacker.CurrentAnimation == "hurt")
+
+                    Console.WriteLine($"[ExecutePunch] ⏰ GirlKnight HIT TIMER FIRED");
+
+                    Rectangle attackBox = getAttackHitboxCallback(attacker, "punch");
+                    Rectangle hurtBox = getPlayerHurtboxCallback(defender);
+
+                    if (attackBox.IntersectsWith(hurtBox))
                     {
-                        Console.WriteLine($"?? Girl Knight punch interrupted!");
-                        return;
-                    }
-                    if (CheckAttackHit(attacker, defender))
-                    {
+                        Console.WriteLine($"[ExecutePunch] 💥 GirlKnight DAMAGE 10");
                         ApplyDamage(playerNum == 1 ? 2 : 1, 10);
                         showHitEffectCallback?.Invoke("Punch!", Color.Pink);
                     }
@@ -296,18 +328,22 @@ namespace DoAn_NT106.Client.BattleSystems
             else if (charType == "bringerofdeath")
             {
                 int hitDelay = GetFrameTiming("bringerofdeath", "punch", 6);
+                Console.WriteLine($"[ExecutePunch] Bringer hit at {hitDelay}ms");
+
                 var hitTimer = new Timer { Interval = hitDelay };
                 hitTimer.Tick += (s, e) =>
                 {
                     hitTimer.Stop();
                     hitTimer.Dispose();
-                    if (attacker.IsStunned || attacker.CurrentAnimation == "hurt")
+
+                    Console.WriteLine($"[ExecutePunch] ⏰ Bringer HIT TIMER FIRED");
+
+                    Rectangle attackBox = getAttackHitboxCallback(attacker, "punch");
+                    Rectangle hurtBox = getPlayerHurtboxCallback(defender);
+
+                    if (attackBox.IntersectsWith(hurtBox))
                     {
-                        Console.WriteLine($"?? Bringer punch interrupted!");
-                        return;
-                    }
-                    if (CheckAttackHit(attacker, defender))
-                    {
+                        Console.WriteLine($"[ExecutePunch] 💥 Bringer DAMAGE 10");
                         ApplyDamage(playerNum == 1 ? 2 : 1, 10);
                         showHitEffectCallback?.Invoke("Punch!", Color.Purple);
                     }
@@ -316,9 +352,9 @@ namespace DoAn_NT106.Client.BattleSystems
             }
 
             int duration = animMgr.GetAnimationDuration("punch");
+            Console.WriteLine($"[ExecutePunch] Animation duration: {duration}ms");
             ResetAttackAnimation(duration, playerNum);
         }
-
         private void ExecuteKickAttack(int playerNum, PlayerState attacker, PlayerState defender, CharacterAnimationManager animMgr)
         {
             string charType = attacker.CharacterType;
@@ -337,15 +373,14 @@ namespace DoAn_NT106.Client.BattleSystems
                 {
                     hitTimer.Stop();
                     hitTimer.Dispose();
-                    if (attacker.IsStunned || attacker.CurrentAnimation == "hurt")
-                    {
-                        Console.WriteLine($"?? Bringer kick interrupted!");
-                        return;
-                    }
-                    if (CheckAttackHit(attacker, defender))
+
+                    Rectangle attackBox = getAttackHitboxCallback(attacker, "kick");
+                    Rectangle hurtBox = getPlayerHurtboxCallback(defender);
+
+                    if (attackBox.IntersectsWith(hurtBox))
                     {
                         ApplyDamage(playerNum == 1 ? 2 : 1, 15);
-                        showHitEffectCallback?.Invoke("Kick!", Color.Purple);
+                        showHitEffectCallback?.Invoke("Kick!", Color.Orange);
                     }
                 };
                 hitTimer.Start();
@@ -366,13 +401,7 @@ namespace DoAn_NT106.Client.BattleSystems
                 hitTimer.Stop();
                 hitTimer.Dispose();
 
-                if (attacker.IsStunned || attacker.CurrentAnimation == "hurt")
-                {
-                    Console.WriteLine($"?? Goatman kick interrupted!");
-                    return;
-                }
-
-                Rectangle attackHitbox = GetAttackHitbox(attacker);
+                Rectangle attackHitbox = getAttackHitboxCallback(attacker, "kick");
                 Rectangle targetHurtbox = GetPlayerHurtbox(defender);
 
                 if (attackHitbox.IntersectsWith(targetHurtbox))
@@ -391,69 +420,67 @@ namespace DoAn_NT106.Client.BattleSystems
 
         private void ExecuteGirlKnightKick(int playerNum, PlayerState attacker, PlayerState defender, CharacterAnimationManager animMgr)
         {
-            float msPerFrame = frameTimings["girlknight"]["kick"];
+            float msPerFrame = frameTimings["girlknight"]["kick"]; // 125ms per frame
+            int hitFrame = 6;
+            int hitTime = (int)(hitFrame * msPerFrame);
+
+            var hitTimer = new Timer { Interval = hitTime };
+            hitTimer.Tick += (s, e) =>
+            {
+                hitTimer.Stop();
+                hitTimer.Dispose();
+                Rectangle attackBox = getAttackHitboxCallback(attacker, "kick");
+                Rectangle hurtBox = getPlayerHurtboxCallback(defender);
+
+                if (attackBox.IntersectsWith(hurtBox))
+                {
+                    ApplyDamage(playerNum == 1 ? 2 : 1, 15);
+                    showHitEffectCallback?.Invoke("Kick!", Color.Pink);
+                }
+            };
+            hitTimer.Start();
+
+            // Slide giữ nguyên như cũ
             int slideStartFrame = 6;
             int slideEndFrame = 9;
             int slideFrameCount = slideEndFrame - slideStartFrame;
-            
             int slideStartTime = (int)(slideStartFrame * msPerFrame);
             int slideDuration = (int)(slideFrameCount * msPerFrame);
             int slideDistance = 400;
-            
-            Console.WriteLine($"?? Girl Knight Kick: Slide {slideFrameCount} frames @ {msPerFrame}ms/frame = {slideDuration}ms total");
-            
+
             var slideStartTimer = new Timer { Interval = slideStartTime };
             slideStartTimer.Tick += (s, e) =>
             {
                 slideStartTimer.Stop();
                 slideStartTimer.Dispose();
-                
+
                 int slideDirection = attacker.Facing == "right" ? 1 : -1;
                 int slideRemaining = slideDistance;
                 int slideElapsed = 0;
                 float slideSpeed = (float)slideDistance / slideDuration * 16;
-                bool hasDamagedThisSlide = false;
-                
+
                 var slideTimer = new Timer { Interval = 16 };
                 slideTimer.Tick += (s2, e2) =>
                 {
                     slideElapsed += 16;
-                    
-                    if (attacker.IsStunned || attacker.CurrentAnimation == "hurt")
-                    {
-                        slideTimer.Stop();
-                        slideTimer.Dispose();
-                        Console.WriteLine($"?? Girl Knight slide interrupted by damage!");
-                        return;
-                    }
-                    
+
                     if (slideElapsed < slideDuration && slideRemaining > 0)
                     {
                         int moveAmount = Math.Min(slideRemaining, (int)Math.Ceiling(slideSpeed));
                         attacker.X += moveAmount * slideDirection;
                         attacker.X = Math.Max(0, Math.Min(backgroundWidth - playerWidth, attacker.X));
                         slideRemaining -= moveAmount;
-                        
-                        if (!hasDamagedThisSlide && CheckAttackHit(attacker, defender))
-                        {
-                            ApplyDamage(playerNum == 1 ? 2 : 1, 15);
-                            showHitEffectCallback?.Invoke("Slide Impact!", Color.Pink);
-                            hasDamagedThisSlide = true;
-                            Console.WriteLine($"? Girl Knight slide contact damage dealt!");
-                        }
                     }
                     else
                     {
                         slideTimer.Stop();
                         slideTimer.Dispose();
-                        Console.WriteLine($"? Girl Knight slide ended after {slideDuration}ms");
                     }
                 };
                 slideTimer.Start();
             };
             slideStartTimer.Start();
         }
-
         private void ExecuteWarriorKick(int playerNum, PlayerState attacker, PlayerState defender, CharacterAnimationManager animMgr)
         {
             float msPerFrame = frameTimings["warrior"]["kick"];
@@ -461,31 +488,22 @@ namespace DoAn_NT106.Client.BattleSystems
             int slideEndFrame = 3;
             int slideFrameCount = slideEndFrame - slideStartFrame;
             int hitFrame = 4;
-            
+
             int slideDuration = (int)(slideFrameCount * msPerFrame);
             int hitTime = (int)(hitFrame * msPerFrame);
             int slideDistance = 400;
-            
-            Console.WriteLine($"?? Warrior Kick: Slide {slideFrameCount} frames @ {msPerFrame}ms/frame = {slideDuration}ms total");
-            
+
+            // Slide (có thể ngắt nếu muốn), nhưng KHÔNG ảnh hưởng hit timer
             int slideDirection = attacker.Facing == "right" ? 1 : -1;
             int slideRemaining = slideDistance;
             int slideElapsed = 0;
             float slideSpeed = (float)slideDistance / slideDuration * 16;
-            
+
             var slideTimer = new Timer { Interval = 16 };
             slideTimer.Tick += (s, e) =>
             {
                 slideElapsed += 16;
-                
-                if (attacker.IsStunned || attacker.CurrentAnimation == "hurt")
-                {
-                    slideTimer.Stop();
-                    slideTimer.Dispose();
-                    Console.WriteLine($"?? Warrior slide interrupted by damage!");
-                    return;
-                }
-                
+
                 if (slideElapsed < slideDuration && slideRemaining > 0)
                 {
                     int moveAmount = Math.Min(slideRemaining, (int)Math.Ceiling(slideSpeed));
@@ -501,18 +519,15 @@ namespace DoAn_NT106.Client.BattleSystems
                 }
             };
             slideTimer.Start();
-            
+
+            // HIT TIMER: không chặn bởi IsStunned/hurt
             var hitTimer = new Timer { Interval = hitTime };
             hitTimer.Tick += (s, e) =>
             {
                 hitTimer.Stop();
                 hitTimer.Dispose();
-                if (attacker.IsStunned || attacker.CurrentAnimation == "hurt")
-                {
-                    Console.WriteLine($"?? Warrior kick hit interrupted!");
-                    return;
-                }
-                if (CheckAttackHit(attacker, defender))
+
+                if (CheckAttackHit(attacker, defender, "kick"))
                 {
                     ApplyDamage(playerNum == 1 ? 2 : 1, 15);
                     showHitEffectCallback?.Invoke("Warrior Kick!", Color.Gold);
@@ -520,7 +535,6 @@ namespace DoAn_NT106.Client.BattleSystems
             };
             hitTimer.Start();
         }
-
         private void ExecuteSpecialAttack(int playerNum, PlayerState attacker, PlayerState defender, CharacterAnimationManager animMgr)
         {
             if (!attacker.ConsumeMana(30))
@@ -578,7 +592,7 @@ namespace DoAn_NT106.Client.BattleSystems
 
             if (player.IsAttacking || player.IsDashing || !player.CanDash)
             {
-                Console.WriteLine($"?? Player{playerNum} kh�ng th? dash!");
+                Console.WriteLine($"?? Player{playerNum} không th? dash!");
                 return;
             }
 
@@ -720,6 +734,11 @@ namespace DoAn_NT106.Client.BattleSystems
             else if (player.Mana >= 30)
                 ExecuteAttack(playerNum, "special");
         }
+        // In CombatSystem.cs - ToggleKnightGirlSkill() (dòng ~710-820)
+
+        // In CombatSystem.cs - ToggleKnightGirlSkill()
+
+        // In CombatSystem.cs - ToggleKnightGirlSkill()
 
         private void ToggleKnightGirlSkill(int playerNum, PlayerState player)
         {
@@ -738,48 +757,81 @@ namespace DoAn_NT106.Client.BattleSystems
                 player.CurrentAnimation = "fireball";
                 animMgr.ResetAnimationToFirstFrame("fireball");
 
-                var skillTimer = new Timer { Interval = 1000 };
-                skillTimer.Tick += (s, e) =>
+                int elapsedMs = 0;
+                int lastDamageTime = 0;
+                int damageCounter = 0;
+
+                Console.WriteLine($"[SKILL START] Player {playerNum} ({player.CharacterType}) activated skill!");
+
+                var continuousCheckTimer = new Timer { Interval = 100 };
+                continuousCheckTimer.Tick += (s, e) =>
                 {
-                    player.Mana -= 30;
+                    elapsedMs += 100;
+                    lastDamageTime += 100;
 
-                    var halfSecondTimer = new Timer { Interval = 500 };
-                    halfSecondTimer.Tick += (s2, e2) =>
+                    if (!player.IsSkillActive)
                     {
-                        halfSecondTimer.Stop();
-                        halfSecondTimer.Dispose();
-                        if (CheckSkillHit(player, opponent))
-                        {
-                            ApplyDamage(playerNum == 1 ? 2 : 1, 5, false);
-                            showHitEffectCallback?.Invoke("Energy!", Color.Cyan);
-                        }
-                    };
-                    halfSecondTimer.Start();
+                        continuousCheckTimer.Stop();
+                        continuousCheckTimer.Dispose();
+                        Console.WriteLine($"[SKILL END] Player {playerNum} skill stopped");
+                        return;
+                    }
 
-                    var oneSecondTimer = new Timer { Interval = 1000 };
-                    oneSecondTimer.Tick += (s3, e3) =>
+                    // ✅ Lấy hitbox
+                    Rectangle attackBox = getAttackHitboxCallback(player, "skill");
+                    Rectangle hurtBox = getPlayerHurtboxCallback(opponent);
+
+                    bool isColliding = attackBox.IntersectsWith(hurtBox);
+
+                    // ✅ REDUCED DEBUG: Chỉ log mỗi 500ms HOẶC khi collision
+                    bool shouldLog = (elapsedMs % 500 == 0) || isColliding;
+
+                    if (shouldLog)
                     {
-                        oneSecondTimer.Stop();
-                        oneSecondTimer.Dispose();
-                        if (CheckSkillHit(player, opponent))
-                        {
-                            ApplyDamage(playerNum == 1 ? 2 : 1, 5, false);
-                            showHitEffectCallback?.Invoke("Energy!", Color.Cyan);
-                        }
-                    };
-                    oneSecondTimer.Start();
+                        Console.WriteLine($"[SKILL {elapsedMs}ms] Player {playerNum}:");
+                        Console.WriteLine($"  Attack: X={attackBox.X}, Y={attackBox.Y}, W={attackBox.Width}, H={attackBox.Height}");
+                        Console.WriteLine($"  Hurt:   X={hurtBox.X}, Y={hurtBox.Y}, W={hurtBox.Width}, H={hurtBox.Height}");
+                        Console.WriteLine($"  Collision: {(isColliding ? "✅ YES" : "❌ NO")} | Last damage: {lastDamageTime}ms ago");
+                    }
 
+                    // ✅ GÂY DAMAGE MỖI 500MS
+                    if (isColliding && lastDamageTime >= 500)
+                    {
+                        int targetPlayer = playerNum == 1 ? 2 : 1;
+
+                        Console.WriteLine($"[SKILL] 🎯 Player {playerNum} dealing damage to Player {targetPlayer}!");
+
+                        ApplyDamage(targetPlayer, 5, false);
+                        showHitEffectCallback?.Invoke("Energy!", Color.Cyan);
+                        damageCounter++;
+                        lastDamageTime = 0;
+
+                        Console.WriteLine($"[SKILL] ✅ Damage #{damageCounter} dealt!");
+                    }
+
+                    // ✅ Consume mana mỗi 1000ms
+                    if (elapsedMs % 1000 == 0 && elapsedMs > 0)
+                    {
+                        player.Mana -= 30;
+                        Console.WriteLine($"[SKILL] Mana consumed at {elapsedMs}ms, remaining: {player.Mana}");
+                    }
+
+                    // ✅ Hết mana
                     if (player.Mana < 30)
                     {
+                        continuousCheckTimer.Stop();
+                        continuousCheckTimer.Dispose();
                         player.IsSkillActive = false;
-                        skillTimer.Stop();
-                        skillTimer.Dispose();
+
                         if (!player.IsAttacking && !player.IsJumping)
                             player.ResetToIdle();
+
                         showHitEffectCallback?.Invoke("Out of Mana!", Color.Gray);
+                        Console.WriteLine($"[SKILL END] Player {playerNum} out of mana.  Total damage hits: {damageCounter}");
                     }
                 };
-                skillTimer.Start();
+                continuousCheckTimer.Start();
+
                 showHitEffectCallback?.Invoke("Energy Shield!", Color.Cyan);
             }
             else
@@ -787,9 +839,9 @@ namespace DoAn_NT106.Client.BattleSystems
                 player.IsSkillActive = false;
                 if (!player.IsAttacking && !player.IsJumping)
                     player.ResetToIdle();
+                Console.WriteLine($"[SKILL END] Player {playerNum} manually deactivated skill");
             }
         }
-
         private void ExecuteGoatmanCharge(int playerNum, PlayerState player)
         {
             CharacterAnimationManager animMgr = playerNum == 1 ? player1AnimManager : player2AnimManager;
@@ -994,13 +1046,12 @@ namespace DoAn_NT106.Client.BattleSystems
             animationEndTimer.Start();
         }
 
-        private bool CheckAttackHit(PlayerState attacker, PlayerState defender)
+        private bool CheckAttackHit(PlayerState attacker, PlayerState defender, string attackType)
         {
-            Rectangle attackHitbox = GetAttackHitbox(attacker);
-            Rectangle targetHurtbox = GetPlayerHurtbox(defender);
+            Rectangle attackHitbox = getAttackHitboxCallback(attacker, attackType);
+            Rectangle targetHurtbox = getPlayerHurtboxCallback(defender); // dùng cùng hệ quy chiếu
             return attackHitbox.IntersectsWith(targetHurtbox);
         }
-
         private bool CheckSkillHit(PlayerState player, PlayerState opponent)
         {
             Rectangle skillRange = new Rectangle(player.X - 50, player.Y - 50, playerWidth + 100, playerHeight + 100);
@@ -1008,20 +1059,76 @@ namespace DoAn_NT106.Client.BattleSystems
             return skillRange.IntersectsWith(targetRect);
         }
 
-        private Rectangle GetAttackHitbox(PlayerState player)
-        {
-            int hitboxWidth = playerWidth / 2;
-            int hitboxHeight = playerHeight / 2;
-            int hitboxY = player.Y + (playerHeight - hitboxHeight) / 2;
-            int hitboxX = player.Facing == "right" ? player.X + playerWidth / 2 : player.X + playerWidth / 2 - hitboxWidth;
-            return new Rectangle(hitboxX, hitboxY, hitboxWidth, hitboxHeight);
-        }
-
         private Rectangle GetPlayerHurtbox(PlayerState player)
         {
-            return new Rectangle(player.X, player.Y, playerWidth, playerHeight);
-        }
+            // ✅ Tính actualSize giống như BattleForm
+            float sizeScale = 1.0f;
+            int yOffset = 0;
+            int groundAdjustment = 0;
 
+            if (player.CharacterType == "girlknight")
+            {
+                sizeScale = 0.7f;
+                yOffset = (int)(playerHeight * (1.0f - sizeScale));
+            }
+            else if (player.CharacterType == "bringerofdeath")
+            {
+                sizeScale = 1.6f;
+                groundAdjustment = -95;
+            }
+            else if (player.CharacterType == "goatman")
+            {
+                sizeScale = 0.7f;
+                yOffset = (int)(playerHeight * (1.0f - sizeScale));
+            }
+
+            int actualHeight = (int)(playerHeight * sizeScale);
+            int actualWidth = (int)(playerWidth * sizeScale);
+
+            // ✅ Hitbox config
+            float widthPercent = 0.5f;
+            float heightPercent = 0.8f;
+            float offsetYPercent = 0.2f;
+            int offsetXAdjust = 0;
+
+            if (player.CharacterType == "girlknight")
+            {
+                widthPercent = 0.5f;
+                heightPercent = 0.80f;
+                offsetYPercent = 0.20f;
+            }
+            else if (player.CharacterType == "bringerofdeath")
+            {
+                widthPercent = 0.30f;
+                heightPercent = 0.50f;
+                offsetYPercent = 0.35f;
+            }
+            else if (player.CharacterType == "goatman")
+            {
+                widthPercent = 0.60f;
+                heightPercent = 0.78f;
+                offsetYPercent = 0.12f;
+                offsetXAdjust = 65; // ✅ Sprite padding fix
+            }
+            else if (player.CharacterType == "warrior")
+            {
+                widthPercent = 0.48f;
+                heightPercent = 0.75f;
+                offsetYPercent = 0.18f;
+            }
+
+            int hurtboxWidth = (int)(actualWidth * widthPercent);
+            int hurtboxHeight = (int)(actualHeight * heightPercent);
+            int offsetX = (actualWidth - hurtboxWidth) / 2 + offsetXAdjust;
+            int offsetYValue = (int)(actualHeight * offsetYPercent);
+
+            return new Rectangle(
+                player.X + offsetX,
+                player.Y + yOffset + groundAdjustment + offsetYValue,
+                hurtboxWidth,
+                hurtboxHeight
+            );
+        }
         public void Cleanup()
         {
             p1ParryTimer?.Stop();
