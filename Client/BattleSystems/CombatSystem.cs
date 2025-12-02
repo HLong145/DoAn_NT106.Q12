@@ -402,8 +402,7 @@ namespace DoAn_NT106.Client.BattleSystems
                 hitTimer.Dispose();
 
                 Rectangle attackHitbox = getAttackHitboxCallback(attacker, "kick");
-                Rectangle targetHurtbox = GetPlayerHurtbox(defender);
-
+                Rectangle targetHurtbox = getPlayerHurtboxCallback(defender);
                 if (attackHitbox.IntersectsWith(targetHurtbox))
                 {
                     int impactX = attacker.Facing == "right" ? attackHitbox.X + attackHitbox.Width : attackHitbox.X - 60;
