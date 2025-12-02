@@ -493,10 +493,10 @@ namespace DoAn_NT106
             },
             ["bringerofdeath"] = new HitboxConfig
             {
-                WidthPercent = 0.24f,
+                WidthPercent = 0.30f,
                 HeightPercent = 0.50f,
                 OffsetYPercent = 0.35f,
-                OffsetXPercent = 0.08f
+                OffsetXPercent = 0f
             },
             ["goatman"] = new HitboxConfig
             {
@@ -588,6 +588,7 @@ namespace DoAn_NT106
 
                 // 3. Initialize PhysicsSystem
                 physicsSystem = new PhysicsSystem(groundLevel, backgroundWidth, PLAYER_WIDTH, PLAYER_HEIGHT);
+              
 
                 // 4. Initialize EffectManager
                 effectManager = new EffectManager();
@@ -1904,22 +1905,19 @@ namespace DoAn_NT106
 
             var config = characterHitboxConfigs[player.CharacterType];
 
-            // Width/Height dựa trên actualSize
             int hitboxWidth = (int)(actualWidth * config.WidthPercent);
             int hitboxHeight = (int)(actualHeight * config.HeightPercent);
 
-            // Căn giữa theo actualWidth
+            // ✅ CĂN GIỮA HOÀN HẢO
             int offsetX = (actualWidth - hitboxWidth) / 2;
             int offsetY = (int)(actualHeight * config.OffsetYPercent);
 
-            // Áp dụng OffsetXPercent chung cho mọi nhân vật
-            offsetX += (int)(actualWidth * (config.OffsetXPercent));
-
-            // HARD FIX: Goatman sprite có padding → cộng thêm 65px
+            // ✅ CHỈ GOATMAN MỚI CÓ HARD FIX
             if (player.CharacterType == "goatman")
             {
-                offsetX += 65;
+                offsetX += 65; // Sprite padding fix
             }
+            // Bringer of Death, Warrior, GirlKnight đều căn giữa tự nhiên
 
             Console.WriteLine($"[{player.CharacterType}] Hurtbox: PlayerX={player.X}, ActualW={actualWidth}, HitboxW={hitboxWidth}, OffsetX={offsetX}, FinalX={player.X + offsetX}");
 
@@ -1930,6 +1928,7 @@ namespace DoAn_NT106
                 hitboxHeight
             );
         }
+
         // ✅ THÊM: Phương thức tính vùng tấn công của nhân vật
         private Rectangle GetAttackHitbox(PlayerState attacker, string attackType)
         {
