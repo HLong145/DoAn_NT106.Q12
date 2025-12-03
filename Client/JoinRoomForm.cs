@@ -748,6 +748,8 @@ namespace PixelGameLobby
 
             try
             {
+                Console.WriteLine($"[JoinRoomForm] Connecting to GlobalChat as {username}...");
+
                 globalChatClient = new GlobalChatClient("127.0.0.1", 8080);
 
                 globalChatClient.OnChatMessage += GlobalChat_OnChatMessage;
@@ -757,12 +759,11 @@ namespace PixelGameLobby
 
                 var result = await globalChatClient.ConnectAndJoinAsync(username, token);
 
-                Console.WriteLine($"[JoinRoomForm] GlobalChat result: Success={result.Success}, OnlineCount={result.OnlineCount}");
+                Console.WriteLine($"[JoinRoomForm] GlobalChat result: Success={result.Success}, OnlineCount={result.OnlineCount}, History={result.History?.Count ?? 0}");
 
                 if (result.Success)
                 {
-                    // ✅ FIX: Cập nhật online count ngay lập tức
-                    Console.WriteLine($"[JoinRoomForm] Updating online count to: {result.OnlineCount}");
+                    Console.WriteLine($"[JoinRoomForm] Calling UpdateOnlineCount({result.OnlineCount})");
                     UpdateOnlineCount(result.OnlineCount);
 
                     if (result.History != null)
@@ -772,6 +773,8 @@ namespace PixelGameLobby
                             AddChatMessageToUI(msg);
                         }
                     }
+
+                    Console.WriteLine($"[JoinRoomForm] GlobalChat connected successfully");
                 }
                 else
                 {
@@ -784,23 +787,32 @@ namespace PixelGameLobby
             }
         }
 
+        private void GlobalChat_OnOnlineCountUpdate(int count)
+        {
+            Console.WriteLine($"[JoinRoomForm] OnOnlineCountUpdate received: {count}");
+
+            if (this.InvokeRequired)
+            {
+                this.Invoke(new Action<int>(GlobalChat_OnOnlineCountUpdate), count);
+                return;
+            }
+            UpdateOnlineCount(count);
+        }
+
         private void UpdateOnlineCount(int count)
         {
-            Console.WriteLine($"[JoinRoomForm] UpdateOnlineCount called with: {count}");
+            Console.WriteLine($"[JoinRoomForm] UpdateOnlineCount: {count}");
 
             if (lblOnlineCount != null)
             {
-                if (lblOnlineCount.InvokeRequired)
-                {
-                    lblOnlineCount.Invoke(new Action(() => lblOnlineCount.Text = $"🟢 {count} online"));
-                }
-                else
-                {
-                    lblOnlineCount.Text = $"🟢 {count} online";
-                }
+                lblOnlineCount.Text = $"🟢 {count} online";
+                Console.WriteLine($"[JoinRoomForm] Label updated to: {lblOnlineCount.Text}");
+            }
+            else
+            {
+                Console.WriteLine($"[JoinRoomForm] ⚠️ lblOnlineCount is NULL!");
             }
         }
-
         private void GlobalChat_OnChatMessage(ChatMessageData message)
         {
             if (this.InvokeRequired)
@@ -811,16 +823,7 @@ namespace PixelGameLobby
             AddChatMessageToUI(message);
         }
 
-        private void GlobalChat_OnOnlineCountUpdate(int count)
-        {
-            if (this.InvokeRequired)
-            {
-                this.Invoke(new Action<int>(GlobalChat_OnOnlineCountUpdate), count);
-                return;
-            }
-            UpdateOnlineCount(count);
-        }
-
+        
         private void GlobalChat_OnError(string error)
         {
             if (this.InvokeRequired)
@@ -840,6 +843,8 @@ namespace PixelGameLobby
             }
             UpdateOnlineCount(0);
         }
+
+        
 
         private void AddChatMessageToUI(ChatMessageData message)
         {

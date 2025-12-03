@@ -202,9 +202,6 @@ namespace DoAn_NT106.Server
         // ===========================
         // RỜI PHÒNG (với database)
         // ===========================
-        // ===========================
-        // RỜI PHÒNG (với database)
-        // ===========================
         public void LeaveRoom(string roomCode, string username)
         {
             try
@@ -213,48 +210,37 @@ namespace DoAn_NT106.Server
                 dbService.LeaveRoom(roomCode, username);
 
                 if (!activeRooms.TryGetValue(roomCode, out GameRoom room))
-                {
-                    Log($"⚠️ Room {roomCode} not found in memory");
                     return;
-                }
 
                 bool wasPlayer1 = room.Player1Username == username;
-                bool wasPlayer2 = room.Player2Username == username;
-
-                if (!wasPlayer1 && !wasPlayer2)
-                {
-                    Log($"⚠️ {username} is not in room {roomCode}");
-                    return;
-                }
-
                 room.LastActivity = DateTime.Now;
 
                 if (wasPlayer1)
                 {
                     room.Player1Username = null;
                     room.Player1Client = null;
-                    Log($"👋 {username} left room {roomCode} (was Player 1)");
                 }
-                else if (wasPlayer2)
+                else
                 {
                     room.Player2Username = null;
                     room.Player2Client = null;
-                    Log($"👋 {username} left room {roomCode} (was Player 2)");
                 }
 
-                // ✅ FIX: Kiểm tra và xóa room nếu trống
-                bool roomEmpty = string.IsNullOrEmpty(room.Player1Username) &&
-                                 string.IsNullOrEmpty(room.Player2Username);
+                Log($"👋 {username} left room {roomCode}");
 
-                if (roomEmpty)
+                // ✅ FIX: Nếu phòng trống -> xóa khỏi memory VÀ database
+                if (string.IsNullOrEmpty(room.Player1Username) &&
+                    string.IsNullOrEmpty(room.Player2Username))
                 {
-                    // Xóa khỏi memory
                     activeRooms.TryRemove(roomCode, out _);
 
-                    // Xóa khỏi database
+                    // ✅ THÊM MỚI: Xóa khỏi database
                     dbService.DeleteRoom(roomCode);
 
                     Log($"🗑️ Room {roomCode} deleted (empty)");
+
+                    // ✅ THÊM MỚI: Broadcast room list
+                    RoomListBroadcaster?.BroadcastRoomList();
                 }
                 else
                 {
@@ -264,10 +250,10 @@ namespace DoAn_NT106.Server
                         Action = "PLAYER_LEFT",
                         Data = new { username = username }
                     });
-                }
 
-                // ✅ Broadcast room list update
-                RoomListBroadcaster?.BroadcastRoomList();
+                    // ✅ THÊM MỚI: Broadcast room list (room còn slot trống)
+                    RoomListBroadcaster?.BroadcastRoomList();
+                }
             }
             catch (Exception ex)
             {

@@ -254,6 +254,7 @@ namespace DoAn_NT106.Server
                 while (tcpClient.Connected)
                 {
                     int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
+
                     if (bytesRead == 0) break;
 
                     string requestJson = Encoding.UTF8.GetString(buffer, 0, bytesRead);
@@ -274,35 +275,22 @@ namespace DoAn_NT106.Server
             }
             finally
             {
-                // ✅ FIX: Cleanup tất cả khi disconnect
-
-                // 1. Cleanup Global Chat
+                // Cleanup code...
                 if (!string.IsNullOrEmpty(globalChatUsername))
                 {
                     globalChatManager.LeaveGlobalChat(globalChatUsername);
-                    globalChatManager.BroadcastOnlineCount();  // ✅ THÊM: Broadcast khi disconnect
-                    server.Log($"🧹 Cleaned up GlobalChat for {globalChatUsername}");
                 }
 
-                // 2. Cleanup Lobby
+                // ✅ THÊM: Cleanup lobby connection
                 if (!string.IsNullOrEmpty(lobbyRoomCode) && !string.IsNullOrEmpty(lobbyUsername))
                 {
                     lobbyManager?.LeaveLobby(lobbyRoomCode, lobbyUsername);
-                    server.Log($"🧹 Cleaned up Lobby {lobbyRoomCode} for {lobbyUsername}");
                 }
 
-                // 3. ✅ THÊM: Cleanup Room (quan trọng!)
-                if (!string.IsNullOrEmpty(currentRoomCode) && !string.IsNullOrEmpty(currentUsername))
-                {
-                    roomManager?.LeaveRoom(currentRoomCode, currentUsername);
-                    server.Log($"🧹 Cleaned up Room {currentRoomCode} for {currentUsername}");
-                }
-
-                // 4. Cleanup RoomList subscription
                 if (!string.IsNullOrEmpty(roomListUsername))
                 {
                     roomListBroadcaster?.Unsubscribe(roomListUsername);
-                    server.Log($"🧹 Cleaned up RoomList subscription for {roomListUsername}");
+                    roomListUsername = null;
                 }
 
                 Close();
@@ -805,20 +793,16 @@ namespace DoAn_NT106.Server
                     return CreateResponse(false, "Room code and username are required");
                 }
 
-                // ✅ FIX: Leave cả Lobby VÀ Room
-                lobbyManager?.LeaveLobby(roomCode, username);
-                roomManager?.LeaveRoom(roomCode, username);  // THÊM DÒNG NÀY
+                var result = lobbyManager.LeaveLobby(roomCode, username);
 
-                // Clear saved values
-                if (lobbyRoomCode == roomCode && lobbyUsername == username)
+                // Clear saved data
+                if (this.lobbyRoomCode == roomCode)
                 {
-                    lobbyRoomCode = null;
-                    lobbyUsername = null;
+                    this.lobbyRoomCode = null;
+                    this.lobbyUsername = null;
                 }
 
-                server.Log($"👋 {username} left lobby and room {roomCode}");
-
-                return CreateResponse(true, "Left lobby");
+                return CreateResponse(result.Success, result.Message);
             }
             catch (Exception ex)
             {
@@ -1169,17 +1153,12 @@ namespace DoAn_NT106.Server
                     return CreateResponse(false, "Username is required");
                 }
 
-                // Lưu username để cleanup khi disconnect
                 globalChatUsername = username;
 
                 var result = globalChatManager.JoinGlobalChat(username, this);
 
                 if (result.Success)
                 {
-                    // ✅ THÊM: Broadcast online count cho TẤT CẢ users đang online
-                    globalChatManager.BroadcastOnlineCount();
-
-                    // Lấy chat history để gửi cho user mới
                     var history = globalChatManager.GetChatHistory(30);
                     var historyData = history.Select(h => new
                     {
@@ -1190,11 +1169,18 @@ namespace DoAn_NT106.Server
                         type = h.Type
                     }).ToList();
 
-                    return CreateResponseWithData(true, result.Message, new Dictionary<string, object>
+                    var responseData = new Dictionary<string, object>
             {
                 { "onlineCount", result.OnlineCount },
                 { "history", historyData }
-            });
+            };
+
+                    string response = CreateResponseWithData(true, result.Message, responseData);
+
+                    // ✅ Log response để debug
+                    server.Log($"📤 GlobalChatJoin response: onlineCount={result.OnlineCount}, historyCount={historyData.Count}");
+
+                    return response;
                 }
 
                 return CreateResponse(false, result.Message);

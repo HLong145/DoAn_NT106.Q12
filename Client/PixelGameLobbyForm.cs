@@ -54,7 +54,7 @@ namespace PixelGameLobby
 
             // Events
             this.Load += GameLobbyForm_Load;
-            this.FormClosing += GameLobbyForm_FormClosing;
+            this.FormClosing += leaveRoomButton_Click;
         }
 
         public GameLobbyForm(string roomCode = null) : this(roomCode, "Guest", "")
@@ -74,39 +74,21 @@ namespace PixelGameLobby
             await JoinLobbyAsync();
         }
 
-        private async void GameLobbyForm_FormClosing(object sender, FormClosingEventArgs e)
+        private void GameLobbyForm_FormClosing(object sender, FormClosingEventArgs e)
         {
-            // Unsubscribe events
+            // Unsubscribe
             TcpClient.OnBroadcast -= HandleBroadcast;
             TcpClient.OnDisconnected -= HandleDisconnected;
 
-            try
+            // Fire and forget leave
+            _ = Task.Run(async () =>
             {
-                // ✅ FIX: Leave cả Lobby VÀ Room
-                Console.WriteLine($"[GameLobby] Leaving room {roomCode}...");
-
-                // Gọi đồng bộ để đảm bảo cleanup xong trước khi form đóng
-                var leaveTask = Task.Run(async () =>
+                try
                 {
-                    try
-                    {
-                        await TcpClient.LobbyLeaveAsync(roomCode, username);
-                        await TcpClient.LeaveRoomAsync(roomCode, username);
-                        Console.WriteLine($"[GameLobby] Successfully left room {roomCode}");
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"[GameLobby] Leave error: {ex.Message}");
-                    }
-                });
-
-                // Đợi tối đa 2 giây
-                leaveTask.Wait(2000);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[GameLobby] FormClosing error: {ex.Message}");
-            }
+                    await TcpClient.LobbyLeaveAsync(roomCode, username);
+                }
+                catch { }
+            });
         }
 
         // ===========================
