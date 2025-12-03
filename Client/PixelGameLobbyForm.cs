@@ -74,21 +74,39 @@ namespace PixelGameLobby
             await JoinLobbyAsync();
         }
 
-        private void GameLobbyForm_FormClosing(object sender, FormClosingEventArgs e)
+        private async void GameLobbyForm_FormClosing(object sender, FormClosingEventArgs e)
         {
-            // Unsubscribe
+            // Unsubscribe events
             TcpClient.OnBroadcast -= HandleBroadcast;
             TcpClient.OnDisconnected -= HandleDisconnected;
 
-            // Fire and forget leave
-            _ = Task.Run(async () =>
+            try
             {
-                try
+                // ✅ FIX: Leave cả Lobby VÀ Room
+                Console.WriteLine($"[GameLobby] Leaving room {roomCode}...");
+
+                // Gọi đồng bộ để đảm bảo cleanup xong trước khi form đóng
+                var leaveTask = Task.Run(async () =>
                 {
-                    await TcpClient.LobbyLeaveAsync(roomCode, username);
-                }
-                catch { }
-            });
+                    try
+                    {
+                        await TcpClient.LobbyLeaveAsync(roomCode, username);
+                        await TcpClient.LeaveRoomAsync(roomCode, username);
+                        Console.WriteLine($"[GameLobby] Successfully left room {roomCode}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[GameLobby] Leave error: {ex.Message}");
+                    }
+                });
+
+                // Đợi tối đa 2 giây
+                leaveTask.Wait(2000);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GameLobby] FormClosing error: {ex.Message}");
+            }
         }
 
         // ===========================
@@ -526,15 +544,18 @@ namespace PixelGameLobby
             {
                 try
                 {
+                    // ✅ Async calls
                     await TcpClient.LobbyLeaveAsync(roomCode, username);
                     await TcpClient.LeaveRoomAsync(roomCode, username);
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[GameLobby] Leave error: {ex.Message}");
+                }
 
                 this.Close();
             }
         }
-
         private async void sendButton_Click(object sender, EventArgs e)
         {
             string message = messageTextBox.Text.Trim();

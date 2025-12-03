@@ -308,6 +308,7 @@ namespace DoAn_NT106.Services
         public Task<ServerResponse> GetUserByContactAsync(string contact, bool isEmail)
             => SendRequestAsync("GET_USER_BY_CONTACT", new Dictionary<string, object> { { "contact", contact }, { "isEmail", isEmail } });
 
+
         // ===========================
         // API METHODS - ROOM
         // ===========================

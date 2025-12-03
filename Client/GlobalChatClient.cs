@@ -61,10 +61,10 @@ namespace DoAn_NT106.Services
                 {
                     Action = "GLOBAL_CHAT_JOIN",
                     Data = new Dictionary<string, object>
-                    {
-                        { "username", username },
-                        { "token", token }
-                    }
+            {
+                { "username", username },
+                { "token", token }
+            }
                 };
 
                 string requestJson = JsonSerializer.Serialize(request);
@@ -72,9 +72,12 @@ namespace DoAn_NT106.Services
                 await stream.WriteAsync(requestBytes, 0, requestBytes.Length);
 
                 // Đọc response
-                byte[] buffer = new byte[16384];
+                byte[] buffer = new byte[65536]; // Tăng buffer
                 int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
                 string responseJson = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+
+                // ✅ THÊM: Log response để debug
+                Console.WriteLine($"[GlobalChatClient] Response: {responseJson.Substring(0, Math.Min(500, responseJson.Length))}");
 
                 using var doc = JsonDocument.Parse(responseJson);
                 var root = doc.RootElement;
@@ -89,8 +92,16 @@ namespace DoAn_NT106.Services
 
                     if (root.TryGetProperty("Data", out var data))
                     {
+                        // ✅ FIX: Parse onlineCount an toàn
                         if (data.TryGetProperty("onlineCount", out var countEl))
+                        {
                             onlineCount = countEl.GetInt32();
+                            Console.WriteLine($"[GlobalChatClient] Parsed onlineCount: {onlineCount}");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"[GlobalChatClient] WARNING: 'onlineCount' not found in response");
+                        }
 
                         if (data.TryGetProperty("history", out var historyEl))
                         {
@@ -98,13 +109,14 @@ namespace DoAn_NT106.Services
                             {
                                 history.Add(new ChatMessageData
                                 {
-                                    Id = item.GetProperty("id").GetString(),
-                                    Username = item.GetProperty("username").GetString(),
-                                    Message = item.GetProperty("message").GetString(),
-                                    Timestamp = item.GetProperty("timestamp").GetString(),
-                                    Type = item.GetProperty("type").GetString()
+                                    Id = GetStringProperty(item, "id"),
+                                    Username = GetStringProperty(item, "username"),
+                                    Message = GetStringProperty(item, "message"),
+                                    Timestamp = GetStringProperty(item, "timestamp"),
+                                    Type = GetStringProperty(item, "type")
                                 });
                             }
+                            Console.WriteLine($"[GlobalChatClient] Loaded {history.Count} history messages");
                         }
                     }
 
@@ -113,6 +125,8 @@ namespace DoAn_NT106.Services
                     listenTask = Task.Run(() => ListenForBroadcasts(cts.Token));
 
                     OnConnected?.Invoke();
+
+                    Console.WriteLine($"[GlobalChatClient] Returning onlineCount: {onlineCount}");
                     return (true, onlineCount, history);
                 }
 
@@ -123,8 +137,15 @@ namespace DoAn_NT106.Services
             catch (Exception ex)
             {
                 OnError?.Invoke($"Connection error: {ex.Message}");
+                Console.WriteLine($"[GlobalChatClient] Exception: {ex.Message}");
                 return (false, 0, null);
             }
+        }
+
+        // ✅ THÊM: Helper method an toàn
+        private string GetStringProperty(JsonElement el, string name)
+        {
+            return el.TryGetProperty(name, out var prop) ? prop.GetString() ?? "" : "";
         }
 
         // ===========================

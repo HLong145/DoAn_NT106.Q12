@@ -35,10 +35,14 @@ namespace DoAn_NT106.Server
                 if (string.IsNullOrEmpty(username))
                     return (false, "Username is required", 0);
 
+                // Thêm user vào dictionary
                 onlineUsers.AddOrUpdate(username, client, (key, oldClient) => client);
 
                 int onlineCount = onlineUsers.Count;
                 Log($"✅ {username} joined Global Chat. Online: {onlineCount}");
+
+                // ✅ THÊM: Broadcast thông báo user join (tin nhắn hệ thống)
+                BroadcastSystemMessage($"{username} đã tham gia chat", excludeUser: null);
 
                 return (true, "Joined Global Chat", onlineCount);
             }
@@ -61,8 +65,8 @@ namespace DoAn_NT106.Server
                     int onlineCount = onlineUsers.Count;
                     Log($"👋 {username} left Global Chat. Online: {onlineCount}");
 
-                    // Broadcast thông báo user leave
-                    BroadcastSystemMessage($"{username} đã rời chat", username);
+                    // ✅ Broadcast thông báo user leave VÀ cập nhật số online
+                    BroadcastSystemMessage($"{username} đã rời chat", excludeUser: null);
 
                     return (true, onlineCount);
                 }
