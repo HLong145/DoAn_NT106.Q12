@@ -391,7 +391,7 @@ namespace DoAn_NT106
                 {
                     WidthPercent = 0.6f,      // ✅ Tăng từ 0.5f lên 0.6f
                     HeightPercent = 0.5f,     // ✅ Tăng từ 0.4f lên 0.5f
-                    RangePercent = 0.55f,     // ✅ Tăng từ 0.35f lên 0.55f (tầm xa hơn)
+                    RangePercent = 0.47f,     // ✅ Tăng từ 0.35f lên 0.55f (tầm xa hơn)
                     OffsetYPercent = 0.30f    // ✅ Giảm từ 0.35f xuống 0.30f (cao hơn)
                 },
                 ["kick"] = new AttackHitboxConfig
@@ -403,9 +403,9 @@ namespace DoAn_NT106
                 }, 
                 ["skill"] = new AttackHitboxConfig
                 {
-                    WidthPercent = 1.5f,      // ✅ Tăng từ 1.2f lên 1. 5f
-                    HeightPercent = 1.0f,     // ✅ Tăng từ 0.8f lên 1.0f
-                    RangePercent = 1.2f,      // ✅ Tăng từ 0.8f lên 1.2f (skill vùng gần)
+                    WidthPercent = 1f,      // ✅ Tăng từ 1.2f lên 1. 5f
+                    HeightPercent = 1f,     // ✅ Tăng từ 0.8f lên 1.0f
+                    RangePercent = 0.5f,      // ✅ Tăng từ 0.8f lên 1.2f (skill vùng gần)
                     OffsetYPercent = 0.10f    // ✅ Giảm từ 0.15f xuống 0.10f
                 }
             },
@@ -415,21 +415,21 @@ namespace DoAn_NT106
                 {
                     WidthPercent = 0.6f,
                     HeightPercent = 0.4f,
-                    RangePercent = 0.4f,      // ✅ GIẢM từ 0. 6f xuống 0.4f
+                    RangePercent = 0.33f,      // ✅ GIẢM từ 0. 6f xuống 0.4f
                     OffsetYPercent = 0.30f
                 },
                 ["kick"] = new AttackHitboxConfig
                 {
                     WidthPercent = 0.7f,
                     HeightPercent = 0.35f,
-                    RangePercent = 0.5f,
+                    RangePercent = 0.33f,
                     OffsetYPercent = 0.50f
                 },
                 ["skill"] = new AttackHitboxConfig
                 {
-                    WidthPercent = 1.5f,
-                    HeightPercent = 0.9f,
-                    RangePercent = 1.8f,      // ✅ GIẢM từ 2.6f xuống 1.8f (spell xa hơn)
+                    WidthPercent = 1f,
+                    HeightPercent = 1f,
+                    RangePercent = 0.5f,      // ✅ GIẢM từ 2.6f xuống 1.8f (spell xa hơn)
                     OffsetYPercent = 0.10f
                 }
             },
@@ -439,21 +439,21 @@ namespace DoAn_NT106
                 {
                     WidthPercent = 0.7f,
                     HeightPercent = 0.5f,
-                    RangePercent = 0.8f,      // ✅ TĂNG từ 0. 4f lên 0.8f
+                    RangePercent = 0.7f,      // ✅ TĂNG từ 0. 4f lên 0.8f
                     OffsetYPercent = 0.30f    // ✅ GIẢM từ 0.35f xuống 0.30f (cao hơn)
                 },
                 ["kick"] = new AttackHitboxConfig
                 {
                     WidthPercent = 0.8f,
                     HeightPercent = 0.5f,     // ✅ TĂNG từ 0.4f lên 0.5f
-                    RangePercent = 0.9f,      // ✅ TĂNG từ 0.6f lên 0. 9f
+                    RangePercent = 0.7f,      // ✅ TĂNG từ 0.6f lên 0. 9f
                     OffsetYPercent = 0.40f    // ✅ GIẢM từ 0.45f xuống 0.40f
                 },
                 ["skill"] = new AttackHitboxConfig
                 {
                     WidthPercent = 1.2f,      // ✅ TĂNG từ 1.0f lên 1. 2f
                     HeightPercent = 0.8f,     // ✅ TĂNG từ 0.7f lên 0.8f
-                    RangePercent = 1.4f,      // ✅ TĂNG từ 1.0f lên 1.4f
+                    RangePercent = 1f,      // ✅ TĂNG từ 1.0f lên 1.4f
                     OffsetYPercent = 0.15f    // ✅ GIẢM từ 0. 18f xuống 0.15f
                 }
             },
@@ -482,20 +482,20 @@ namespace DoAn_NT106
                 }
             }
         };
-        // Cấu hình hitbox chi tiết cho từng loại nhân vật
-        private Dictionary<string, HitboxConfig> characterHitboxConfigs = new Dictionary<string, HitboxConfig>
+        // Cấu hình HURTBOX chi tiết cho từng loại nhân vật 
+        private Dictionary<string, HitboxConfig> characterHurtboxConfigs = new Dictionary<string, HitboxConfig>
         {
             ["girlknight"] = new HitboxConfig
             {
-                WidthPercent = 0.5f,
-                HeightPercent = 0.80f,
-                OffsetYPercent = 0.20f
+                WidthPercent = 0.3f,    
+                HeightPercent = 0.68f,   
+                OffsetYPercent = 0.22f     
             },
             ["bringerofdeath"] = new HitboxConfig
             {
-                WidthPercent = 0.30f,
-                HeightPercent = 0.50f,
-                OffsetYPercent = 0.35f,
+                WidthPercent = 0.18f,      
+                HeightPercent = 0.45f,   
+                OffsetYPercent = 0.38f,   
                 OffsetXPercent = 0f
             },
             ["goatman"] = new HitboxConfig
@@ -507,9 +507,9 @@ namespace DoAn_NT106
             },
             ["warrior"] = new HitboxConfig
             {
-                WidthPercent = 0.48f,
-                HeightPercent = 0.75f,
-                OffsetYPercent = 0.18f
+                WidthPercent = 0.27f,      
+                HeightPercent = 0.5f,    
+                OffsetYPercent = 0.40f    
             }
         };
         public class HitboxConfig
@@ -712,7 +712,7 @@ namespace DoAn_NT106
                     dashEffectImage = CreateColoredImage(80, 80, Color.White);
                 }
 
-                // Load GM impact effect (✅ TẠO LỚN HƠN để dễ nhìn - từ 60x60 lên 100x100)
+                // Load GM impact effect ( TẠO LỚN HƠN để dễ nhìn - từ 60x60 lên 100x100)
                 try
                 {
                     gmImpactEffect = CreateColoredImage(100, 100, Color.OrangeRed);
@@ -1867,12 +1867,12 @@ namespace DoAn_NT106
         // Phương thức tính hitbox theo cấu hình nhân vật
         private Rectangle GetPlayerHitbox(int playerX, int playerY, string characterType, string facing)
         {
-            if (!characterHitboxConfigs.ContainsKey(characterType))
+            if (!characterHurtboxConfigs.ContainsKey(characterType))
             {
                 return new Rectangle(playerX, playerY, PLAYER_WIDTH, PLAYER_HEIGHT);
             }
 
-            var config = characterHitboxConfigs[characterType];
+            var config = characterHurtboxConfigs[characterType];
 
             int hitboxWidth = (int)(PLAYER_WIDTH * config.WidthPercent);
             int hitboxHeight = (int)(PLAYER_HEIGHT * config.HeightPercent);
@@ -1898,12 +1898,12 @@ namespace DoAn_NT106
             int yOffset = actualSize.yOffset;
             int groundAdjustment = actualSize.groundAdjustment;
 
-            if (!characterHitboxConfigs.ContainsKey(player.CharacterType))
+            if (!characterHurtboxConfigs.ContainsKey(player.CharacterType))
             {
                 return new Rectangle(player.X, player.Y + yOffset + groundAdjustment, actualWidth, actualHeight);
             }
 
-            var config = characterHitboxConfigs[player.CharacterType];
+            var config = characterHurtboxConfigs[player.CharacterType];
 
             int hitboxWidth = (int)(actualWidth * config.WidthPercent);
             int hitboxHeight = (int)(actualHeight * config.HeightPercent);
