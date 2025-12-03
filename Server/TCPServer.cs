@@ -22,6 +22,7 @@ namespace DoAn_NT106.Server
         //Quản lý chat global ở lobby form
         private GlobalChatManager globalChatManager;
         LobbyManager lobbyManager;
+        private RoomListBroadcaster roomListBroadcaster;
 
         private Task _acceptTask;
         private CancellationTokenSource cts;
@@ -35,14 +36,23 @@ namespace DoAn_NT106.Server
             tokenManager = new TokenManager();
             validationService = new ValidationService();
             securityService = new SecurityService();
+
             roomManager = new RoomManager();
             roomManager.OnLog += LogMessage;
+
+            // ✅ THÊM MỚI: Khởi tạo RoomListBroadcaster
+            roomListBroadcaster = new RoomListBroadcaster(roomManager);
+            roomListBroadcaster.OnLog += LogMessage;
+
+            // ✅ THÊM MỚI: Link broadcaster vào RoomManager
+            roomManager.RoomListBroadcaster = roomListBroadcaster;
+
             globalChatManager = new GlobalChatManager();
             globalChatManager.OnLog += LogMessage;
+
             lobbyManager = new LobbyManager();
             lobbyManager.OnLog += LogMessage;
         }
-
         public void Start(int port)
         {
             try
@@ -133,7 +143,8 @@ namespace DoAn_NT106.Server
                         securityService,
                         roomManager,
                         globalChatManager,
-                        lobbyManager);  // ✅ THÊM
+                        lobbyManager,
+                        roomListBroadcaster);  // ✅ THÊM
 
                     lock (connectedClients)
                     {
@@ -196,6 +207,8 @@ namespace DoAn_NT106.Server
         private RoomManager roomManager;
         private string currentUsername;
         private string currentRoomCode;
+        private RoomListBroadcaster roomListBroadcaster;
+        private string roomListUsername;
 
         private GlobalChatManager globalChatManager;
         private string globalChatUsername;
@@ -211,7 +224,8 @@ namespace DoAn_NT106.Server
             SecurityService securityService,
             RoomManager roomManager,
             GlobalChatManager globalChatManager,
-            LobbyManager lobbyManager)
+            LobbyManager lobbyManager,
+            RoomListBroadcaster roomListBroadcaster)
         {
             tcpClient = client;
             this.server = server;
@@ -223,6 +237,7 @@ namespace DoAn_NT106.Server
             this.roomManager = roomManager;
             this.globalChatManager = globalChatManager;
             this.lobbyManager = lobbyManager;
+            this.roomListBroadcaster = roomListBroadcaster;
         }
 
         public void SetNormalLogout()
@@ -239,7 +254,6 @@ namespace DoAn_NT106.Server
                 while (tcpClient.Connected)
                 {
                     int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
-
                     if (bytesRead == 0) break;
 
                     string requestJson = Encoding.UTF8.GetString(buffer, 0, bytesRead);
@@ -260,16 +274,35 @@ namespace DoAn_NT106.Server
             }
             finally
             {
-                // Cleanup code...
+                // ✅ FIX: Cleanup tất cả khi disconnect
+
+                // 1. Cleanup Global Chat
                 if (!string.IsNullOrEmpty(globalChatUsername))
                 {
                     globalChatManager.LeaveGlobalChat(globalChatUsername);
+                    globalChatManager.BroadcastOnlineCount();  // ✅ THÊM: Broadcast khi disconnect
+                    server.Log($"🧹 Cleaned up GlobalChat for {globalChatUsername}");
                 }
 
-                // ✅ THÊM: Cleanup lobby connection
+                // 2. Cleanup Lobby
                 if (!string.IsNullOrEmpty(lobbyRoomCode) && !string.IsNullOrEmpty(lobbyUsername))
                 {
                     lobbyManager?.LeaveLobby(lobbyRoomCode, lobbyUsername);
+                    server.Log($"🧹 Cleaned up Lobby {lobbyRoomCode} for {lobbyUsername}");
+                }
+
+                // 3. ✅ THÊM: Cleanup Room (quan trọng!)
+                if (!string.IsNullOrEmpty(currentRoomCode) && !string.IsNullOrEmpty(currentUsername))
+                {
+                    roomManager?.LeaveRoom(currentRoomCode, currentUsername);
+                    server.Log($"🧹 Cleaned up Room {currentRoomCode} for {currentUsername}");
+                }
+
+                // 4. Cleanup RoomList subscription
+                if (!string.IsNullOrEmpty(roomListUsername))
+                {
+                    roomListBroadcaster?.Unsubscribe(roomListUsername);
+                    server.Log($"🧹 Cleaned up RoomList subscription for {roomListUsername}");
                 }
 
                 Close();
@@ -422,6 +455,12 @@ namespace DoAn_NT106.Server
                     case "LOBBY_CHAT_SEND":
                         return HandleLobbyChatSend(request);
 
+                    //Các case liên quan đến broadcast danh sách phòng
+                    case "ROOM_LIST_SUBSCRIBE":
+                        return HandleRoomListSubscribe(request);
+
+                    case "ROOM_LIST_UNSUBSCRIBE":
+                        return HandleRoomListUnsubscribe(request);
 
                     default:
                         return CreateResponse(false, "Unknown action");
@@ -612,6 +651,72 @@ namespace DoAn_NT106.Server
             }
         }
 
+        private string HandleRoomListSubscribe(Request request)
+        {
+            try
+            {
+                var username = request.Data?["username"]?.ToString();
+
+                if (string.IsNullOrEmpty(username))
+                {
+                    return CreateResponse(false, "Username is required");
+                }
+
+                roomListUsername = username;
+                var result = roomListBroadcaster.Subscribe(username, this);
+
+                if (result.Success)
+                {
+                    // Tạo danh sách rooms với camelCase property names
+                    var roomsData = new List<object>();
+
+                    if (result.Rooms != null)
+                    {
+                        foreach (var r in result.Rooms)
+                        {
+                            roomsData.Add(new Dictionary<string, object>
+                    {
+                        { "roomCode", r.RoomCode },
+                        { "roomName", r.RoomName },
+                        { "hasPassword", r.HasPassword },
+                        { "playerCount", r.PlayerCount },
+                        { "status", r.Status }
+                    });
+                        }
+                    }
+
+                    return CreateResponseWithData(true, result.Message, new Dictionary<string, object>
+            {
+                { "rooms", roomsData }
+            });
+                }
+
+                return CreateResponse(false, result.Message);
+            }
+            catch (Exception ex)
+            {
+                server.Log($"❌ HandleRoomListSubscribe error: {ex.Message}");
+                return CreateResponse(false, $"Subscribe error: {ex.Message}");
+            }
+        }
+        private string HandleRoomListUnsubscribe(Request request)
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(roomListUsername))
+                {
+                    roomListBroadcaster.Unsubscribe(roomListUsername);
+                    roomListUsername = null;
+                }
+
+                return CreateResponse(true, "Unsubscribed");
+            }
+            catch (Exception ex)
+            {
+                return CreateResponse(false, $"Unsubscribe error: {ex.Message}");
+            }
+        }
+
         // ===========================
         // ✅ RỜI PHÒNG
         // ===========================
@@ -700,16 +805,20 @@ namespace DoAn_NT106.Server
                     return CreateResponse(false, "Room code and username are required");
                 }
 
-                var result = lobbyManager.LeaveLobby(roomCode, username);
+                // ✅ FIX: Leave cả Lobby VÀ Room
+                lobbyManager?.LeaveLobby(roomCode, username);
+                roomManager?.LeaveRoom(roomCode, username);  // THÊM DÒNG NÀY
 
-                // Clear saved data
-                if (this.lobbyRoomCode == roomCode)
+                // Clear saved values
+                if (lobbyRoomCode == roomCode && lobbyUsername == username)
                 {
-                    this.lobbyRoomCode = null;
-                    this.lobbyUsername = null;
+                    lobbyRoomCode = null;
+                    lobbyUsername = null;
                 }
 
-                return CreateResponse(result.Success, result.Message);
+                server.Log($"👋 {username} left lobby and room {roomCode}");
+
+                return CreateResponse(true, "Left lobby");
             }
             catch (Exception ex)
             {
@@ -1067,6 +1176,9 @@ namespace DoAn_NT106.Server
 
                 if (result.Success)
                 {
+                    // ✅ THÊM: Broadcast online count cho TẤT CẢ users đang online
+                    globalChatManager.BroadcastOnlineCount();
+
                     // Lấy chat history để gửi cho user mới
                     var history = globalChatManager.GetChatHistory(30);
                     var historyData = history.Select(h => new
@@ -1107,6 +1219,9 @@ namespace DoAn_NT106.Server
 
                 var result = globalChatManager.LeaveGlobalChat(username);
                 globalChatUsername = null;
+
+                // ✅ THÊM: Broadcast online count cho những người còn lại
+                globalChatManager.BroadcastOnlineCount();
 
                 return CreateResponseWithData(true, "Left Global Chat", new Dictionary<string, object>
         {

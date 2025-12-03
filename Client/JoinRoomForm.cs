@@ -27,9 +27,8 @@ namespace PixelGameLobby
 
         // Global Chat
         private GlobalChatClient globalChatClient;
+        private RoomListClient roomListClient;
 
-        // Auto-refresh timer
-        private System.Windows.Forms.Timer refreshTimer;
         private bool isLoadingRooms = false;
 
         public JoinRoomForm(string username, string token)
@@ -40,11 +39,7 @@ namespace PixelGameLobby
 
             SetupPixelStyling();
             SetupEventHandlers();
-            SetupRefreshTimer();
             SetupGlobalChatEvents();
-
-            this.Text = $"Pixel Game Lobby - Welcome {username}";
-            this.Load += async (s, e) => await LoadRoomsFromServerAsync();
         }
 
         public JoinRoomForm() : this("Guest", "")
@@ -119,57 +114,74 @@ namespace PixelGameLobby
             }
         }
 
-        private void SetupRefreshTimer()
-        {
-            refreshTimer = new System.Windows.Forms.Timer();
-            refreshTimer.Interval = 10000; // 10 giây
-            refreshTimer.Tick += async (s, e) => await LoadRoomsFromServerAsync();
-            refreshTimer.Start();
-        }
-
         #endregion
+        #region Initialization
 
-        #region Room Loading from Server
 
-        private async Task LoadRoomsFromServerAsync()
+        // ✅ THÊM MỚI: Setup RoomListClient
+        private async void SetupRoomListClient()
         {
-            if (isLoadingRooms) return;
-
-            isLoadingRooms = true;
             try
             {
-                var response = await TcpClient.GetRoomListAsync();
+                roomListClient = new RoomListClient();
 
-                if (response.Success && response.RawData.ValueKind != System.Text.Json.JsonValueKind.Undefined)
+                // Subscribe to events
+                roomListClient.OnRoomListUpdated += HandleRoomListUpdate;
+                roomListClient.OnError += (error) =>
                 {
-                    rooms.Clear();
+                    Console.WriteLine($"❌ RoomListClient error: {error}");
+                };
 
-                    if (response.RawData.TryGetProperty("rooms", out var roomsArray))
-                    {
-                        foreach (var roomEl in roomsArray.EnumerateArray())
-                        {
-                            rooms.Add(new Room
-                            {
-                                Code = roomEl.GetProperty("roomCode").GetString(),
-                                Name = roomEl.GetProperty("roomName").GetString(),
-                                Players = roomEl.GetProperty("players").GetString(),
-                                IsLocked = roomEl.TryGetProperty("hasPassword", out var hp) && hp.GetBoolean()
-                            });
-                        }
-                    }
+                // Connect and subscribe
+                bool connected = await roomListClient.ConnectAndSubscribeAsync(username, token);
 
-                    //BtnRefresh_Click(sender, e);
+                if (!connected)
+                {
+                    Console.WriteLine("❌ Failed to connect to room list broadcaster");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ LoadRooms error: {ex.Message}");
-            }
-            finally
-            {
-                isLoadingRooms = false;
+                Console.WriteLine($"❌ SetupRoomListClient error: {ex.Message}");
             }
         }
+
+        // ✅ THÊM MỚI: Handle room list updates
+        // ✅ SỬA: Đổi từ RoomInfo sang RoomListInfo
+        private void HandleRoomListUpdate(List<RoomListInfo> newRooms)
+        {
+            if (InvokeRequired)
+            {
+                Invoke(new Action(() => HandleRoomListUpdate(newRooms)));
+                return;
+            }
+
+            try
+            {
+                rooms.Clear();
+
+                foreach (var room in newRooms)
+                {
+                    rooms.Add(new Room
+                    {
+                        Code = room.RoomCode,
+                        Name = room.RoomName,
+                        Players = $"{room.PlayerCount}/2",
+                        IsLocked = room.HasPassword
+                    });
+                }
+
+                UpdateRoomsDisplay();
+                Console.WriteLine($"✅ Room list updated: {rooms.Count} rooms");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ HandleRoomListUpdate error: {ex.Message}");
+            }
+        }
+        #endregion
+        #region Room Loading from Server
+
 
         private void UpdateRefreshButtonState(string text, bool enabled)
         {
@@ -232,7 +244,7 @@ namespace PixelGameLobby
 
         private async void BtnRefresh_Click(object sender, EventArgs e)
         {
-            await LoadRoomsFromServerAsync();
+            ShowMessage("Refreshing...");
         }
 
         #endregion
@@ -453,7 +465,6 @@ namespace PixelGameLobby
 
                 if (response.Success)
                 {
-                    refreshTimer?.Stop();
                     globalChatClient?.Dispose();
                     globalChatClient = null;
 
@@ -462,8 +473,6 @@ namespace PixelGameLobby
                     lobbyForm.FormClosed += async (s, e) =>
                     {
                         this.Show();
-                        refreshTimer?.Start();
-                        await LoadRoomsFromServerAsync();
                         await ConnectGlobalChatAsync();
                     };
                     lobbyForm.Show();
@@ -534,7 +543,6 @@ namespace PixelGameLobby
 
                         if (!string.IsNullOrEmpty(roomCode))
                         {
-                            refreshTimer?.Stop();
                             globalChatClient?.Dispose();
                             globalChatClient = null;
 
@@ -543,8 +551,6 @@ namespace PixelGameLobby
                             lobbyForm.FormClosed += async (s, args) =>
                             {
                                 this.Show();
-                                refreshTimer?.Start();
-                                await LoadRoomsFromServerAsync();
                                 await ConnectGlobalChatAsync();
                             };
                             lobbyForm.Show();
@@ -584,7 +590,6 @@ namespace PixelGameLobby
                     string player2Name = testForm.Player2Name;
 
                     // Stop timers and chat
-                    refreshTimer?.Stop();
                     globalChatClient?.Dispose();
                     globalChatClient = null;
 
@@ -600,8 +605,6 @@ namespace PixelGameLobby
                     battleForm.FormClosed += async (s, args) =>
                     {
                         this.Show();
-                        refreshTimer?.Start();
-                        await LoadRoomsFromServerAsync();
                         await ConnectGlobalChatAsync();
                     };
 
@@ -697,7 +700,6 @@ namespace PixelGameLobby
 
         private void BtnBack_Click(object sender, EventArgs e)
         {
-            refreshTimer?.Stop();
             globalChatClient?.Dispose();
             globalChatClient = null;
 
@@ -729,7 +731,11 @@ namespace PixelGameLobby
             }
 
             // Kết nối Global Chat khi form load
-            this.Load += async (s, e) => await ConnectGlobalChatAsync();
+            this.Load += async (s, e) =>
+            {
+                await ConnectGlobalChatAsync();
+                SetupRoomListClient();
+            };
         }
 
         private async Task ConnectGlobalChatAsync()
@@ -751,8 +757,12 @@ namespace PixelGameLobby
 
                 var result = await globalChatClient.ConnectAndJoinAsync(username, token);
 
+                Console.WriteLine($"[JoinRoomForm] GlobalChat result: Success={result.Success}, OnlineCount={result.OnlineCount}");
+
                 if (result.Success)
                 {
+                    // ✅ FIX: Cập nhật online count ngay lập tức
+                    Console.WriteLine($"[JoinRoomForm] Updating online count to: {result.OnlineCount}");
                     UpdateOnlineCount(result.OnlineCount);
 
                     if (result.History != null)
@@ -763,10 +773,31 @@ namespace PixelGameLobby
                         }
                     }
                 }
+                else
+                {
+                    Console.WriteLine($"[JoinRoomForm] Failed to connect to GlobalChat");
+                }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Global Chat Error: {ex.Message}");
+                Console.WriteLine($"[JoinRoomForm] GlobalChat Error: {ex.Message}");
+            }
+        }
+
+        private void UpdateOnlineCount(int count)
+        {
+            Console.WriteLine($"[JoinRoomForm] UpdateOnlineCount called with: {count}");
+
+            if (lblOnlineCount != null)
+            {
+                if (lblOnlineCount.InvokeRequired)
+                {
+                    lblOnlineCount.Invoke(new Action(() => lblOnlineCount.Text = $"🟢 {count} online"));
+                }
+                else
+                {
+                    lblOnlineCount.Text = $"🟢 {count} online";
+                }
             }
         }
 
@@ -808,14 +839,6 @@ namespace PixelGameLobby
                 return;
             }
             UpdateOnlineCount(0);
-        }
-
-        private void UpdateOnlineCount(int count)
-        {
-            if (lblOnlineCount != null)
-            {
-                lblOnlineCount.Text = $"🟢 {count} online";
-            }
         }
 
         private void AddChatMessageToUI(ChatMessageData message)
@@ -905,12 +928,20 @@ namespace PixelGameLobby
 
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
-            // Cleanup resources
-            refreshTimer?.Stop();
-            refreshTimer?.Dispose();
-            globalChatClient?.Dispose();
-
             base.OnFormClosing(e);
+
+            try
+            {
+                // Disconnect room list client
+                roomListClient?.Disconnect();
+
+                // Disconnect global chat
+                globalChatClient?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Form closing error: {ex.Message}");
+            }
         }
 
         #endregion

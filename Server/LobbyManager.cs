@@ -243,6 +243,11 @@ namespace DoAn_NT106.Server
         // ===========================
         private void BroadcastLobbyState(LobbyData lobby, string excludeUsername)
         {
+            // ✅ THÊM: Tính player count
+            int playerCount = 0;
+            if (!string.IsNullOrEmpty(lobby.Player1Username)) playerCount++;
+            if (!string.IsNullOrEmpty(lobby.Player2Username)) playerCount++;
+
             var broadcast = new
             {
                 Action = "LOBBY_STATE_UPDATE",
@@ -253,7 +258,8 @@ namespace DoAn_NT106.Server
                     player1 = lobby.Player1Username,
                     player2 = lobby.Player2Username,
                     player1Ready = lobby.Player1Ready,
-                    player2Ready = lobby.Player2Ready
+                    player2Ready = lobby.Player2Ready,
+                    playerCount = playerCount 
                 }
             };
 
@@ -265,7 +271,6 @@ namespace DoAn_NT106.Server
             if (lobby.Player2Client != null && lobby.Player2Username != excludeUsername)
                 SafeSend(lobby.Player2Client, json);
         }
-
         private void BroadcastPlayerLeft(LobbyData lobby, string leftUsername)
         {
             var broadcast = new
@@ -345,6 +350,7 @@ namespace DoAn_NT106.Server
                 Log($"⚠️ SafeSend error: {ex.Message}");
             }
         }
+
     }
 
     // ===========================

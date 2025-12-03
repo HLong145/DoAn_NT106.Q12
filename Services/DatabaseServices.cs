@@ -685,7 +685,39 @@ namespace DoAn_NT106.Services
 
             return null;
         }
+        /// <summary>
+        /// Xóa room khỏi database
+        /// </summary>
+        public (bool Success, string Message) DeleteRoom(string roomCode)
+        {
+            try
+            {
+                using (var connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    string query = "DELETE FROM ROOMS WHERE ROOM_CODE = @RoomCode";
 
+                    using (var command = new SqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@RoomCode", roomCode);
+                        int rowsAffected = command.ExecuteNonQuery();
+
+                        if (rowsAffected > 0)
+                        {
+                            Console.WriteLine($"✅ Room {roomCode} deleted from database");
+                            return (true, "Room deleted");
+                        }
+
+                        return (false, "Room not found");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ DeleteRoom error: {ex.Message}");
+                return (false, ex.Message);
+            }
+        }
         /// <summary>
         /// Cập nhật thời gian hoạt động cuối cùng của room
         /// </summary>
