@@ -587,8 +587,14 @@ namespace DoAn_NT106
                 resourceSystem.SetupStatusBars(this.ClientSize.Width);
 
                 // 3. Initialize PhysicsSystem
-                physicsSystem = new PhysicsSystem(groundLevel, backgroundWidth, PLAYER_WIDTH, PLAYER_HEIGHT);
-              
+                physicsSystem = new PhysicsSystem(
+          groundLevel,
+          backgroundWidth,
+          PLAYER_WIDTH,
+          PLAYER_HEIGHT,
+         GetPlayerHitbox
+      );
+
 
                 // 4. Initialize EffectManager
                 effectManager = new EffectManager();
@@ -1363,10 +1369,33 @@ namespace DoAn_NT106
         }
         private void UpdateCamera()
         {
-            // ✅ MIGRATED: Use PlayerState instead of local variables
+            // ✅ Calculate center point between two players
             int centerX = (player1State.X + player2State.X) / 2;
+            
+            // ✅ Center viewport on players
             viewportX = centerX - this.ClientSize.Width / 2;
+            
+            // ✅ CLAMP VIEWPORT: Ensure map boundaries are respected
+            // - Minimum: viewport starts at 0 (left edge of map)
+            // - Maximum: viewport ends at backgroundWidth (right edge of map)
             viewportX = Math.Max(0, Math.Min(backgroundWidth - this.ClientSize.Width, viewportX));
+            
+            // ✅ ADDITIONAL CHECK: If a player is too close to map edge, adjust viewport
+            // This prevents players from appearing to go "outside" the visible screen
+            int minPlayerX = Math.Min(player1State.X, player2State.X);
+            int maxPlayerX = Math.Max(player1State.X + PLAYER_WIDTH, player2State.X + PLAYER_WIDTH);
+            
+            // If left player is too close to left edge
+            if (minPlayerX < viewportX + 100)
+            {
+                viewportX = Math.Max(0, minPlayerX - 100);
+            }
+            
+            // If right player is too close to right edge
+            if (maxPlayerX > viewportX + this.ClientSize.Width - 100)
+            {
+                viewportX = Math.Min(backgroundWidth - this.ClientSize.Width, maxPlayerX - this.ClientSize.Width + 100);
+            }
         }
 
         private void BattleForm_Resize(object sender, EventArgs e)
@@ -1459,7 +1488,6 @@ namespace DoAn_NT106
             // ✅ SỬA: Áp dụng hệ số nhân toàn cục
             int baseHeight = Math.Max(24, (int)(this.ClientSize.Height * characterHeightRatio));
             int newHeight = (int)(baseHeight * globalCharacterScale); // Nhân với hệ số toàn cục
-
             int spriteOrigW = 64;
             int spriteOrigH = 64;
 
@@ -1800,6 +1828,14 @@ namespace DoAn_NT106
             };
 
             this.Controls.Add(lblControlsInfo);
+        }
+        /// <summary>
+        /// Get actual character width for movement boundaries
+        /// </summary>
+        private int GetCharacterBoundaryWidth(string characterType)
+        {
+            var actualSize = GetActualCharacterSize(characterType);
+            return actualSize.actualWidth; // Trả về kích thước vẽ thực tế
         }
 
         private void BtnBack_Click(object sender, EventArgs e)

@@ -685,6 +685,7 @@ namespace DoAn_NT106.Client.BattleSystems
             player.IsDashing = true;
             int dashDirection = player.Facing == "right" ? 1 : -1;
             int destinationX = player.X + (DASH_DISTANCE * dashDirection);
+            var boundary = GetDashBoundary(player);
             destinationX = Math.Max(0, Math.Min(backgroundWidth - playerWidth, destinationX));
             
             Console.WriteLine($"? {player.CharacterType} teleport dash: {DASH_DISTANCE}px instant");
@@ -721,6 +722,29 @@ namespace DoAn_NT106.Client.BattleSystems
             reappearTimer.Start();
         }
 
+        private (int minX, int maxX) GetDashBoundary(PlayerState player)
+        {
+            int baseMinX = 0;
+            int baseMaxX = backgroundWidth - playerWidth;
+
+            // ✅ Điều chỉnh tương tự movement boundary
+            if (player.CharacterType == "goatman")
+            {
+                return (baseMinX - 65, baseMaxX - 65);
+            }
+            else if (player.CharacterType == "bringerofdeath")
+            {
+                int scaledWidth = (int)(playerWidth * 1.6f);
+                return (baseMinX, backgroundWidth - scaledWidth);
+            }
+            else if (player.CharacterType == "girlknight")
+            {
+                int scaledWidth = (int)(playerWidth * 0.7f);
+                return (baseMinX, backgroundWidth - scaledWidth);
+            }
+
+            return (baseMinX, baseMaxX);
+        }
         public void ToggleSkill(int playerNum)
         {
             PlayerState player = playerNum == 1 ? player1 : player2;
@@ -869,9 +893,9 @@ namespace DoAn_NT106.Client.BattleSystems
                 {
                     player.ChargeSpeed = CHARGE_MAX_SPEED;
                 }
-
+                var boundary = GetDashBoundary(player);
                 player.X += (int)(player.ChargeSpeed * chargeDirection);
-                player.X = Math.Max(0, Math.Min(backgroundWidth - playerWidth, player.X));
+                player.X = Math.Max(boundary.minX, Math.Min(boundary.maxX, player.X));
 
                 Rectangle chargeHitbox = GetPlayerHurtbox(player);
                 Rectangle targetHurtbox = GetPlayerHurtbox(opponent);

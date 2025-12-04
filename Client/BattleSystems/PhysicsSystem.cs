@@ -4,7 +4,7 @@ using System.Drawing;
 namespace DoAn_NT106.Client.BattleSystems
 {
     /// <summary>
-    /// X? lý v?t lý: jump, gravity, movement
+    /// Xử lý vật lý: jump, gravity, movement
     /// </summary>
     public class PhysicsSystem
     {
@@ -16,15 +16,43 @@ namespace DoAn_NT106.Client.BattleSystems
         private int backgroundWidth;
         private int playerWidth;
         private int playerHeight;
-
-        public PhysicsSystem(int groundLevel, int backgroundWidth, int playerWidth, int playerHeight)
+        private Func<PlayerState, Rectangle> getPlayerHurtboxCallback;
+        public PhysicsSystem(int groundLevel, int backgroundWidth, int playerWidth, int playerHeight,
+                        Func<PlayerState, Rectangle> getPlayerHurtboxCallback = null)
         {
             this.groundLevel = groundLevel;
             this.backgroundWidth = backgroundWidth;
             this.playerWidth = playerWidth;
             this.playerHeight = playerHeight;
+            this.getPlayerHurtboxCallback = getPlayerHurtboxCallback;
         }
+        /// <summary>
+        /// Get boundary based on actual hurtbox position
+        /// </summary>
+        private (int minX, int maxX) GetBoundaryFromHurtbox(PlayerState player)
+        {
+            if (getPlayerHurtboxCallback == null)
+            {
+                return (0, backgroundWidth - playerWidth);
+            }
 
+            Rectangle hurtbox = getPlayerHurtboxCallback(player);
+
+            // Tính toán dựa trên hurtbox thực tế
+            // hurtbox.X là vị trí thực tế của nhân vật
+            // player.X là vị trí góc trái sprite
+
+            int offsetFromSprite = hurtbox.X - player.X;
+
+            // MinX: khi hurtbox chạm biên trái
+            int minX = 0 - offsetFromSprite;
+
+            // MaxX: khi hurtbox chạm biên phải
+            int maxX = backgroundWidth - hurtbox.Width - offsetFromSprite;
+
+            return (minX, maxX);
+        }
+      
         /// <summary>
         /// Update ground level (when window resizes)
         /// </summary>
@@ -82,14 +110,15 @@ namespace DoAn_NT106.Client.BattleSystems
         }
 
         /// <summary>
-        /// Move player horizontally
+        /// Move player horizontally - ✅ SAME BOUNDARY FOR ALL CHARACTERS
         /// </summary>
         public void MovePlayer(PlayerState player, int direction)
         {
             if (!player.CanMove) return;
 
             player.X += playerSpeed * direction;
-            player.X = Math.Max(0, Math.Min(backgroundWidth - playerWidth, player.X));
+            var boundary = GetBoundaryFromHurtbox(player);
+            player.X = Math.Max(boundary.minX, Math.Min(boundary.maxX, player.X));
 
             player.Facing = direction > 0 ? "right" : "left";
             player.IsWalking = true;
@@ -98,6 +127,14 @@ namespace DoAn_NT106.Client.BattleSystems
             {
                 player.CurrentAnimation = "walk";
             }
+        }
+
+        /// <summary>
+        /// Clamp player position to map bounds - ✅ SAME BOUNDARY FOR DASH/SKILL
+        /// </summary>
+        public void ClampToMapBounds(PlayerState player)
+        {
+            player.X = Math.Max(0, Math.Min(backgroundWidth - playerWidth, player.X));
         }
 
         /// <summary>
