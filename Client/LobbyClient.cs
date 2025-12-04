@@ -223,6 +223,16 @@ namespace DoAn_NT106.Client
 
         private void HandlePlayerJoined(JsonElement data)
         {
+
+            if (data.TryGetProperty("roomCode", out var rcEl))
+            {
+                string msgRoomCode = rcEl.GetString();
+                if (!string.IsNullOrEmpty(msgRoomCode) && msgRoomCode != roomCode)
+                {
+                    return;
+                }
+            }
+
             var playerData = new LobbyPlayerData
             {
                 Username = data.GetProperty("username").GetString(),
@@ -233,12 +243,32 @@ namespace DoAn_NT106.Client
 
         private void HandlePlayerLeft(JsonElement data)
         {
+
+            if (data.TryGetProperty("roomCode", out var rcEl))
+            {
+                string msgRoomCode = rcEl.GetString();
+                if (!string.IsNullOrEmpty(msgRoomCode) && msgRoomCode != roomCode)
+                {
+                    return;
+                }
+            }
+
             string username = data.GetProperty("username").GetString();
             OnPlayerLeft?.Invoke(username);
         }
 
         private void HandleReadyChanged(JsonElement data)
         {
+
+            if (data.TryGetProperty("roomCode", out var rcEl))
+            {
+                string msgRoomCode = rcEl.GetString();
+                if (!string.IsNullOrEmpty(msgRoomCode) && msgRoomCode != roomCode)
+                {
+                    return;
+                }
+            }
+
             string username = data.GetProperty("username").GetString();
             bool isReady = data.GetProperty("isReady").GetBoolean();
             OnPlayerReadyChanged?.Invoke(username, isReady);
@@ -246,6 +276,16 @@ namespace DoAn_NT106.Client
 
         private void HandleChatMessage(JsonElement data)
         {
+
+            if (data.TryGetProperty("roomCode", out var rcEl))
+            {
+                string msgRoomCode = rcEl.GetString();
+                if (!string.IsNullOrEmpty(msgRoomCode) && msgRoomCode != roomCode)
+                {
+                    return;
+                }
+            }
+
             var msg = new LobbyChatMessage
             {
                 Username = data.GetProperty("username").GetString(),
@@ -258,6 +298,16 @@ namespace DoAn_NT106.Client
 
         private void HandleStateUpdate(JsonElement data)
         {
+
+            if (data.TryGetProperty("roomCode", out var rcEl))
+            {
+                string msgRoomCode = rcEl.GetString();
+                if (!string.IsNullOrEmpty(msgRoomCode) && msgRoomCode != roomCode)
+                {
+                    return;
+                }
+            }
+
             var state = new LobbyStateData
             {
                 Player1 = data.TryGetProperty("player1", out var p1) ? p1.GetString() : null,
