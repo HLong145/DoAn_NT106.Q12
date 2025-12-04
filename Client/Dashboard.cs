@@ -1,6 +1,7 @@
-﻿using System;
+﻿using ServerApp;
+using System;
+using System.Diagnostics;
 using System.Windows.Forms;
-using ServerApp;
 
 namespace DoAn_NT106.Client
 {
@@ -36,25 +37,26 @@ namespace DoAn_NT106.Client
         {
             try
             {
-                Console.WriteLine("🎮 Starting NEW Client instance...");
+                Console.WriteLine("Starting NEW Client Login process...");
 
-                // ✅ TẠO CLIENT MỚI MÀ KHÔNG ẨN DASHBOARD
-                var loginForm = new FormDangNhap();
-                loginForm.StartPosition = FormStartPosition.CenterScreen;
-                loginForm.Show();
-
-                MessageBox.Show("New client instance started!\n\nYou can open multiple clients.",
-                            "🎮 Client Mode", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = Application.ExecutablePath,   // exe hiện tại
+                    Arguments = "--login",                  // báo cho Program.cs biết là chạy login
+                    UseShellExecute = true
+                });
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Error starting client: {ex.Message}");
-                MessageBox.Show($"Error starting client: {ex.Message}",
-                    "❌ Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Console.WriteLine("Error starting client process: " + ex.Message);
+                MessageBox.Show(
+                    "Error starting client: " + ex.Message,
+                    "Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
             }
         }
-
-
         private void btn_Server_Click(object sender, EventArgs e)
         {
             try
