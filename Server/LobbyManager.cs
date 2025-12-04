@@ -333,6 +333,7 @@ namespace DoAn_NT106.Server
                 Action = "LOBBY_CHAT_MESSAGE",
                 Data = new
                 {
+                    roomCode = lobby.RoomCode,
                     id = chatMessage.Id,
                     username = chatMessage.Username,
                     message = chatMessage.Message,

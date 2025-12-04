@@ -241,6 +241,13 @@ namespace PixelGameLobby
         {
             try
             {
+                string msgRoomCode = GetStringOrNull(data, "roomCode");
+                if (!string.IsNullOrEmpty(msgRoomCode) && msgRoomCode != roomCode)
+                {
+                    // Broadcast của phòng khác -> bỏ qua
+                    return;
+                }
+
                 // Parse player info
                 string player1 = GetStringOrNull(data, "player1");
                 string player2 = GetStringOrNull(data, "player2");
@@ -311,6 +318,12 @@ namespace PixelGameLobby
         {
             try
             {
+                string msgRoomCode = GetStringOrNull(data, "roomCode");
+                if (!string.IsNullOrEmpty(msgRoomCode) && msgRoomCode != roomCode)
+                {
+                    return;
+                }
+
                 string leftUsername = GetStringOrNull(data, "username");
                 string player1 = GetStringOrNull(data, "player1");
                 string player2 = GetStringOrNull(data, "player2");
@@ -371,6 +384,12 @@ namespace PixelGameLobby
         {
             try
             {
+                string msgRoomCode = GetStringOrNull(data, "roomCode");
+                if (!string.IsNullOrEmpty(msgRoomCode) && msgRoomCode != roomCode)
+                {
+                    return;
+                }
+
                 string msgUsername = data.GetProperty("username").GetString();
                 string message = data.GetProperty("message").GetString();
                 string timestamp = data.GetProperty("timestamp").GetString();
@@ -395,6 +414,12 @@ namespace PixelGameLobby
         {
             try
             {
+                string msgRoomCode = GetStringOrNull(data, "roomCode");
+                if (!string.IsNullOrEmpty(msgRoomCode) && msgRoomCode != roomCode)
+                {
+                    return;
+                }
+
                 Console.WriteLine("[GameLobby] Game starting!");
 
                 AddSystemMessage("🎮 Both players ready! Starting game...");
