@@ -653,6 +653,7 @@ namespace DoAn_NT106.Client.BattleSystems
                     int moveAmount = Math.Min(slideRemaining, (int)Math.Ceiling(slideSpeed));
                     player.X += moveAmount * slideDirection;
                     player.X = Math.Max(0, Math.Min(backgroundWidth - playerWidth, player.X));
+                    ClampPlayerToMap(player);
                     slideRemaining -= moveAmount;
                 }
                 else
@@ -699,7 +700,8 @@ namespace DoAn_NT106.Client.BattleSystems
             
             // ? STEP 3: Move to destination (but still invisible)
             player.X = destinationX;
-            
+            ClampPlayerToMap(player);
+            destinationX = player.X;
             invalidateCallback?.Invoke();
             
             // ? STEP 4: After 0.3s, make player visible again at destination
@@ -893,10 +895,11 @@ namespace DoAn_NT106.Client.BattleSystems
                 {
                     player.ChargeSpeed = CHARGE_MAX_SPEED;
                 }
+                SafeMovePlayer(player, (int)(player.ChargeSpeed * chargeDirection), chargeDirection);
                 var boundary = GetDashBoundary(player);
                 player.X += (int)(player.ChargeSpeed * chargeDirection);
                 player.X = Math.Max(boundary.minX, Math.Min(boundary.maxX, player.X));
-
+                ClampPlayerToMap(player);
                 Rectangle chargeHitbox = GetPlayerHurtbox(player);
                 Rectangle targetHurtbox = GetPlayerHurtbox(opponent);
 
@@ -988,6 +991,7 @@ namespace DoAn_NT106.Client.BattleSystems
             {
                 int kb = (attacker.X > target.X) ? -20 : 20;
                 target.X = Math.Max(0, Math.Min(backgroundWidth - playerWidth, target.X + kb));
+                ClampPlayerToMap(target);
             }
 
             invalidateCallback?.Invoke();
@@ -1018,6 +1022,7 @@ namespace DoAn_NT106.Client.BattleSystems
                     int moveAmount = Math.Min(knockbackRemaining, (int)Math.Ceiling(knockbackSpeed));
                     target.X += moveAmount * direction;
                     target.X = Math.Max(0, Math.Min(backgroundWidth - playerWidth, target.X));
+                    ClampPlayerToMap(target);
                     knockbackRemaining -= moveAmount;
                 }
 
@@ -1028,6 +1033,39 @@ namespace DoAn_NT106.Client.BattleSystems
                 }
             };
             knockbackTimer.Start();
+        }
+        /// <summary>
+        /// Clamp player position to map boundaries
+        /// </summary>
+        private void ClampPlayerToMap(PlayerState player)
+        {
+            // Tính boundary dựa trên hurtbox (giống PhysicsSystem)
+            var boundary = GetBoundaryFromHurtbox(player);
+            player.X = Math.Max(boundary.minX, Math.Min(boundary.maxX, player.X));
+        }
+
+        /// <summary>
+        /// Get boundary from hurtbox (giống PhysicsSystem)
+        /// </summary>
+        private (int minX, int maxX) GetBoundaryFromHurtbox(PlayerState player)
+        {
+            if (getPlayerHurtboxCallback == null)
+            {
+                return (0, backgroundWidth - playerWidth);
+            }
+
+            Rectangle hurtbox = getPlayerHurtboxCallback(player);
+
+            // Tính toán dựa trên hurtbox thực tế
+            int offsetFromSprite = hurtbox.X - player.X;
+
+            // MinX: khi hurtbox chạm biên trái
+            int minX = 0 - offsetFromSprite;
+
+            // MaxX: khi hurtbox chạm biên phải
+            int maxX = backgroundWidth - hurtbox.Width - offsetFromSprite;
+
+            return (minX, maxX);
         }
 
         private void CancelAttack(int playerNum)
@@ -1151,6 +1189,39 @@ namespace DoAn_NT106.Client.BattleSystems
                 hurtboxWidth,
                 hurtboxHeight
             );
+        }
+        /// <summary>
+        /// Calculate max distance player can move in a direction
+        /// </summary>
+        private int GetMaxMoveDistance(PlayerState player, int direction)
+        {
+            var boundary = GetBoundaryFromHurtbox(player);
+
+            if (direction > 0) // Moving right
+            {
+                return boundary.maxX - player.X;
+            }
+            else // Moving left
+            {
+                return player.X - boundary.minX;
+            }
+        }
+
+        /// <summary>
+        /// Safe dash/charge movement with boundary check
+        /// </summary>
+        private void SafeMovePlayer(PlayerState player, int distance, int direction)
+        {
+            int maxDistance = GetMaxMoveDistance(player, direction);
+            int actualMove = Math.Min(Math.Abs(distance), maxDistance) * Math.Sign(distance);
+
+            player.X += actualMove;
+            ClampPlayerToMap(player);
+
+            if (actualMove < Math.Abs(distance))
+            {
+                Console.WriteLine($"⚠️ Movement limited: {distance} -> {actualMove}");
+            }
         }
         public void Cleanup()
         {
