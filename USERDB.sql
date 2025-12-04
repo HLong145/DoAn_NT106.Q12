@@ -191,15 +191,14 @@ GO
 -- =============================================
 -- STORED PROCEDURE: Tạo Room mới
 -- =============================================
-IF EXISTS (SELECT * FROM sys.procedures WHERE name = 'SP_CREATE_ROOM')
-    DROP PROCEDURE SP_CREATE_ROOM;
+IF EXISTS (SELECT * FROM sys.procedures WHERE name = 'SP_CREATE_ROOM_EMPTY')
+    DROP PROCEDURE SP_CREATE_ROOM_EMPTY;
 GO
 
-CREATE PROCEDURE SP_CREATE_ROOM
+CREATE PROCEDURE SP_CREATE_ROOM_EMPTY
     @RoomCode VARCHAR(6),
     @RoomName NVARCHAR(100),
-    @RoomPassword NVARCHAR(100) = NULL,
-    @Player1Username NVARCHAR(50)
+    @RoomPassword NVARCHAR(100) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -211,24 +210,16 @@ BEGIN
         RETURN;
     END
     
-    -- Kiểm tra username tồn tại
-    IF NOT EXISTS (SELECT 1 FROM PLAYERS WHERE USERNAME = @Player1Username)
-    BEGIN
-        SELECT 0 AS Success, N'Player not found' AS Message, NULL AS RoomId;
-        RETURN;
-    END
-    
-    -- Tạo room
-    INSERT INTO ROOMS (ROOM_CODE, ROOM_NAME, ROOM_PASSWORD, PLAYER1_USERNAME, ROOM_STATUS, CREATED_AT, LAST_ACTIVITY)
-    VALUES (@RoomCode, @RoomName, @RoomPassword, @Player1Username, 'WAITING', GETDATE(), GETDATE());
+    -- Tạo room TRỐNG (không có player nào)
+    INSERT INTO ROOMS (ROOM_CODE, ROOM_NAME, ROOM_PASSWORD, PLAYER1_USERNAME, PLAYER2_USERNAME, ROOM_STATUS, CREATED_AT, LAST_ACTIVITY)
+    VALUES (@RoomCode, @RoomName, @RoomPassword, NULL, NULL, 'WAITING', GETDATE(), GETDATE());
     
     SELECT 1 AS Success, N'Room created successfully' AS Message, SCOPE_IDENTITY() AS RoomId;
 END
 GO
 
-PRINT '✅ SP_CREATE_ROOM created';
+PRINT '✅ SP_CREATE_ROOM_EMPTY created';
 GO
-
 -- =============================================
 -- STORED PROCEDURE: Tham gia Room
 -- =============================================
@@ -294,6 +285,13 @@ BEGIN
         RETURN;
     END
     
+    -- Kiểm tra username tồn tại
+    IF NOT EXISTS (SELECT 1 FROM PLAYERS WHERE USERNAME = @Username)
+    BEGIN
+        SELECT 0 AS Success, N'Player not found' AS Message;
+        RETURN;
+    END
+    
     -- Thêm player vào slot trống
     IF @Player1 IS NULL
     BEGIN
@@ -334,35 +332,26 @@ BEGIN
     DECLARE @Player1 NVARCHAR(50), @Player2 NVARCHAR(50);
     
     SELECT @Player1 = PLAYER1_USERNAME, @Player2 = PLAYER2_USERNAME
-    FROM ROOMS WHERE ROOM_CODE = @RoomCode;
-    
-    IF @Player1 IS NULL AND @Player2 IS NULL
-    BEGIN
-        SELECT 0 AS Success, N'Room not found' AS Message;
-        RETURN;
-    END
+    FROM ROOMS 
+    WHERE ROOM_CODE = @RoomCode;
     
     -- Xóa player khỏi room
-    IF @Username = @Player1
+    IF @Player1 = @Username
     BEGIN
         UPDATE ROOMS 
-        SET PLAYER1_USERNAME = NULL, LAST_ACTIVITY = GETDATE()
+        SET PLAYER1_USERNAME = NULL, 
+            ROOM_STATUS = 'WAITING',
+            LAST_ACTIVITY = GETDATE()
         WHERE ROOM_CODE = @RoomCode;
     END
-    ELSE IF @Username = @Player2
+    ELSE IF @Player2 = @Username
     BEGIN
         UPDATE ROOMS 
-        SET PLAYER2_USERNAME = NULL, LAST_ACTIVITY = GETDATE()
+        SET PLAYER2_USERNAME = NULL,
+            ROOM_STATUS = CASE WHEN @Player1 IS NOT NULL THEN 'WAITING' ELSE 'WAITING' END,
+            LAST_ACTIVITY = GETDATE()
         WHERE ROOM_CODE = @RoomCode;
     END
-    
-    -- Cập nhật trạng thái
-    UPDATE ROOMS 
-    SET ROOM_STATUS = CASE 
-        WHEN PLAYER1_USERNAME IS NULL AND PLAYER2_USERNAME IS NULL THEN 'EMPTY'
-        ELSE 'WAITING'
-    END
-    WHERE ROOM_CODE = @RoomCode;
     
     SELECT 1 AS Success, N'Left room successfully' AS Message;
 END
@@ -384,21 +373,23 @@ BEGIN
     SET NOCOUNT ON;
     
     SELECT 
+        ROOM_ID AS RoomId,
         ROOM_CODE AS RoomCode,
         ROOM_NAME AS RoomName,
-        CASE WHEN ROOM_PASSWORD IS NOT NULL AND LEN(ROOM_PASSWORD) > 0 THEN 1 ELSE 0 END AS HasPassword,
+        ROOM_PASSWORD AS Password,
+        PLAYER1_USERNAME AS Player1Username,
+        PLAYER2_USERNAME AS Player2Username,
+        ROOM_STATUS AS Status,
+        CREATED_AT AS CreatedAt,
+        LAST_ACTIVITY AS LastActivity,
+        -- Đếm số player
         CASE 
             WHEN PLAYER1_USERNAME IS NOT NULL AND PLAYER2_USERNAME IS NOT NULL THEN 2
             WHEN PLAYER1_USERNAME IS NOT NULL OR PLAYER2_USERNAME IS NOT NULL THEN 1
             ELSE 0
-        END AS PlayerCount,
-        ROOM_STATUS AS Status,
-        PLAYER1_USERNAME AS Player1,
-        PLAYER2_USERNAME AS Player2,
-        CREATED_AT AS CreatedAt
+        END AS PlayerCount
     FROM ROOMS
     WHERE ROOM_STATUS IN ('WAITING', 'READY')
-      AND (PLAYER1_USERNAME IS NULL OR PLAYER2_USERNAME IS NULL) -- Còn slot trống
     ORDER BY CREATED_AT DESC;
 END
 GO

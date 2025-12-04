@@ -520,6 +520,11 @@ namespace PixelGameLobby
 
         #region Create Room
 
+        // ===========================
+        // ✅ SỬA: BtnCreateRoom_Click - KHÔNG tự động mở lobby
+        // Thay thế method cũ trong JoinRoomForm.cs
+        // ===========================
+
         private async void BtnCreateRoom_Click(object sender, EventArgs e)
         {
             using (var createForm = new CreateRoomForm())
@@ -543,18 +548,22 @@ namespace PixelGameLobby
 
                         if (!string.IsNullOrEmpty(roomCode))
                         {
-                            globalChatClient?.Dispose();
-                            globalChatClient = null;
+                            // ✅ SỬA: Chỉ thông báo tạo thành công, KHÔNG mở lobby
+                            MessageBox.Show(
+                                $"✅ Room created successfully!\n\n" +
+                                $"Room Code: {roomCode}\n" +
+                                $"Room Name: {roomName}\n\n" +
+                                $"Click JOIN to enter the room.",
+                                "Room Created",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Information);
 
-                            // Mở GameLobbyForm (giữ nguyên tên cũ)
-                            var lobbyForm = new GameLobbyForm(roomCode, username, token);
-                            lobbyForm.FormClosed += async (s, args) =>
-                            {
-                                this.Show();
-                                await ConnectGlobalChatAsync();
-                            };
-                            lobbyForm.Show();
-                            this.Hide();
+                            // ✅ SỬA: Tự động điền room code vào ô search
+                            txtRoomCode.Text = roomCode;
+                            txtPassword.Text = password ?? "";
+
+                            // ✅ Room list sẽ tự động update qua RoomListClient broadcast
+                            // Không cần gọi thủ công
                         }
                     }
                     else

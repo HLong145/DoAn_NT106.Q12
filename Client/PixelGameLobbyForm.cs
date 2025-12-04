@@ -23,6 +23,8 @@ namespace PixelGameLobby
         private bool isReady = false;
         private string opponentName = null;
         private bool opponentReady = false;
+        private bool isLeaving = false;
+        private bool hasLeft = false;
 
         // TCP Client - dùng singleton
         private PersistentTcpClient TcpClient => PersistentTcpClient.Instance;
@@ -54,7 +56,7 @@ namespace PixelGameLobby
 
             // Events
             this.Load += GameLobbyForm_Load;
-            this.FormClosing += leaveRoomButton_Click;
+            this.FormClosing += GameLobbyForm_FormClosing;
         }
 
         public GameLobbyForm(string roomCode = null) : this(roomCode, "Guest", "")
@@ -74,21 +76,54 @@ namespace PixelGameLobby
             await JoinLobbyAsync();
         }
 
-        private void GameLobbyForm_FormClosing(object sender, FormClosingEventArgs e)
+        private async void GameLobbyForm_FormClosing(object sender, FormClosingEventArgs e)
         {
-            // Unsubscribe
+            // Tránh gọi nhiều lần
+            if (hasLeft) return;
+
+            // Nếu user đóng bằng X và chưa đang leave
+            if (e.CloseReason == CloseReason.UserClosing && !isLeaving)
+            {
+                e.Cancel = true;
+
+                var result = MessageBox.Show(
+                    "Are you sure you want to leave the room?",
+                    "Confirm Leave",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question);
+
+                if (result == DialogResult.Yes)
+                {
+                    await LeaveRoomSafelyAsync();
+                    isLeaving = true;
+                    this.Close();
+                }
+                return;
+            }
+
+            // Cleanup
             TcpClient.OnBroadcast -= HandleBroadcast;
             TcpClient.OnDisconnected -= HandleDisconnected;
+        }
 
-            // Fire and forget leave
-            _ = Task.Run(async () =>
+        private async Task LeaveRoomSafelyAsync()
+        {
+            if (hasLeft) return;
+            hasLeft = true;
+
+            try
             {
-                try
-                {
-                    await TcpClient.LobbyLeaveAsync(roomCode, username);
-                }
-                catch { }
-            });
+                Console.WriteLine($"[GameLobby] Leaving room {roomCode}...");
+
+                // Gọi LobbyLeave (server sẽ tự gọi LeaveRoom)
+                var response = await TcpClient.LobbyLeaveAsync(roomCode, username);
+
+                Console.WriteLine($"[GameLobby] LobbyLeave response: {response.Success} - {response.Message}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GameLobby] Leave error: {ex.Message}");
+            }
         }
 
         // ===========================
@@ -277,15 +312,53 @@ namespace PixelGameLobby
             try
             {
                 string leftUsername = GetStringOrNull(data, "username");
-                if (!string.IsNullOrEmpty(leftUsername))
-                {
-                    AddSystemMessage($"{leftUsername} has left the lobby.");
+                string player1 = GetStringOrNull(data, "player1");
+                string player2 = GetStringOrNull(data, "player2");
 
-                    if (leftUsername == opponentName)
-                    {
-                        opponentName = null;
-                        opponentReady = false;
-                    }
+                Console.WriteLine($"[GameLobby] Player left: {leftUsername}");
+                Console.WriteLine($"[GameLobby] Remaining - P1: {player1 ?? "null"}, P2: {player2 ?? "null"}");
+
+                // Nếu chính mình leave thì không cần update UI
+                if (leftUsername == username)
+                {
+                    Console.WriteLine($"[GameLobby] Self left notification, ignoring UI update");
+                    return;
+                }
+
+                // ✅ Cập nhật Player 1
+                if (!string.IsNullOrEmpty(player1))
+                {
+                    players[0].Name = player1 + (player1 == username ? " (You)" : "");
+                }
+                else
+                {
+                    players[0].Name = "Waiting...";
+                    players[0].IsReady = false;
+                    players[0].Status = "Not Ready";
+                }
+
+                // ✅ Cập nhật Player 2
+                if (!string.IsNullOrEmpty(player2))
+                {
+                    players[1].Name = player2 + (player2 == username ? " (You)" : "");
+                }
+                else
+                {
+                    players[1].Name = "Waiting...";
+                    players[1].IsReady = false;
+                    players[1].Status = "Not Ready";
+                }
+
+                // Add system message
+                AddSystemMessage($"{leftUsername} has left the room");
+
+                // Update display
+                UpdatePlayersDisplay();
+
+                // Reset opponent
+                if (leftUsername == opponentName)
+                {
+                    opponentName = null;
                 }
             }
             catch (Exception ex)
@@ -322,7 +395,9 @@ namespace PixelGameLobby
         {
             try
             {
-                AddSystemMessage("Both players ready! Starting game...");
+                Console.WriteLine("[GameLobby] Game starting!");
+
+                AddSystemMessage("🎮 Both players ready! Starting game...");
 
                 // Đợi 1 giây để user thấy message
                 var timer = new System.Windows.Forms.Timer { Interval = 1000 };
@@ -331,6 +406,10 @@ namespace PixelGameLobby
                     timer.Stop();
                     timer.Dispose();
 
+                    // ✅ Đánh dấu để không trigger confirm dialog khi close
+                    hasLeft = true;
+                    isLeaving = true;
+
                     // Mở Character Select Form
                     string opponent = opponentName ?? "Opponent";
                     var selectForm = new CharacterSelectForm(username, token, roomCode, opponent, true);
@@ -338,6 +417,9 @@ namespace PixelGameLobby
                     {
                         if (selectForm.DialogResult != DialogResult.OK)
                         {
+                            // Reset flags nếu quay lại
+                            hasLeft = false;
+                            isLeaving = false;
                             this.Show();
                         }
                         else
@@ -519,25 +601,24 @@ namespace PixelGameLobby
 
         private async void leaveRoomButton_Click(object sender, EventArgs e)
         {
+            if (hasLeft) return;
+
             var result = MessageBox.Show("Are you sure you want to leave?", "Confirm",
                 MessageBoxButtons.YesNo, MessageBoxIcon.Question);
 
             if (result == DialogResult.Yes)
             {
-                try
-                {
-                    // ✅ Async calls
-                    await TcpClient.LobbyLeaveAsync(roomCode, username);
-                    await TcpClient.LeaveRoomAsync(roomCode, username);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[GameLobby] Leave error: {ex.Message}");
-                }
+                leaveRoomButton.Enabled = false;
+                leaveRoomButton.Text = "LEAVING...";
 
+                await LeaveRoomSafelyAsync();
+
+                isLeaving = true;
                 this.Close();
             }
         }
+
+
         private async void sendButton_Click(object sender, EventArgs e)
         {
             string message = messageTextBox.Text.Trim();

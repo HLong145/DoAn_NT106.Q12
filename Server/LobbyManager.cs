@@ -14,18 +14,34 @@ namespace DoAn_NT106.Server
         // Room Code -> Lobby Data
         private ConcurrentDictionary<string, LobbyData> lobbies = new ConcurrentDictionary<string, LobbyData>();
 
+        // ✅ THÊM MỚI: Reference đến RoomManager để gọi LeaveRoom
+        private RoomManager roomManager;
+
         public event Action<string> OnLog;
 
         private void Log(string message) => OnLog?.Invoke($"[Lobby] {message}");
+
+        // ✅ THÊM MỚI: Set RoomManager sau khi khởi tạo
+        public void SetRoomManager(RoomManager manager)
+        {
+            this.roomManager = manager;
+            Log("✅ RoomManager reference set");
+        }
 
         // ===========================
         // JOIN LOBBY
         // ===========================
         public (bool Success, string Message, LobbyData Lobby) JoinLobby(
-            string roomCode, string username, ClientHandler client, RoomManager roomManager)
+            string roomCode, string username, ClientHandler client, RoomManager roomMgr)
         {
             try
             {
+                // Cập nhật reference nếu được truyền vào
+                if (roomMgr != null)
+                {
+                    this.roomManager = roomMgr;
+                }
+
                 if (string.IsNullOrEmpty(roomCode) || string.IsNullOrEmpty(username))
                     return (false, "Room code and username are required", null);
 
@@ -35,7 +51,7 @@ namespace DoAn_NT106.Server
                 lock (lobby.Lock)
                 {
                     // Get room info from RoomManager
-                    var room = roomManager.GetRoom(roomCode);
+                    var room = roomMgr?.GetRoom(roomCode);
                     if (room != null)
                     {
                         lobby.RoomName = room.RoomName;
@@ -87,14 +103,22 @@ namespace DoAn_NT106.Server
         }
 
         // ===========================
-        // LEAVE LOBBY
+        // ✅ SỬA: LEAVE LOBBY - Gọi RoomManager.LeaveRoom
         // ===========================
         public (bool Success, string Message) LeaveLobby(string roomCode, string username)
         {
             try
             {
+                Log($"📤 LeaveLobby called: {username} from {roomCode}");
+
                 if (!lobbies.TryGetValue(roomCode, out var lobby))
-                    return (true, "Lobby not found");
+                {
+                    Log($"⚠️ Lobby not found for {roomCode}, but will still leave room");
+
+                    // ✅ QUAN TRỌNG: Vẫn gọi LeaveRoom dù lobby không tồn tại
+                    roomManager?.LeaveRoom(roomCode, username);
+                    return (true, "Lobby not found but room left");
+                }
 
                 lock (lobby.Lock)
                 {
@@ -116,11 +140,16 @@ namespace DoAn_NT106.Server
                         Log($"👋 {username} left lobby {roomCode} (was Player 2)");
                     }
 
-                    // Broadcast leave to remaining player
+                    // ✅ QUAN TRỌNG: Broadcast TRƯỚC khi xóa lobby
                     BroadcastPlayerLeft(lobby, username);
 
+                    // ✅ QUAN TRỌNG: Gọi RoomManager.LeaveRoom để xóa username khỏi room
+                    roomManager?.LeaveRoom(roomCode, username);
+                    Log($"✅ Called RoomManager.LeaveRoom for {username}");
+
                     // Remove lobby if empty
-                    if (string.IsNullOrEmpty(lobby.Player1Username) && string.IsNullOrEmpty(lobby.Player2Username))
+                    if (string.IsNullOrEmpty(lobby.Player1Username) &&
+                        string.IsNullOrEmpty(lobby.Player2Username))
                     {
                         lobbies.TryRemove(roomCode, out _);
                         Log($"🗑 Lobby {roomCode} removed (empty)");
@@ -173,7 +202,7 @@ namespace DoAn_NT106.Server
 
                     if (bothReady)
                     {
-                        Log($"🚀 Both players ready in lobby {roomCode}! Starting game...");
+                        Log($"🚀 Both players ready in lobby {roomCode}!");
                         BroadcastStartGame(lobby);
                     }
 
@@ -219,7 +248,7 @@ namespace DoAn_NT106.Server
                     BroadcastChatMessage(lobby, chatMessage);
                 }
 
-                Log($"💬 [{roomCode}] {username}: {message}");
+                Log($"💬 [{roomCode}] {username}: {message.Substring(0, Math.Min(50, message.Length))}...");
                 return (true, "Message sent");
             }
             catch (Exception ex)
@@ -243,7 +272,7 @@ namespace DoAn_NT106.Server
         // ===========================
         private void BroadcastLobbyState(LobbyData lobby, string excludeUsername)
         {
-            // ✅ THÊM: Tính player count
+            // Tính player count
             int playerCount = 0;
             if (!string.IsNullOrEmpty(lobby.Player1Username)) playerCount++;
             if (!string.IsNullOrEmpty(lobby.Player2Username)) playerCount++;
@@ -259,7 +288,7 @@ namespace DoAn_NT106.Server
                     player2 = lobby.Player2Username,
                     player1Ready = lobby.Player1Ready,
                     player2Ready = lobby.Player2Ready,
-                    playerCount = playerCount 
+                    playerCount = playerCount
                 }
             };
 
@@ -271,6 +300,7 @@ namespace DoAn_NT106.Server
             if (lobby.Player2Client != null && lobby.Player2Username != excludeUsername)
                 SafeSend(lobby.Player2Client, json);
         }
+
         private void BroadcastPlayerLeft(LobbyData lobby, string leftUsername)
         {
             var broadcast = new
@@ -286,7 +316,9 @@ namespace DoAn_NT106.Server
             };
 
             string json = JsonSerializer.Serialize(broadcast);
+            Log($"📢 Broadcasting LOBBY_PLAYER_LEFT: {leftUsername}");
 
+            // Gửi cho TẤT CẢ client trong lobby
             if (lobby.Player1Client != null)
                 SafeSend(lobby.Player1Client, json);
 
@@ -350,7 +382,6 @@ namespace DoAn_NT106.Server
                 Log($"⚠️ SafeSend error: {ex.Message}");
             }
         }
-
     }
 
     // ===========================

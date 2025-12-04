@@ -439,6 +439,109 @@ namespace DoAn_NT106.Services
         }
 
         #region ROOM MANAGEMENT
+        /// <summary>
+        /// ✅ THÊM MỚI: Tạo room TRỐNG (không có player nào)
+        /// </summary>
+        public (bool Success, string Message, int? RoomId) CreateRoomEmpty(
+            string roomCode,
+            string roomName,
+            string password)
+        {
+            try
+            {
+                using (var connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    string query = "EXEC SP_CREATE_ROOM_EMPTY @RoomCode, @RoomName, @RoomPassword";
+
+                    using (var command = new SqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@RoomCode", roomCode);
+                        command.Parameters.AddWithValue("@RoomName", roomName);
+                        command.Parameters.AddWithValue("@RoomPassword",
+                            string.IsNullOrEmpty(password) ? DBNull.Value : (object)password);
+
+                        using (var reader = command.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                bool success = Convert.ToInt32(reader["Success"]) == 1;
+                                string message = reader["Message"].ToString();
+                                int? roomId = reader["RoomId"] != DBNull.Value
+                                    ? Convert.ToInt32(reader["RoomId"])
+                                    : (int?)null;
+
+                                Console.WriteLine($"✅ CreateRoomEmpty: {roomCode} - {message}");
+                                return (success, message, roomId);
+                            }
+                        }
+                    }
+                }
+                return (false, "Unknown error", null);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ CreateRoomEmpty error: {ex.Message}");
+                return (false, ex.Message, null);
+            }
+        }
+
+        /// <summary>
+        /// ✅ THÊM MỚI: Xóa room theo code
+        /// (Chỉ thêm nếu chưa có method này)
+        /// </summary>
+        public bool DeleteRoom(string roomCode)
+        {
+            try
+            {
+                using (var connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    string query = "DELETE FROM ROOMS WHERE ROOM_CODE = @RoomCode";
+
+                    using (var command = new SqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@RoomCode", roomCode);
+                        int rowsAffected = command.ExecuteNonQuery();
+
+                        Console.WriteLine($"✅ DeleteRoom: {roomCode} - {rowsAffected} rows deleted");
+                        return rowsAffected > 0;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ DeleteRoom error: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// ✅ THÊM MỚI: Kiểm tra room code đã tồn tại
+        /// </summary>
+        public bool RoomCodeExists(string roomCode)
+        {
+            try
+            {
+                using (var connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    string query = "SELECT COUNT(*) FROM ROOMS WHERE ROOM_CODE = @RoomCode";
+
+                    using (var command = new SqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@RoomCode", roomCode);
+                        int count = (int)command.ExecuteScalar();
+                        return count > 0;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ RoomCodeExists error: {ex.Message}");
+                return true; // Return true để tránh tạo trùng code
+            }
+        }
 
         /// <summary>
         /// Kiểm tra room code đã tồn tại trong database chưa
@@ -685,39 +788,7 @@ namespace DoAn_NT106.Services
 
             return null;
         }
-        /// <summary>
-        /// Xóa room khỏi database
-        /// </summary>
-        public (bool Success, string Message) DeleteRoom(string roomCode)
-        {
-            try
-            {
-                using (var connection = new SqlConnection(connectionString))
-                {
-                    connection.Open();
-                    string query = "DELETE FROM ROOMS WHERE ROOM_CODE = @RoomCode";
-
-                    using (var command = new SqlCommand(query, connection))
-                    {
-                        command.Parameters.AddWithValue("@RoomCode", roomCode);
-                        int rowsAffected = command.ExecuteNonQuery();
-
-                        if (rowsAffected > 0)
-                        {
-                            Console.WriteLine($"✅ Room {roomCode} deleted from database");
-                            return (true, "Room deleted");
-                        }
-
-                        return (false, "Room not found");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"❌ DeleteRoom error: {ex.Message}");
-                return (false, ex.Message);
-            }
-        }
+       
         /// <summary>
         /// Cập nhật thời gian hoạt động cuối cùng của room
         /// </summary>

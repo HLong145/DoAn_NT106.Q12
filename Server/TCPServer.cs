@@ -715,18 +715,23 @@ namespace DoAn_NT106.Server
                 var roomCode = request.Data?["roomCode"]?.ToString();
                 var username = request.Data?["username"]?.ToString();
 
+                server.Log($"📤 HandleLeaveRoom: {username} leaving room {roomCode}");
+
                 if (!string.IsNullOrEmpty(roomCode) && !string.IsNullOrEmpty(username))
                 {
                     roomManager.LeaveRoom(roomCode, username);
+                    server.Log($"✅ HandleLeaveRoom completed for {username}");
                 }
 
                 return CreateResponse(true, "Left room");
             }
             catch (Exception ex)
             {
+                server.Log($"❌ HandleLeaveRoom error: {ex.Message}");
                 return CreateResponse(false, $"Leave room error: {ex.Message}");
             }
         }
+
 
         private string HandleLobbyJoin(Request request)
         {
@@ -793,6 +798,10 @@ namespace DoAn_NT106.Server
                     return CreateResponse(false, "Room code and username are required");
                 }
 
+                server.Log($"📤 HandleLobbyLeave: {username} leaving {roomCode}");
+
+                // ✅ Gọi LobbyManager.LeaveLobby 
+                // (LobbyManager đã được sửa để tự gọi RoomManager.LeaveRoom)
                 var result = lobbyManager.LeaveLobby(roomCode, username);
 
                 // Clear saved data
@@ -802,6 +811,8 @@ namespace DoAn_NT106.Server
                     this.lobbyUsername = null;
                 }
 
+                server.Log($"✅ HandleLobbyLeave completed: {result.Success} - {result.Message}");
+
                 return CreateResponse(result.Success, result.Message);
             }
             catch (Exception ex)
@@ -810,6 +821,7 @@ namespace DoAn_NT106.Server
                 return CreateResponse(false, $"Error: {ex.Message}");
             }
         }
+
 
         private string HandleLobbySetReady(Request request)
         {
@@ -1330,6 +1342,29 @@ namespace DoAn_NT106.Server
                 server.RemoveClient(this);
             }
             catch { }
+        }
+        private void CleanupOnDisconnect()
+        {
+            try
+            {
+                // Cleanup lobby
+                if (!string.IsNullOrEmpty(lobbyRoomCode) && !string.IsNullOrEmpty(lobbyUsername))
+                {
+                    server.Log($"🧹 Cleanup: {lobbyUsername} from lobby {lobbyRoomCode}");
+                    lobbyManager.LeaveLobby(lobbyRoomCode, lobbyUsername);
+                }
+
+                // Cleanup room (nếu chưa được cleanup bởi LobbyManager)
+                if (!string.IsNullOrEmpty(currentRoomCode) && !string.IsNullOrEmpty(currentUsername))
+                {
+                    server.Log($"🧹 Cleanup: {currentUsername} from room {currentRoomCode}");
+                    roomManager.LeaveRoom(currentRoomCode, currentUsername);
+                }
+            }
+            catch (Exception ex)
+            {
+                server.Log($"❌ CleanupOnDisconnect error: {ex.Message}");
+            }
         }
     }
 
