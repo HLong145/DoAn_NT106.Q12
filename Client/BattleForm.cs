@@ -540,36 +540,79 @@ namespace DoAn_NT106
 
             this.WindowState = FormWindowState.Maximized;
             this.FormBorderStyle = FormBorderStyle.None;
-
-            groundLevel = Math.Max(0, this.ClientSize.Height - groundOffset);
-            player1Y = groundLevel - PLAYER_HEIGHT;
-            player2Y = groundLevel - PLAYER_HEIGHT;
-
+            player1Y = 0;
+            player2Y = 0;
+            this.Load += BattleForm_Load;
             SetupGame();
             SetupEventHandlers();
             this.Text = $"⚔️ Street Fighter - {username} vs {opponent}";
             this.DoubleBuffered = true;
             this.KeyPreview = true;
         }
+        private void BattleForm_Load(object sender, EventArgs e)
+        {
+            // ĐẢM BẢO FORM ĐÃ HOÀN TOÀN HIỆN RA
+            this.Refresh();
+            Application.DoEvents();
 
+            // BÂY GIỜ mới tính toán groundLevel chính xác
+            groundLevel = Math.Max(0, this.ClientSize.Height - groundOffset);
+            player1Y = groundLevel - PLAYER_HEIGHT;
+            player2Y = groundLevel - PLAYER_HEIGHT;
+
+            // CẬP NHẬT LẠI PlayerState positions
+            if (player1State != null)
+            {
+                player1State.Y = groundLevel - PLAYER_HEIGHT;
+                player1Y = player1State.Y;
+            }
+
+            if (player2State != null)
+            {
+                player2State.Y = groundLevel - PLAYER_HEIGHT;
+                player2Y = player2State.Y;
+            }
+
+            // CẬP NHẬT PhysicsSystem
+            if (physicsSystem != null)
+            {
+                physicsSystem.UpdateGroundLevel(groundLevel);
+                physicsSystem.ResetToGround(player1State);
+                physicsSystem.ResetToGround(player2State);
+            }
+
+            // SETUP GAME (di chuyển từ constructor vào đây)
+            SetupGame();
+            SetupEventHandlers();
+
+            // FORCE REDRAW BACKGROUND
+            this.Invalidate();
+        }
         private void SetupGame()
         {
             try
             {
-                // Load animations using new manager
+                if (groundLevel == 0)
+                {
+                    groundLevel = Math.Max(0, this.ClientSize.Height - groundOffset);
+                }
+
+                player1Y = groundLevel - PLAYER_HEIGHT;
+                player2Y = groundLevel - PLAYER_HEIGHT;
+
+                // Load animations...
                 player1AnimationManager = new CharacterAnimationManager(player1CharacterType, OnFrameChanged);
                 player1AnimationManager.LoadAnimations();
-                
+
                 player2AnimationManager = new CharacterAnimationManager(player2CharacterType, OnFrameChanged);
                 player2AnimationManager.LoadAnimations();
 
-
                 // ===== ✅ INITIALIZE NEW SYSTEMS =====
-                // 1. Initialize PlayerState instances
+                // 1. Initialize PlayerState instances - SỬA Y position
                 player1State = new PlayerState(username, player1CharacterType, 1)
                 {
                     X = 300,
-                    Y = groundLevel - PLAYER_HEIGHT,
+                    Y = groundLevel - PLAYER_HEIGHT, // ✅ DÙNG groundLevel đã tính
                     Facing = "right",
                     CurrentAnimation = "stand"
                 };
@@ -577,7 +620,7 @@ namespace DoAn_NT106
                 player2State = new PlayerState(opponent, player2CharacterType, 2)
                 {
                     X = 600,
-                    Y = groundLevel - PLAYER_HEIGHT,
+                    Y = groundLevel - PLAYER_HEIGHT, // ✅ DÙNG groundLevel đã tính
                     Facing = "left",
                     CurrentAnimation = "stand"
                 };
@@ -667,16 +710,22 @@ namespace DoAn_NT106
                     player2ParryOnCooldown = false;
                 };
                 // Load background options
-                backgroundImages.Add("battleground1");
-                backgroundImages.Add("battleground2");
-                backgroundImages.Add("battleground3");
-                backgroundImages.Add("battleground4");
+                 if (cmbBackground.Items.Count == 0) // CHỈ thêm nếu ComboBox rỗng
+        {
+            // Xóa danh sách cũ và thêm mới
+            backgroundImages.Clear();
+            backgroundImages.Add("battleground1");
+            backgroundImages.Add("battleground2");
+            backgroundImages.Add("battleground3");
+            backgroundImages.Add("battleground4");
 
-                cmbBackground.Items.AddRange(new object[] {
-                    "Battlefield 1", "Battlefield 2", "Battlefield 3", "Battlefield 4"
-                });
-                if (cmbBackground.Items.Count > 0) cmbBackground.SelectedIndex = 0;
-
+            cmbBackground.Items.Clear(); // Xóa trước khi thêm mới
+            cmbBackground.Items.AddRange(new object[] {
+                "Battlefield 1", "Battlefield 2", "Battlefield 3", "Battlefield 4"
+            });
+            
+            Console.WriteLine($"[SetupGame] Added {cmbBackground.Items.Count} background options");
+        }
                 // Set background (uses current ClientSize; safe-guards inside)
                 SetBackground(backgroundImages[currentBackground]);
 
@@ -1778,6 +1827,27 @@ namespace DoAn_NT106
         {
             try
             {
+                // KIỂM TRA 1: Form đã sẵn sàng chưa?
+                if (this.ClientSize.Height <= 100 || this.IsDisposed || !this.IsHandleCreated)
+                {
+                    // Nếu form chưa sẵn sàng, đợi một chút và thử lại
+                    Console.WriteLine($"[SetBackground] Form chưa sẵn sàng, ClientSize.Height={this.ClientSize.Height}");
+
+                    var timer = new System.Windows.Forms.Timer();
+                    timer.Interval = 50; // Giảm xuống 50ms cho nhanh
+                    timer.Tick += (s, e) =>
+                    {
+                        timer.Stop();
+                        timer.Dispose();
+                        if (!this.IsDisposed)
+                        {
+                            SetBackground(backgroundName); // Gọi lại sau 50ms
+                        }
+                    };
+                    timer.Start();
+                    return;
+                }
+
                 Image originalBg = null;
                 switch (backgroundName.ToLower())
                 {
@@ -1790,26 +1860,100 @@ namespace DoAn_NT106
                 if (originalBg != null)
                 {
                     int screenHeight = this.ClientSize.Height;
+
+                    // KIỂM TRA 2: Đảm bảo screenHeight hợp lệ
+                    if (screenHeight <= 100)
+                    {
+                        screenHeight = 600; // Giá trị mặc định an toàn
+                        Console.WriteLine($"[SetBackground] ClientSize.Height={this.ClientSize.Height}, using safe height={screenHeight}");
+                    }
+
+                    // KIỂM TRA 3: Đảm bảo originalBg có kích thước hợp lệ
+                    if (originalBg.Width <= 0 || originalBg.Height <= 0)
+                    {
+                        Console.WriteLine($"[SetBackground] Original background has invalid size: {originalBg.Width}x{originalBg.Height}");
+                        originalBg = CreateColoredImage(800, 600, Color.DarkGreen);
+                    }
+
+                    Console.WriteLine($"[SetBackground] Creating background: {backgroundWidth}x{screenHeight} from {originalBg.Width}x{originalBg.Height}");
+
+                    // TẠO BACKGROUND với kích thước chính xác
                     background = new Bitmap(backgroundWidth, screenHeight);
                     using (var g = Graphics.FromImage(background))
                     {
+                        g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
+
+                        // Vẽ lặp background ngang
                         for (int x = 0; x < backgroundWidth; x += originalBg.Width)
                         {
-                            g.DrawImage(originalBg, x, 0, originalBg.Width, screenHeight);
+                            g.DrawImage(originalBg,
+                                new Rectangle(x, 0, originalBg.Width, screenHeight),
+                                new Rectangle(0, 0, originalBg.Width, originalBg.Height),
+                                GraphicsUnit.Pixel);
+                        }
+                    }
+
+                    // CẬP NHẬT groundOffset THEO BACKGROUND ĐÃ CHỌN
+                    if (backgroundGroundOffsets.ContainsKey(backgroundName.ToLower()))
+                    {
+                        int newGroundOffset = backgroundGroundOffsets[backgroundName.ToLower()];
+
+                        // Chỉ cập nhật nếu khác giá trị cũ
+                        if (groundOffset != newGroundOffset)
+                        {
+                            groundOffset = newGroundOffset;
+                            groundLevel = Math.Max(0, this.ClientSize.Height - groundOffset);
+
+                            Console.WriteLine($"[SetBackground] Updated groundOffset={groundOffset}, groundLevel={groundLevel}");
+
+                            // CẬP NHẬT VỊ TRÍ PLAYER NGAY LẬP TỨC
+                            if (player1State != null)
+                            {
+                                player1State.Y = groundLevel - PLAYER_HEIGHT;
+                                player1Y = player1State.Y;
+                            }
+                            if (player2State != null)
+                            {
+                                player2State.Y = groundLevel - PLAYER_HEIGHT;
+                                player2Y = player2State.Y;
+                            }
+
+                            // CẬP NHẬT PHYSICSSYSTEM
+                            if (physicsSystem != null)
+                            {
+                                physicsSystem.UpdateGroundLevel(groundLevel);
+                                if (player1State != null) physicsSystem.ResetToGround(player1State);
+                                if (player2State != null) physicsSystem.ResetToGround(player2State);
+                            }
                         }
                     }
                 }
                 else
                 {
-                    background = CreateColoredImage(backgroundWidth, this.ClientSize.Height, Color.DarkGreen);
+                    // Fallback nếu không load được background
+                    int screenHeight = Math.Max(100, this.ClientSize.Height);
+                    background = CreateColoredImage(backgroundWidth, screenHeight, Color.DarkGreen);
+                    Console.WriteLine($"[SetBackground] Using fallback background");
                 }
 
+                // FORCE REDRAW
                 this.Invalidate();
+
+                Console.WriteLine($"[SetBackground] Background '{backgroundName}' loaded successfully");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error loading background: {ex.Message}");
-                background = CreateColoredImage(backgroundWidth, this.ClientSize.Height, Color.DarkGreen);
+                Console.WriteLine($"[SetBackground ERROR] {ex.Message}");
+                Console.WriteLine($"[SetBackground ERROR] StackTrace: {ex.StackTrace}");
+
+                // Fallback cứng
+                try
+                {
+                    background = CreateColoredImage(backgroundWidth, 600, Color.DarkGreen);
+                    this.Invalidate();
+                }
+                catch { }
             }
         }
 

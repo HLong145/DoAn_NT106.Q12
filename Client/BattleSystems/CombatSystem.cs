@@ -627,6 +627,12 @@ namespace DoAn_NT106.Client.BattleSystems
         {
             int slideDuration = SMOOTH_DASH_DURATION_MS;
             int slideDistance = DASH_DISTANCE;
+            if (player.CharacterType == "warrior")
+            {
+                slideDuration = 150;
+                slideDistance = 400;
+            }
+
             int slideDirection = player.Facing == "right" ? 1 : -1;
 
             Console.WriteLine($"?? {player.CharacterType} smooth dash: {slideDistance}px in {slideDuration}ms");
