@@ -467,7 +467,7 @@ namespace DoAn_NT106.Client.BattleSystems
                     {
                         int moveAmount = Math.Min(slideRemaining, (int)Math.Ceiling(slideSpeed));
                         attacker.X += moveAmount * slideDirection;
-                        attacker.X = Math.Max(0, Math.Min(backgroundWidth - playerWidth, attacker.X));
+                        ClampPlayerToMap(attacker);
                         slideRemaining -= moveAmount;
                     }
                     else
@@ -507,7 +507,7 @@ namespace DoAn_NT106.Client.BattleSystems
                 {
                     int moveAmount = Math.Min(slideRemaining, (int)Math.Ceiling(slideSpeed));
                     attacker.X += moveAmount * slideDirection;
-                    attacker.X = Math.Max(0, Math.Min(backgroundWidth - playerWidth, attacker.X));
+                    ClampPlayerToMap(attacker);
                     slideRemaining -= moveAmount;
                 }
                 else
@@ -628,125 +628,55 @@ namespace DoAn_NT106.Client.BattleSystems
             int slideDuration = SMOOTH_DASH_DURATION_MS;
             int slideDistance = DASH_DISTANCE;
             int slideDirection = player.Facing == "right" ? 1 : -1;
-            
+
             Console.WriteLine($"?? {player.CharacterType} smooth dash: {slideDistance}px in {slideDuration}ms");
-            
+
             player.IsDashing = true;
-            
+
             if (animMgr.HasAnimation("slide"))
             {
                 player.CurrentAnimation = "slide";
                 animMgr.ResetAnimationToFirstFrame("slide");
             }
-            
-            int slideRemaining = slideDistance;
+
+            // ✅ Tính khoảng cách có thể di chuyển
+            int availableDistance = CalculateAvailableDistance(player, slideDirection, slideDistance);
+            int slideRemaining = Math.Abs(availableDistance);
             int slideElapsed = 0;
-            float slideSpeed = (float)slideDistance / slideDuration * 16;
-            
+            float slideSpeed = (float)slideRemaining / slideDuration * 16;
+
             var slideTimer = new Timer { Interval = 16 };
             slideTimer.Tick += (s, e) =>
             {
                 slideElapsed += 16;
-                
+
                 if (slideElapsed < slideDuration && slideRemaining > 0)
                 {
                     int moveAmount = Math.Min(slideRemaining, (int)Math.Ceiling(slideSpeed));
                     player.X += moveAmount * slideDirection;
-                    player.X = Math.Max(0, Math.Min(backgroundWidth - playerWidth, player.X));
-                    ClampPlayerToMap(player);
                     slideRemaining -= moveAmount;
+
+                    // ✅ Soft clamp khi cần
+                    if (slideRemaining <= 0)
+                    {
+                        ClampPlayerToMap(player);
+                    }
                 }
                 else
                 {
                     slideTimer.Stop();
                     slideTimer.Dispose();
                     player.IsDashing = false;
-                    
+
                     if (!player.IsAttacking && !player.IsJumping && !player.IsStunned)
                         player.ResetToIdle();
-                    
-                    Console.WriteLine($"? {player.CharacterType} dash ended after {slideDuration}ms");
+
+                    Console.WriteLine($"? {player.CharacterType} dash ended, remaining: {slideRemaining}px");
                 }
             };
             slideTimer.Start();
         }
 
-        private void ExecuteTeleportDash(int playerNum, PlayerState player, CharacterAnimationManager animMgr)
-        {
-            // ? TELEPORT DASH with disappear effect
-            // Step 1: Show dash effect at current position
-            // Step 2: Player disappears (invisible) for 0.3s with iframe
-            // Step 3: Player reappears at destination after 0.3s
-            
-            int startX = player.X;
-            int startY = player.Y;
-            string facing = player.Facing;
-            
-            // ? Calculate destination
-            player.IsDashing = true;
-            int dashDirection = player.Facing == "right" ? 1 : -1;
-            int destinationX = player.X + (DASH_DISTANCE * dashDirection);
-            var boundary = GetDashBoundary(player);
-            destinationX = Math.Max(0, Math.Min(backgroundWidth - playerWidth, destinationX));
-            
-            Console.WriteLine($"? {player.CharacterType} teleport dash: {DASH_DISTANCE}px instant");
-            
-            // ? STEP 1: Show dash effect at START position (0.15s duration)
-            effectManager.ShowDashEffect(playerNum, startX, startY, facing, invalidateCallback);
-            
-            // ? STEP 2: Make player INVISIBLE (hide for 0.3s)
-            string originalAnimation = player.CurrentAnimation;
-            player.CurrentAnimation = "invisible"; // Special state to hide player
-            
-            // ? STEP 3: Move to destination (but still invisible)
-            player.X = destinationX;
-            ClampPlayerToMap(player);
-            destinationX = player.X;
-            invalidateCallback?.Invoke();
-            
-            // ? STEP 4: After 0.3s, make player visible again at destination
-            var reappearTimer = new Timer { Interval = SMOOTH_DASH_DURATION_MS }; // 300ms
-            reappearTimer.Tick += (s, e) =>
-            {
-                reappearTimer.Stop();
-                reappearTimer.Dispose();
-                
-                // ? Make player visible again
-                player.IsDashing = false; // IFRAME OFF
-                player.CurrentAnimation = "idle"; // Back to normal
-                
-                if (!player.IsAttacking && !player.IsJumping && !player.IsStunned)
-                    player.ResetToIdle();
-                
-                invalidateCallback?.Invoke();
-                Console.WriteLine($"? {player.CharacterType} reappeared at X={player.X}");
-            };
-            reappearTimer.Start();
-        }
-
-        private (int minX, int maxX) GetDashBoundary(PlayerState player)
-        {
-            int baseMinX = 0;
-            int baseMaxX = backgroundWidth - playerWidth;
-
-            // ✅ Điều chỉnh tương tự movement boundary
-            if (player.CharacterType == "goatman")
-            {
-                return (baseMinX - 65, baseMaxX - 65);
-            }
-            else if (player.CharacterType == "bringerofdeath")
-            {
-                int scaledWidth = (int)(playerWidth * 1.6f);
-                return (baseMinX, backgroundWidth - scaledWidth);
-            }
-            else if (player.CharacterType == "girlknight")
-            {
-                int scaledWidth = (int)(playerWidth * 0.7f);
-                return (baseMinX, backgroundWidth - scaledWidth);
-            }
-
-            return (baseMinX, baseMaxX);
-        }
         public void ToggleSkill(int playerNum)
         {
             PlayerState player = playerNum == 1 ? player1 : player2;
@@ -755,7 +685,7 @@ namespace DoAn_NT106.Client.BattleSystems
             if (player.CharacterType == "girlknight")
                 ToggleKnightGirlSkill(playerNum, player);
             else if (player.CharacterType == "goatman")
-                ExecuteGoatmanCharge(playerNum, player);
+                ExecuteGoatmanCharge(playerNum, player,playerNum == 1 ? player1AnimManager : player2AnimManager);
             else if (player.Mana >= 30)
                 ExecuteAttack(playerNum, "special");
         }
@@ -867,9 +797,8 @@ namespace DoAn_NT106.Client.BattleSystems
                 Console.WriteLine($"[SKILL END] Player {playerNum} manually deactivated skill");
             }
         }
-        private void ExecuteGoatmanCharge(int playerNum, PlayerState player)
+        private void ExecuteGoatmanCharge(int playerNum, PlayerState player, CharacterAnimationManager animMgr)
         {
-            CharacterAnimationManager animMgr = playerNum == 1 ? player1AnimManager : player2AnimManager;
             PlayerState opponent = playerNum == 1 ? player2 : player1;
 
             if (!player.ConsumeMana(30)) return;
@@ -895,11 +824,12 @@ namespace DoAn_NT106.Client.BattleSystems
                 {
                     player.ChargeSpeed = CHARGE_MAX_SPEED;
                 }
-                SafeMovePlayer(player, (int)(player.ChargeSpeed * chargeDirection), chargeDirection);
-                var boundary = GetDashBoundary(player);
-                player.X += (int)(player.ChargeSpeed * chargeDirection);
-                player.X = Math.Max(boundary.minX, Math.Min(boundary.maxX, player.X));
-                ClampPlayerToMap(player);
+
+                // ✅ THAY THẾ SafeMovePlayer:
+                int desiredMove = (int)(player.ChargeSpeed * chargeDirection);
+                player.X += desiredMove;
+                ClampPlayerToMap(player);  // Soft clamp
+
                 Rectangle chargeHitbox = GetPlayerHurtbox(player);
                 Rectangle targetHurtbox = GetPlayerHurtbox(opponent);
 
@@ -990,10 +920,11 @@ namespace DoAn_NT106.Client.BattleSystems
             if (knockback)
             {
                 int kb = (attacker.X > target.X) ? -20 : 20;
-                target.X = Math.Max(0, Math.Min(backgroundWidth - playerWidth, target.X + kb));
+                target.X += kb;
                 ClampPlayerToMap(target);
-            }
 
+                Console.WriteLine($"? Knockback applied to Player{targetPlayer}, X={target.X}");
+            }
             invalidateCallback?.Invoke();
 
             var restoreTimer = new Timer { Interval = HIT_STUN_DURATION_MS };
@@ -1039,9 +970,22 @@ namespace DoAn_NT106.Client.BattleSystems
         /// </summary>
         private void ClampPlayerToMap(PlayerState player)
         {
-            // Tính boundary dựa trên hurtbox (giống PhysicsSystem)
             var boundary = GetBoundaryFromHurtbox(player);
-            player.X = Math.Max(boundary.minX, Math.Min(boundary.maxX, player.X));
+
+            // Soft clamp với tolerance 5px
+            const int TOLERANCE = 5;
+
+            if (player.X < boundary.minX - TOLERANCE)
+            {
+                player.X = boundary.minX;
+                Console.WriteLine($"⚠️ Player{player.PlayerNumber} reached LEFT boundary at X={player.X}");
+            }
+            else if (player.X > boundary.maxX + TOLERANCE)
+            {
+                player.X = boundary.maxX;
+                Console.WriteLine($"⚠️ Player{player.PlayerNumber} reached RIGHT boundary at X={player.X}");
+            }
+            // Nếu trong khoảng tolerance, giữ nguyên để knockback mượt
         }
 
         /// <summary>
@@ -1190,38 +1134,75 @@ namespace DoAn_NT106.Client.BattleSystems
                 hurtboxHeight
             );
         }
-        /// <summary>
-        /// Calculate max distance player can move in a direction
-        /// </summary>
-        private int GetMaxMoveDistance(PlayerState player, int direction)
-        {
-            var boundary = GetBoundaryFromHurtbox(player);
 
-            if (direction > 0) // Moving right
+        private void ExecuteTeleportDash(int playerNum, PlayerState player, CharacterAnimationManager animMgr)
+        {
+            int startX = player.X;
+            int startY = player.Y;
+            string facing = player.Facing;
+
+            player.IsDashing = true;
+            int dashDirection = player.Facing == "right" ? 1 : -1;
+
+            // ✅ Sử dụng CalculateAvailableDistance để tính khoảng cách thực tế
+            int actualDistance = CalculateAvailableDistance(player, dashDirection, DASH_DISTANCE);
+            int destinationX = player.X + actualDistance;
+
+            Console.WriteLine($"? {player.CharacterType} teleport dash: {DASH_DISTANCE}px -> {actualDistance}px to X={destinationX}");
+
+            // ? STEP 1: Show dash effect at START position
+            effectManager.ShowDashEffect(playerNum, startX, startY, facing, invalidateCallback);
+
+            // ? STEP 2: Make player INVISIBLE
+            string originalAnimation = player.CurrentAnimation;
+            player.CurrentAnimation = "invisible";
+
+            // ? STEP 3: Move to destination (đã được tính toán an toàn)
+            player.X = destinationX;
+            // Không cần ClampPlayerToMap vì CalculateAvailableDistance đã tính toán
+
+            invalidateCallback?.Invoke();
+
+            // ? STEP 4: After 0.3s, make player visible again
+            var reappearTimer = new Timer { Interval = SMOOTH_DASH_DURATION_MS };
+            reappearTimer.Tick += (s, e) =>
             {
-                return boundary.maxX - player.X;
-            }
-            else // Moving left
-            {
-                return player.X - boundary.minX;
-            }
+                reappearTimer.Stop();
+                reappearTimer.Dispose();
+
+                player.IsDashing = false;
+                player.CurrentAnimation = "idle";
+
+                if (!player.IsAttacking && !player.IsJumping && !player.IsStunned)
+                    player.ResetToIdle();
+
+                invalidateCallback?.Invoke();
+            };
+            reappearTimer.Start();
         }
 
         /// <summary>
-        /// Safe dash/charge movement with boundary check
+        /// ✅ NEW: Tính khoảng cách có thể di chuyển
         /// </summary>
-        private void SafeMovePlayer(PlayerState player, int distance, int direction)
+        private int CalculateAvailableDistance(PlayerState player, int direction, int desiredDistance)
         {
-            int maxDistance = GetMaxMoveDistance(player, direction);
-            int actualMove = Math.Min(Math.Abs(distance), maxDistance) * Math.Sign(distance);
+            var boundary = GetBoundaryFromHurtbox(player);
 
-            player.X += actualMove;
-            ClampPlayerToMap(player);
-
-            if (actualMove < Math.Abs(distance))
+            int availableDistance;
+            if (direction > 0) // Moving right
             {
-                Console.WriteLine($"⚠️ Movement limited: {distance} -> {actualMove}");
+                availableDistance = Math.Max(0, boundary.maxX - player.X);
             }
+            else // Moving left
+            {
+                availableDistance = Math.Max(0, player.X - boundary.minX);
+            }
+
+            // Giới hạn khoảng cách
+            int actualDistance = Math.Min(desiredDistance, availableDistance);
+
+            // Giữ nguyên hướng (dấu)
+            return actualDistance * Math.Sign(direction);
         }
         public void Cleanup()
         {
