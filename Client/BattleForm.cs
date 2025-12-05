@@ -2159,6 +2159,21 @@ namespace DoAn_NT106
             }
 
             int finalAttackX, finalAttackY;
+
+            // ✅ SPECIAL CASE: Girl Knight skill should hit forward AND backward (extend range to opposite direction)
+            if (attacker.CharacterType == "girlknight" && attackType == "skill")
+            {
+                // Bidirectional area: cover forward + backward
+                // Reduce 10px on each side → shift start by +10 and reduce total width by 20
+                finalAttackX = (configCenterX - attackRangeValue) + 10;
+                finalAttackY = attacker.Y + yOffset + groundAdjustment + offsetY;
+                int bidirectionalWidth = (attackRangeValue * 2) - 20;
+                if (bidirectionalWidth < 0) bidirectionalWidth = 0; // safety
+                Console.WriteLine($"[GetAttackHitbox] GIRLKNIGHT.skill (FORWARD+BACK -10px each side): X={finalAttackX}, Y={finalAttackY}, W={bidirectionalWidth}, H={attackHeightValue}");
+                return new Rectangle(finalAttackX, finalAttackY, bidirectionalWidth, attackHeightValue);
+            }
+
+            // Default directional logic (forward-only)
             if (attacker.Facing == "right")
             {
                 finalAttackX = configCenterX;
