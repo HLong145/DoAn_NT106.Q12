@@ -1767,15 +1767,28 @@ namespace DoAn_NT106
                 int destX = screenX;
                 int destY = y + yOffset + groundAdjustment;
 
-                // ✅ NEW: Lift warrior's kick/skill by 35px without changing hitbox positions
+                // Lift warrior's kick/skill by 35px without changing hitbox positions
                 if (charType == "warrior" &&
                     (string.Equals(animation, "kick", StringComparison.OrdinalIgnoreCase) ||
                      string.Equals(animation, "skill", StringComparison.OrdinalIgnoreCase) ||
                      string.Equals(animation, "fireball", StringComparison.OrdinalIgnoreCase)))
                 {
-                    destY -= 110; // move sprite up by 35px
+                    destY -= 110;
                 }
 
+                // ✅ NEW: Fix right-facing warrior kick horizontal offset by 30px (shift left)
+                if (charType == "warrior" &&
+                    string.Equals(animation, "kick", StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(facing, "right", StringComparison.OrdinalIgnoreCase))
+                {
+                    destX -= 180; // move sprite 30px left to align
+                }
+                if (charType == "warrior" &&
+                    string.Equals(animation, "fireball", StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(facing, "right", StringComparison.OrdinalIgnoreCase))
+                {
+                    destX -= 180; // move sprite 30px left to align
+                }
                 var prevInterpolation = g.InterpolationMode;
                 var prevSmoothing = g.SmoothingMode;
                 var prevPixelOffset = g.PixelOffsetMode;
