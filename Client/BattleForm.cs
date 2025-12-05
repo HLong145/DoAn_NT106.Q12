@@ -1710,27 +1710,16 @@ namespace DoAn_NT106
 
         private void DrawCharacter(Graphics g, int x, int y, string animation, string facing, CharacterAnimationManager animationManager)
         {
-            // ✅ SKIP DRAWING if player is invisible (teleport dash effect)
-            if (animation == "invisible")
-            {
-                return; // Don't draw anything
-            }
-
+            if (animation == "invisible") return;
             int screenX = x - viewportX;
-
-            // nếu off-screen, bỏ qua
-            if (screenX + PLAYER_WIDTH < 0 || screenX > this.ClientSize.Width)
-                return;
+            if (screenX + PLAYER_WIDTH < 0 || screenX > this.ClientSize.Width) return;
 
             var characterImage = animationManager.GetAnimation(animation);
             if (characterImage != null)
             {
-                // ✅ CHARACTER-SPECIFIC SIZE SCALING
                 string charType = "";
-                if (animationManager == player1AnimationManager)
-                    charType = player1CharacterType;
-                else if (animationManager == player2AnimationManager)
-                    charType = player2CharacterType;
+                if (animationManager == player1AnimationManager) charType = player1CharacterType;
+                else if (animationManager == player2AnimationManager) charType = player2CharacterType;
 
                 var actualSize = GetActualCharacterSize(charType);
                 int drawHeight = PLAYER_HEIGHT;
@@ -1738,26 +1727,54 @@ namespace DoAn_NT106
                 int yOffset = 0;
                 int groundAdjustment = actualSize.groundAdjustment;
 
-                // ✅ SỬA: APPLY CHARACTER-SPECIFIC SCALING + Y OFFSET (đã bao gồm globalCharacterScale)
                 if (charType == "girlknight")
                 {
-                    sizeScale = 0.7f; // 70% (bằng Goatman) - GIỮ NGUYÊN tỷ lệ tương đối
-                    yOffset = (int)(PLAYER_HEIGHT * (1.0f - sizeScale)); // Nâng lên để chân chạm đất
+                    sizeScale = 0.7f;
+                    yOffset = (int)(PLAYER_HEIGHT * (1.0f - sizeScale));
                 }
                 else if (charType == "bringerofdeath")
                 {
-                    sizeScale = 1.6f; // 160% - GIỮ NGUYÊN tỷ lệ tương đối
+                    sizeScale = 1.6f;
                     yOffset += (int)(10 * globalCharacterScale);
                 }
 
                 drawHeight = (int)(PLAYER_HEIGHT * sizeScale);
 
-                int imgW = Math.Max(1, characterImage.Width);
-                int imgH = Math.Max(1, characterImage.Height);
-                int drawWidth = Math.Max(1, (int)(drawHeight * (float)imgW / imgH));
+                int drawWidth;
+                if (charType == "warrior")
+                {
+                    // Base unified size using stand reference
+                    drawWidth = Math.Max(1, actualSize.actualWidth);
+                    drawHeight = Math.Max(1, actualSize.actualHeight);
+
+                    // Upscale warrior's Kick (K) and Skill (I) animations to match normal size
+                    if (string.Equals(animation, "kick", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(animation, "skill", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(animation, "fireball", StringComparison.OrdinalIgnoreCase))
+                    {
+                        const float upscale = 1.3f; // fine-tuned upscale
+                        drawWidth = (int)(drawWidth * upscale);
+                        drawHeight = (int)(drawHeight * upscale);
+                    }
+                }
+                else
+                {
+                    int imgW = Math.Max(1, characterImage.Width);
+                    int imgH = Math.Max(1, characterImage.Height);
+                    drawWidth = Math.Max(1, (int)(drawHeight * (float)imgW / imgH));
+                }
 
                 int destX = screenX;
                 int destY = y + yOffset + groundAdjustment;
+
+                // ✅ NEW: Lift warrior's kick/skill by 35px without changing hitbox positions
+                if (charType == "warrior" &&
+                    (string.Equals(animation, "kick", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(animation, "skill", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(animation, "fireball", StringComparison.OrdinalIgnoreCase)))
+                {
+                    destY -= 110; // move sprite up by 35px
+                }
 
                 var prevInterpolation = g.InterpolationMode;
                 var prevSmoothing = g.SmoothingMode;
@@ -1776,7 +1793,7 @@ namespace DoAn_NT106
                         g.DrawImage(
                             characterImage,
                             new Rectangle(destX + drawWidth, destY, -drawWidth, drawHeight),
-                            new Rectangle(0, 0, imgW, imgH),
+                            new Rectangle(0, 0, Math.Max(1, characterImage.Width), Math.Max(1, characterImage.Height)),
                             GraphicsUnit.Pixel);
                     }
                     else
@@ -1784,7 +1801,7 @@ namespace DoAn_NT106
                         g.DrawImage(
                             characterImage,
                             new Rectangle(destX, destY, drawWidth, drawHeight),
-                            new Rectangle(0, 0, imgW, imgH),
+                            new Rectangle(0, 0, Math.Max(1, characterImage.Width), Math.Max(1, characterImage.Height)),
                             GraphicsUnit.Pixel);
                     }
                 }
