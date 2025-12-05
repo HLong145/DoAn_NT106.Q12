@@ -419,27 +419,11 @@ namespace DoAn_NT106.Client.BattleSystems
 
         private void ExecuteGirlKnightKick(int playerNum, PlayerState attacker, PlayerState defender, CharacterAnimationManager animMgr)
         {
-            float msPerFrame = frameTimings["girlknight"]["kick"]; // 125ms per frame
-            int hitFrame = 6;
-            int hitTime = (int)(hitFrame * msPerFrame);
+            // Continuous collision from attack hit frame (minus 2 frames) to animation end, single damage only (pierce)
+            float msPerFrame = frameTimings["girlknight"]["kick"]; // per-frame duration
+            int duration = animMgr.GetAnimationDuration("kick");
 
-            var hitTimer = new Timer { Interval = hitTime };
-            hitTimer.Tick += (s, e) =>
-            {
-                hitTimer.Stop();
-                hitTimer.Dispose();
-                Rectangle attackBox = getAttackHitboxCallback(attacker, "kick");
-                Rectangle hurtBox = getPlayerHurtboxCallback(defender);
-
-                if (attackBox.IntersectsWith(hurtBox))
-                {
-                    ApplyDamage(playerNum == 1 ? 2 : 1, 15);
-                    showHitEffectCallback?.Invoke("Kick!", Color.Pink);
-                }
-            };
-            hitTimer.Start();
-
-            // Slide giữ nguyên như cũ
+            // Slide (frames 6..9)
             int slideStartFrame = 6;
             int slideEndFrame = 9;
             int slideFrameCount = slideEndFrame - slideStartFrame;
@@ -447,6 +431,7 @@ namespace DoAn_NT106.Client.BattleSystems
             int slideDuration = (int)(slideFrameCount * msPerFrame);
             int slideDistance = 400;
 
+            // Start slide at slideStartTime
             var slideStartTimer = new Timer { Interval = slideStartTime };
             slideStartTimer.Tick += (s, e) =>
             {
@@ -479,6 +464,48 @@ namespace DoAn_NT106.Client.BattleSystems
                 slideTimer.Start();
             };
             slideStartTimer.Start();
+
+            // Start continuous hit check from the actual hit frame timing, adjusted earlier by 2 frames
+            int hitStartTime = 0;
+            try { hitStartTime = animMgr.GetHitFrameDelay("kick"); } catch { hitStartTime = (int)(6 * msPerFrame); }
+            hitStartTime = Math.Max(0, hitStartTime - (int)(2 * msPerFrame));
+
+            bool hasDealtDamage = false;
+
+            var startCheckTimer = new Timer { Interval = hitStartTime };
+            startCheckTimer.Tick += (s, e) =>
+            {
+                startCheckTimer.Stop();
+                startCheckTimer.Dispose();
+
+                int elapsed = 0;
+                var continuousCheckTimer = new Timer { Interval = 16 };
+                continuousCheckTimer.Tick += (s2, e2) =>
+                {
+                    elapsed += 16;
+
+                    // Stop when animation expected duration is reached or attacker state changed
+                    if (elapsed >= duration || attacker.CurrentAnimation != "kick")
+                    {
+                        continuousCheckTimer.Stop();
+                        continuousCheckTimer.Dispose();
+                        return;
+                    }
+
+                    if (!hasDealtDamage)
+                    {
+                        // Apply damage immediately upon first collision, do not stop slide (pierce)
+                        if (CheckAttackHit(attacker, defender, "kick") && !defender.IsParrying && !defender.IsDashing)
+                        {
+                            ApplyDamage(playerNum == 1 ? 2 : 1, 15);
+                            showHitEffectCallback?.Invoke("Kick!", Color.Pink);
+                            hasDealtDamage = true; // only once
+                        }
+                    }
+                };
+                continuousCheckTimer.Start();
+            };
+            startCheckTimer.Start();
         }
         private void ExecuteWarriorKick(int playerNum, PlayerState attacker, PlayerState defender, CharacterAnimationManager animMgr)
         {
@@ -666,7 +693,7 @@ namespace DoAn_NT106.Client.BattleSystems
                     if (slideRemaining <= 0)
                     {
                         ClampPlayerToMap(player);
-                    }
+                      }
                 }
                 else
                 {
