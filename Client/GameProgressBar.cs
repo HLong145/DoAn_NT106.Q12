@@ -16,6 +16,22 @@ namespace DoAn_NT106
             Height = 20;
         }
 
+        // ✅ THÊM: Override Value để tự động Invalidate
+        private int _value;
+        public new int Value
+        {
+            get => _value;
+            set
+            {
+                if (_value != value)
+                {
+                    _value = Math.Max(Minimum, Math.Min(Maximum, value));
+                    base.Value = _value; // Cập nhật base value
+                    this.Invalidate(); // ✅ QUAN TRỌNG: Vẽ lại thanh bar
+                }
+            }
+        }
+
         protected override void OnPaint(PaintEventArgs e)
         {
             Rectangle rect = ClientRectangle;

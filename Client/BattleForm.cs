@@ -94,9 +94,10 @@ namespace DoAn_NT106
         private HashSet<int> player1ProcessedHitFrames = new HashSet<int>();
         private HashSet<int> player2ProcessedHitFrames = new HashSet<int>();
         // Progress bars (assume GameProgressBar exists in project)
-        private GameProgressBar healthBar1, healthBar2;
-        private GameProgressBar staminaBar1, staminaBar2;
-        private GameProgressBar manaBar1, manaBar2;
+        // ❌ Removed legacy bar fields (managed by ResourceSystem)
+        // private GameProgressBar healthBar1, healthBar2;
+        // private GameProgressBar staminaBar1, staminaBar2;
+        // private GameProgressBar manaBar1, manaBar2;
         private Label lblPlayer1Name, lblPlayer2Name;
         private Label lblControlsInfo;
         // Parry (đỡ)
@@ -543,12 +544,16 @@ namespace DoAn_NT106
             player1Y = 0;
             player2Y = 0;
             this.Load += BattleForm_Load;
+
+            // ✅ Initialize once here
             SetupGame();
             SetupEventHandlers();
+
             this.Text = $"⚔️ Street Fighter - {username} vs {opponent}";
             this.DoubleBuffered = true;
             this.KeyPreview = true;
         }
+
         private void BattleForm_Load(object sender, EventArgs e)
         {
             // ĐẢM BẢO FORM ĐÃ HOÀN TOÀN HIỆN RA
@@ -581,13 +586,10 @@ namespace DoAn_NT106
                 physicsSystem.ResetToGround(player2State);
             }
 
-            // SETUP GAME (di chuyển từ constructor vào đây)
-            SetupGame();
-            SetupEventHandlers();
-
-            // FORCE REDRAW BACKGROUND
+            // ❌ Avoid re-running full setup; only force redraw
             this.Invalidate();
         }
+
         private void SetupGame()
         {
             try
@@ -625,18 +627,21 @@ namespace DoAn_NT106
                     CurrentAnimation = "stand"
                 };
 
-                // 2. Initialize ResourceSystem
-                resourceSystem = new ResourceSystem(player1State, player2State);
-                resourceSystem.SetupStatusBars(this.ClientSize.Width);
+                // 2. Initialize ResourceSystem (only once)
+                if (resourceSystem == null)
+                {
+                    resourceSystem = new ResourceSystem(player1State, player2State);
+                    resourceSystem.SetupStatusBars(this.ClientSize.Width);
+                }
 
                 // 3. Initialize PhysicsSystem
                 physicsSystem = new PhysicsSystem(
-          groundLevel,
-          backgroundWidth,
-          PLAYER_WIDTH,
-          PLAYER_HEIGHT,
-         GetPlayerHitbox
-      );
+                    groundLevel,
+                    backgroundWidth,
+                    PLAYER_WIDTH,
+                    PLAYER_HEIGHT,
+                    GetPlayerHitbox
+                );
 
 
                 // 4. Initialize EffectManager
@@ -647,15 +652,15 @@ namespace DoAn_NT106
 
                 // 6. Initialize CombatSystem
                 combatSystem = new CombatSystem(
-                player1State, player2State,
-                player1AnimationManager, player2AnimationManager,
-                effectManager, projectileManager,
-                PLAYER_WIDTH, PLAYER_HEIGHT, backgroundWidth,
-                () => this.Invalidate(),
-                ShowHitEffect,
-                GetAttackHitbox,
-                GetPlayerHitbox
-);
+                    player1State, player2State,
+                    player1AnimationManager, player2AnimationManager,
+                    effectManager, projectileManager,
+                    PLAYER_WIDTH, PLAYER_HEIGHT, backgroundWidth,
+                    () => this.Invalidate(),
+                    ShowHitEffect,
+                    GetAttackHitbox,
+                    GetPlayerHitbox
+                );
                 // =====================================
 
                 // ✅ THÊM DÒNG NÀY - SAU KHI ĐÃ CÓ physicsSystem!
@@ -666,51 +671,51 @@ namespace DoAn_NT106
                 walkAnimationTimer.Interval = 100;
                 walkAnimationTimer.Tick += WalkAnimationTimer_Tick;
 
-                // Parry timers init
-                p1ParryTimer = new System.Windows.Forms.Timer();
-                p1ParryTimer.Interval = parryWindowMs;
-                p1ParryTimer.Tick += (s, e) =>
-                {
-                    p1ParryTimer.Stop();
-                    player1Parrying = false;
-                    player1ParryOnCooldown = true;
-                    // restore previous animation if still valid
-                    if (!player1Attacking && !player1Jumping)
-                        player1CurrentAnimation = (_prevAnimPlayer1 == "walk" && (aPressed || dPressed)) ? "walk" : "stand";
-                    p1ParryCooldownTimer.Start();
-                    this.Invalidate();
-                };
+                // ❌ Remove legacy parry timers in BattleForm (CombatSystem handles parry)
+                // p1ParryTimer = new System.Windows.Forms.Timer();
+                // p1ParryTimer.Interval = parryWindowMs;
+                // p1ParryTimer.Tick += (s, e) =>
+                // {
+                //     p1ParryTimer.Stop();
+                //     player1Parrying = false;
+                //     player1ParryOnCooldown = true;
+                //     // restore previous animation if still valid
+                //     if (!player1Attacking && !player1Jumping)
+                //         player1CurrentAnimation = (_prevAnimPlayer1 == "walk" && (aPressed || dPressed)) ? "walk" : "stand";
+                //     p1ParryCooldownTimer.Start();
+                //     this.Invalidate();
+                // };
 
-                p1ParryCooldownTimer = new System.Windows.Forms.Timer();
-                p1ParryCooldownTimer.Interval = parryCooldownMs;
-                p1ParryCooldownTimer.Tick += (s, e) =>
-                {
-                    p1ParryCooldownTimer.Stop();
-                    player1ParryOnCooldown = false;
-                };
+                // p1ParryCooldownTimer = new System.Windows.Forms.Timer();
+                // p1ParryCooldownTimer.Interval = parryCooldownMs;
+                // p1ParryCooldownTimer.Tick += (s, e) =>
+                // {
+                //     p1ParryCooldownTimer.Stop();
+                //     player1ParryOnCooldown = false;
+                // };
 
-                p2ParryTimer = new System.Windows.Forms.Timer();
-                p2ParryTimer.Interval = parryWindowMs;
-                p2ParryTimer.Tick += (s, e) =>
-                {
-                    p2ParryTimer.Stop();
-                    player2Parrying = false;
-                    player2ParryOnCooldown = true;
-                    if (!player2Attacking && !player2Jumping)
-                        player2CurrentAnimation = (_prevAnimPlayer2 == "walk" && (leftPressed || rightPressed)) ? "walk" : "stand";
-                    p2ParryCooldownTimer.Start();
-                    this.Invalidate();
-                };
+                // p2ParryTimer = new System.Windows.Forms.Timer();
+                // p2ParryTimer.Interval = parryWindowMs;
+                // p2ParryTimer.Tick += (s, e) =>
+                // {
+                //     p2ParryTimer.Stop();
+                //     player2Parrying = false;
+                //     player2ParryOnCooldown = true;
+                //     if (!player2Attacking && !player2Jumping)
+                //         player2CurrentAnimation = (_prevAnimPlayer2 == "walk" && (leftPressed || rightPressed)) ? "walk" : "stand";
+                //     p2ParryCooldownTimer.Start();
+                //     this.Invalidate();
+                // };
 
-                p2ParryCooldownTimer = new System.Windows.Forms.Timer();
-                p2ParryCooldownTimer.Interval = parryCooldownMs;
-                p2ParryCooldownTimer.Tick += (s, e) =>
-                {
-                    p2ParryCooldownTimer.Stop();
-                    player2ParryOnCooldown = false;
-                };
+                // p2ParryCooldownTimer = new System.Windows.Forms.Timer();
+                // p2ParryCooldownTimer.Interval = parryCooldownMs;
+                // p2ParryCooldownTimer.Tick += (s, e) =>
+                // {
+                //     p2ParryCooldownTimer.Stop();
+                //     player2ParryOnCooldown = false;
+                // };
                 // Load background options
-                 if (cmbBackground.Items.Count == 0) // CHỈ thêm nếu ComboBox rỗng
+                if (cmbBackground.Items.Count == 0) // CHỈ thêm nếu ComboBox rỗng
         {
             // Xóa danh sách cũ và thêm mới
             backgroundImages.Clear();
@@ -827,15 +832,16 @@ namespace DoAn_NT106
             }
 
             // ===== ✅ SETUP UI WITH NEW SYSTEMS =====
-            // OLD: SetupStatusBars();
-            // NEW: Already called in resourceSystem.SetupStatusBars() above
-            // Add bars to form controls
-            this.Controls.Add(resourceSystem.HealthBar1);
-            this.Controls.Add(resourceSystem.StaminaBar1);
-            this.Controls.Add(resourceSystem.ManaBar1);
-            this.Controls.Add(resourceSystem.HealthBar2);
-            this.Controls.Add(resourceSystem.StaminaBar2);
-            this.Controls.Add(resourceSystem.ManaBar2);
+            // Add bars to form controls once
+            if (resourceSystem != null)
+            {
+                if (!this.Controls.Contains(resourceSystem.HealthBar1)) this.Controls.Add(resourceSystem.HealthBar1);
+                if (!this.Controls.Contains(resourceSystem.StaminaBar1)) this.Controls.Add(resourceSystem.StaminaBar1);
+                if (!this.Controls.Contains(resourceSystem.ManaBar1)) this.Controls.Add(resourceSystem.ManaBar1);
+                if (!this.Controls.Contains(resourceSystem.HealthBar2)) this.Controls.Add(resourceSystem.HealthBar2);
+                if (!this.Controls.Contains(resourceSystem.StaminaBar2)) this.Controls.Add(resourceSystem.StaminaBar2);
+                if (!this.Controls.Contains(resourceSystem.ManaBar2)) this.Controls.Add(resourceSystem.ManaBar2);
+            }
 
             // Add player name labels (keep existing style)
             int screenWidth = this.ClientSize.Width;
@@ -844,30 +850,34 @@ namespace DoAn_NT106
             int spacing = 5;
             int startY = 10;
 
-            lblPlayer1Name = new Label
+            if (lblPlayer1Name == null)
             {
-                Text = username,
-                Location = new Point(20, startY + 3 * (barHeight + spacing)),
-                Size = new Size(barWidth, 20),
-                ForeColor = Color.Cyan,
-                Font = new Font("Arial", 10, FontStyle.Bold),
-                BackColor = Color.Transparent
-            };
+                lblPlayer1Name = new Label
+                {
+                    Text = username,
+                    Location = new Point(20, startY + 3 * (barHeight + spacing)),
+                    Size = new Size(barWidth, 20),
+                    ForeColor = Color.Cyan,
+                    Font = new Font("Arial", 10, FontStyle.Bold),
+                    BackColor = Color.Transparent
+                };
+                this.Controls.Add(lblPlayer1Name);
+            }
 
-            lblPlayer2Name = new Label
+            if (lblPlayer2Name == null)
             {
-                Text = opponent,
-                Location = new Point(screenWidth - barWidth - 20, startY + 3 * (barHeight + spacing)),
-                Size = new Size(barWidth, 20),
-                ForeColor = Color.Orange,
-                Font = new Font("Arial", 10, FontStyle.Bold),
-                TextAlign = ContentAlignment.TopRight,
-                BackColor = Color.Transparent
-            };
-
-            this.Controls.Add(lblPlayer1Name);
-            this.Controls.Add(lblPlayer2Name);
-            // =====================================
+                lblPlayer2Name = new Label
+                {
+                    Text = opponent,
+                    Location = new Point(screenWidth - barWidth - 20, startY + 3 * (barHeight + spacing)),
+                    Size = new Size(barWidth, 20),
+                    ForeColor = Color.Orange,
+                    Font = new Font("Arial", 10, FontStyle.Bold),
+                    TextAlign = ContentAlignment.TopRight,
+                    BackColor = Color.Transparent
+                };
+                this.Controls.Add(lblPlayer2Name);
+            }
 
             SetupControlsInfo();
         }
@@ -1806,7 +1816,7 @@ namespace DoAn_NT106
             cmbBackground.SelectedIndexChanged += CmbBackground_SelectedIndexChanged;
             btnBack.Click += BtnBack_Click;
             gameTimer.Tick += GameTimer_Tick;
-            gameTimer.Start();
+            if (!gameTimer.Enabled) gameTimer.Start();
 
             this.KeyDown += BattleForm_KeyDown;
             this.KeyUp += BattleForm_KeyUp;

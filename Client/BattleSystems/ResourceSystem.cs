@@ -104,10 +104,11 @@ namespace DoAn_NT106.Client.BattleSystems
         }
 
         /// <summary>
-        /// Update all progress bars
+        /// Update all progress bars - ? ?Ã S?A: Thêm debug log
         /// </summary>
         public void UpdateBars()
         {
+            // ? C?P NH?T VÀ INVALIDATE
             HealthBar1.Value = Math.Max(0, Math.Min(100, player1.Health));
             StaminaBar1.Value = Math.Max(0, Math.Min(100, player1.Stamina));
             ManaBar1.Value = Math.Max(0, Math.Min(100, player1.Mana));
@@ -115,6 +116,10 @@ namespace DoAn_NT106.Client.BattleSystems
             HealthBar2.Value = Math.Max(0, Math.Min(100, player2.Health));
             StaminaBar2.Value = Math.Max(0, Math.Min(100, player2.Stamina));
             ManaBar2.Value = Math.Max(0, Math.Min(100, player2.Mana));
+
+            // ? DEBUG LOG - xóa sau khi test xong
+            // System.Console.WriteLine($"[UpdateBars] P1: HP={player1.Health}, Sta={player1.Stamina}, Mana={player1.Mana}");
+            // System.Console.WriteLine($"[UpdateBars] P2: HP={player2.Health}, Sta={player2.Stamina}, Mana={player2.Mana}");
         }
 
         /// <summary>
