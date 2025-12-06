@@ -1022,27 +1022,12 @@ namespace DoAn_NT106.Server
                     return CreateResponse(false, "Username is required");
                 }
 
-                // 1. Lấy email từ DB theo username
-                string email = dbService.GetEmailByUsername(username);
-                if (string.IsNullOrEmpty(email))
-                {
-                    return CreateResponse(false, "Email not found for this user");
-                }
-
-                // 2. Generate OTP
                 string otp = dbService.GenerateOtp(username);
 
-                // 3. Tạo EmailService với email gửi + app password
-                string senderEmail = "linhquangcbl@gmail.com";        // Gmail gửi OTP
-                string senderAppPassword = "gpwf gvor avuo pmjp";   // App password 16 ký tự
-
-                var emailService = new EmailService(senderEmail, senderAppPassword);
-
-                // 4. Gửi OTP bằng SMTP
-                emailService.SendOtp(email, otp);
-
-                // 5. Trả thông báo
-                return CreateResponse(true, "OTP has been sent to your email");
+                return CreateResponse(true, "OTP generated", new Dictionary<string, object>
+                {
+                    { "otp", otp }
+                });
             }
             catch (Exception ex)
             {

@@ -75,7 +75,7 @@ namespace DoAn_NT106
 
                     if (!otpResponse.Success)
                     {
-                        MessageBox.Show(otpResponse.Message,
+                        MessageBox.Show("Unable to generate OTP. Please try again!",
                             "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         btn_continue.Enabled = true;
                         return;
@@ -107,7 +107,13 @@ namespace DoAn_NT106
                     }
                 }
 
-                MessageBox.Show("OTP has been sent to your email.","OTP Sent",MessageBoxButtons.OK,MessageBoxIcon.Information);
+                // ✅ Hiển thị OTP cho test (sau này bỏ khi gửi thật qua mail/sms)
+                MessageBox.Show(
+                    $"Your OTP code is: {otp}\n(This is shown for testing purposes only. In production, it will be sent via email/SMS.)",
+                    "OTP Generated",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information
+                );
 
                 // ✅ Mở form xác thực OTP
                 FormXacThucOTP formOtp = new FormXacThucOTP(username);
