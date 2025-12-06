@@ -593,9 +593,17 @@ namespace DoAn_NT106.Client.BattleSystems
                 {
                     castTimer.Stop();
                     castTimer.Dispose();
+
+                    // Spawn at hurtbox edge based on facing
+                    Rectangle hurtbox = getPlayerHurtboxCallback(attacker);
                     int direction = attacker.Facing == "right" ? 1 : -1;
-                    int startX = attacker.Facing == "right" ? attacker.X + playerWidth : attacker.X;
-                    int startY = attacker.Y + playerHeight / 2 - 80;
+
+                    // Horizontal: right edge for right facing, left edge for left facing
+                    int startX = direction > 0 ? (hurtbox.X + hurtbox.Width) : (hurtbox.X - 160); // 160 = projectile width
+
+                    // Vertical: center projectile on hurtbox center Y
+                    int startY = hurtbox.Y + (hurtbox.Height / 2) - (160 / 2);
+
                     projectileManager.SpawnWarriorProjectile(startX, startY, direction, playerNum);
                 };
                 castTimer.Start();
@@ -1158,11 +1166,11 @@ namespace DoAn_NT106.Client.BattleSystems
             int hurtboxWidth = (int)(actualWidth * widthPercent);
             int hurtboxHeight = (int)(actualHeight * heightPercent);
             int offsetX = (actualWidth - hurtboxWidth) / 2 + offsetXAdjust;
-            int offsetYValue = (int)(actualHeight * offsetYPercent);
+            int offsetY = (int)(actualHeight * offsetYPercent);
 
             return new Rectangle(
                 player.X + offsetX,
-                player.Y + yOffset + groundAdjustment + offsetYValue,
+                player.Y + yOffset + groundAdjustment + offsetY,
                 hurtboxWidth,
                 hurtboxHeight
             );

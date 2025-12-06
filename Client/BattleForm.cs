@@ -968,7 +968,9 @@ namespace DoAn_NT106
                 (playerNum, x, y, _) =>
                 {
                     var p = playerNum == 1 ? player1State : player2State;
-                    return new Rectangle(p.X, p.Y, PLAYER_WIDTH, PLAYER_HEIGHT);
+                    // Use actual configured hurtbox
+                    var hb = GetPlayerHitbox(p);
+                    return new Rectangle(hb.X, hb.Y, hb.Width, hb.Height);
                 },
                 (target, damage) => ApplyHurtToPlayer(target, damage, false),
                 ShowHitEffect

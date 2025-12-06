@@ -19,6 +19,8 @@ namespace DoAn_NT106.Client.BattleSystems
             public int Y { get; set; }
             public int Direction { get; set; }
             public int Owner { get; set; }
+            // NEW: lifetime management
+            public DateTime CreatedAt { get; set; }
         }
 
         private List<WarriorProjectile> activeWarriorProjectiles = new List<WarriorProjectile>();
@@ -38,6 +40,8 @@ namespace DoAn_NT106.Client.BattleSystems
         private const int PROJECTILE_SPEED = 23;
         private const int PROJECTILE_WIDTH = 160;
         private const int PROJECTILE_HEIGHT = 160;
+        // NEW: lifetime in ms
+        private const int PROJECTILE_LIFETIME_MS = 4000;
 
         private int backgroundWidth;
         private EventHandler frameChangedHandler;
@@ -95,7 +99,7 @@ namespace DoAn_NT106.Client.BattleSystems
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"? LoadProjectileImages error: {ex.Message}");
+                Console.WriteLine($"?? LoadProjectileImages error: {ex.Message}");
             }
         }
 
@@ -190,12 +194,13 @@ namespace DoAn_NT106.Client.BattleSystems
             {
                 IsActive = true,
                 X = x,
-                Y = y + 80, // ? THÊM 20PX N?A: Y+60 ? Y+80
+                Y = y, // exact position provided by caller based on hurtbox edge
                 Direction = direction,
-                Owner = owner
+                Owner = owner,
+                CreatedAt = DateTime.UtcNow
             });
 
-            Console.WriteLine($"? Warrior projectile at X={x}, Y={y + 80} by player {owner}");
+            Console.WriteLine($"? Warrior projectile at X={x}, Y={y} by player {owner}, dir={(direction > 0 ? "right" : "left")}");
         }
 
         public void ShootFireball(int x, int y, int direction, int owner)
@@ -219,6 +224,14 @@ namespace DoAn_NT106.Client.BattleSystems
             for (int i = activeWarriorProjectiles.Count - 1; i >= 0; i--)
             {
                 var proj = activeWarriorProjectiles[i];
+
+                // Lifetime expiry
+                var ageMs = (int)(DateTime.UtcNow - proj.CreatedAt).TotalMilliseconds;
+                if (ageMs >= PROJECTILE_LIFETIME_MS)
+                {
+                    activeWarriorProjectiles.RemoveAt(i);
+                    continue;
+                }
 
                 proj.X += PROJECTILE_SPEED * proj.Direction;
 
@@ -269,8 +282,7 @@ namespace DoAn_NT106.Client.BattleSystems
                 int spellScreenX = SpellX - viewportX;
                 if (spellScreenX >= -SPELL_WIDTH && spellScreenX <= g.ClipBounds.Width)
                 {
-                    // Center spell (offset for size increase from 120 to 500)
-                    int offsetX = (SPELL_WIDTH - 120) / 2; // (500-120)/2 = 190
+                    int offsetX = (SPELL_WIDTH - 120) / 2;
                     int offsetY = (SPELL_HEIGHT - 120) / 2;
                     
                     g.DrawImage(spellAnimation, 
@@ -278,6 +290,12 @@ namespace DoAn_NT106.Client.BattleSystems
                         SpellY - offsetY, 
                         SPELL_WIDTH, 
                         SPELL_HEIGHT);
+
+                    // Debug: draw spell hitbox (same as drawn size)
+                    using (var pen = new Pen(Color.Purple, 2))
+                    {
+                        g.DrawRectangle(pen, spellScreenX - offsetX, SpellY - offsetY, SPELL_WIDTH, SPELL_HEIGHT);
+                    }
                 }
             }
 
@@ -302,6 +320,12 @@ namespace DoAn_NT106.Client.BattleSystems
                         {
                             g.DrawImage(warriorSkillEffect, projScreenX, proj.Y, PROJECTILE_WIDTH, PROJECTILE_HEIGHT);
                         }
+                    }
+
+                    // Debug: draw projectile hitbox (same as gif size)
+                    using (var pen = new Pen(Color.Gold, 2))
+                    {
+                        g.DrawRectangle(pen, projScreenX, proj.Y, PROJECTILE_WIDTH, PROJECTILE_HEIGHT);
                     }
                 }
             }
