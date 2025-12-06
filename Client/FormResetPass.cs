@@ -7,12 +7,9 @@ namespace DoAn_NT106
     public partial class FormResetPass : Form
     {
         private readonly string _username;
-        private readonly TcpClientService tcpClient; // ✅ TCP CLIENT
-        private readonly DatabaseService dbService;  // ✅ DATABASE SERVICE
+        private readonly PersistentTcpClient tcpClient; 
         private readonly ValidationService _validationService;
 
-        // ✅ CẤU HÌNH: true = dùng Server, false = dùng Database trực tiếp
-        private bool useServer = true;
 
         public FormResetPass(string username)
         {
@@ -21,8 +18,7 @@ namespace DoAn_NT106
             _validationService = new ValidationService();
 
             // ✅ KHỞI TẠO CẢ HAI SERVICE
-            tcpClient = new TcpClientService("127.0.0.1", 8080);
-            dbService = new DatabaseService();
+            tcpClient = PersistentTcpClient.Instance;
         }
 
         public FormResetPass() : this(string.Empty)
@@ -74,19 +70,10 @@ namespace DoAn_NT106
             // ✅ Disable nút trong lúc đang xử lý
             btn_complete.Enabled = false;
 
-            if (useServer)
-            {
                 // ✅ DÙNG SERVER (ASYNC)
                 var response = await tcpClient.ResetPasswordAsync(_username, newPass);
                 success = response.Success;
                 message = response.Message;
-            }
-            else
-            {
-                // ✅ DÙNG DATABASE TRỰC TIẾP
-                success = dbService.ResetPassword(_username, newPass);
-                message = success ? "Password reset successful" : "Password reset failed";
-            }
 
             btn_complete.Enabled = true; // Re-enable button
 

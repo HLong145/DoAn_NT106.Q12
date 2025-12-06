@@ -7,19 +7,13 @@ namespace DoAn_NT106
     public partial class FormQuenPass : Form
     {
         private readonly PersistentTcpClient tcpClient;
-        private readonly DatabaseService dbService;   // ✅ DATABASE SERVICE
-
-        // ✅ CẤU HÌNH: true = dùng Server, false = dùng Database trực tiếp
-        private bool useServer = true;
 
         public FormQuenPass()
         {
             InitializeComponent();
             lblContactError.Text = "";
 
-            // ✅ KHỞI TẠO CẢ HAI SERVICE
             tcpClient = PersistentTcpClient.Instance;
-            dbService = new DatabaseService();
         }
 
         private void btn_backToLogin_Click(object sender, EventArgs e)
@@ -56,8 +50,6 @@ namespace DoAn_NT106
                 string username = null;
                 string otp = null;
 
-                if (useServer)
-                {
                     // ✅ DÙNG SERVER (ASYNC)
                     var getUserResponse = await tcpClient.GetUserByContactAsync(input, isEmail);
 
@@ -82,38 +74,7 @@ namespace DoAn_NT106
                     }
 
                     otp = otpResponse.GetDataValue("otp");
-                }
-                else
-                {
-                    // ✅ DÙNG DATABASE TRỰC TIẾP
-                    username = dbService.GetUsernameByContact(input, isEmail);
-
-                    if (string.IsNullOrEmpty(username))
-                    {
-                        MessageBox.Show("No account found matching this information!",
-                            "Account Not Found", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        btn_continue.Enabled = true;
-                        return;
-                    }
-
-                    otp = dbService.GenerateOtp(username);
-
-                    if (string.IsNullOrEmpty(otp))
-                    {
-                        MessageBox.Show("Unable to generate OTP. Please try again!",
-                            "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        btn_continue.Enabled = true;
-                        return;
-                    }
-                }
-
-                // ✅ Hiển thị OTP cho test (sau này bỏ khi gửi thật qua mail/sms)
-                MessageBox.Show(
-                    $"Your OTP code is: {otp}\n(This is shown for testing purposes only. In production, it will be sent via email/SMS.)",
-                    "OTP Generated",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information
-                );
+               
 
                 // ✅ Mở form xác thực OTP
                 FormXacThucOTP formOtp = new FormXacThucOTP(username);

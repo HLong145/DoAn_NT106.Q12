@@ -18,7 +18,6 @@ namespace DoAn_NT106
         public string Token { get; private set; }
 
         private readonly PersistentTcpClient tcpClient;
-        private readonly DatabaseService dbService = new DatabaseService();
         private static bool isAutoLoginPerformed = false;
 
         // ✅ QUAN TRỌNG: Sự kiện này PHẢI được khai báo
@@ -155,18 +154,6 @@ namespace DoAn_NT106
             string username = contact;
             bool isEmail = IsValidEmail(contact);
             bool isPhone = IsValidPhone(contact);
-
-            // Nếu nhập email hoặc phone, tìm username
-            if (isEmail || isPhone)
-            {
-                username = dbService.GetUsernameByContact(contact, isEmail);
-                if (string.IsNullOrEmpty(username))
-                {
-                    MessageBox.Show("No account found for this information.",
-                        "❌ Login Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return;
-                }
-            }
 
             try
             {

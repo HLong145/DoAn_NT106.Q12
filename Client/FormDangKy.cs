@@ -9,15 +9,12 @@ namespace DoAn_NT106
     public partial class FormDangKy : Form
     {
         private readonly PersistentTcpClient tcpClient;
-        private readonly DatabaseService dbService;  // ✅ DATABASE SERVICE
         private readonly ValidationService validationService = new ValidationService();
 
         public event EventHandler SwitchToLogin;
 
         private System.Windows.Forms.Timer myTimer;
 
-        // ✅ CẤU HÌNH: true = dùng Server, false = dùng Database trực tiếp
-        private bool useServer = true;
 
         public FormDangKy()
         {
@@ -26,7 +23,6 @@ namespace DoAn_NT106
             this.VisibleChanged += FormDangKy_VisibleChanged;
             // ✅ KHỞI TẠO CẢ HAI SERVICE
             tcpClient = PersistentTcpClient.Instance;
-            dbService = new DatabaseService();
             this.Shown += (s, e) =>
             {
                 this.BringToFront();
@@ -221,8 +217,6 @@ namespace DoAn_NT106
             bool success = false;
             string message = "";
 
-            if (useServer)
-            {
                 var response = await tcpClient.RegisterAsync(
                 username,
                 isEmail ? contact : null,
@@ -231,28 +225,6 @@ namespace DoAn_NT106
                 );
                 success = response.Success;
                 message = response.Message;
-            }
-            else
-            {
-                if (dbService.IsUserExists(username, isEmail ? contact : null, isPhone ? contact : null))
-                {
-                    message = "Username, email or phone already exists";
-                }
-                else
-                {
-                    string salt = dbService.CreateSalt();
-                    string hash = dbService.HashPassword_Sha256(password, salt);
-                    success = dbService.SaveUserToDatabase(
-                        username,
-                        isEmail ? contact : null,
-                        isPhone ? contact : null,
-                        hash,
-                        salt
-                    );
-                    message = success ? "Registration successful" : "Registration failed";
-                }
-            }
-
             if (success)
             {
                 MessageBox.Show("🎉 Registration Successful!\n\nWelcome, " + username + "!",

@@ -15,8 +15,6 @@ namespace DoAn_NT106
         private System.Windows.Forms.Timer otpTimer;
         private int remainingSeconds = 300;
 
-        // ✅ CẤU HÌNH: true = dùng Server, false = dùng Database trực tiếp
-        private bool useServer = true;
 
         public FormXacThucOTP(string username)
         {
@@ -25,7 +23,6 @@ namespace DoAn_NT106
 
             // ✅ KHỞI TẠO CẢ HAI SERVICE
             tcpClient = PersistentTcpClient.Instance;
-            dbService = new DatabaseService();
 
             InitializeTimer();
             InitializeOTPAutoFocus();
@@ -116,21 +113,11 @@ namespace DoAn_NT106
             bool isValid = false;
             string message = "";
 
-            if (useServer)
-            {
-                // ✅ DÙNG SERVER (ASYNC)
+                 // ✅ DÙNG SERVER (ASYNC)
                 var response = await tcpClient.VerifyOtpAsync(_username, otp);
                 isValid = response.Success;
                 message = response.Message;
-            }
-            else
-            {
-                // ✅ DÙNG DATABASE TRỰC TIẾP
-                var result = dbService.VerifyOtp(_username, otp);
-                isValid = result.IsValid;
-                message = result.Message;
-            }
-
+          
             if (isValid)
             {
                 MessageBox.Show(message, "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -149,9 +136,7 @@ namespace DoAn_NT106
         {
             string newOtp = null;
 
-            if (useServer)
-            {
-                // ✅ DÙNG SERVER (ASYNC)
+           
                 var response = await tcpClient.GenerateOtpAsync(_username);
 
                 if (response.Success)
@@ -164,19 +149,7 @@ namespace DoAn_NT106
                         "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
-            }
-            else
-            {
-                // ✅ DÙNG DATABASE TRỰC TIẾP
-                newOtp = dbService.GenerateOtp(_username);
-
-                if (string.IsNullOrEmpty(newOtp))
-                {
-                    MessageBox.Show("Unable to generate new OTP. Please try again!",
-                        "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return;
-                }
-            }
+          
             ResetOtpTextBoxes();
             MessageBox.Show($"Your new OTP is: {newOtp}\n(This is shown for testing only)",
                 "New OTP", MessageBoxButtons.OK, MessageBoxIcon.Information);
