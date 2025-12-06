@@ -581,7 +581,15 @@ namespace DoAn_NT106.Client.BattleSystems
                 {
                     castTimer.Stop();
                     castTimer.Dispose();
-                    projectileManager.SpawnSpell(defender.X, defender.Y, playerNum, playerNum == 1 ? 2 : 1, ApplyDamage, showHitEffectCallback);
+
+                    int targetPlayer = playerNum == 1 ? 2 : 1;
+                    projectileManager.SpawnSpell(
+                        targetPlayer,
+                        playerNum,
+                        (pn) => getPlayerHurtboxCallback(pn == 1 ? player1 : player2),
+                        ApplyDamage,
+                        showHitEffectCallback
+                    );
                 };
                 castTimer.Start();
             }
@@ -593,17 +601,10 @@ namespace DoAn_NT106.Client.BattleSystems
                 {
                     castTimer.Stop();
                     castTimer.Dispose();
-
-                    // Spawn at hurtbox edge based on facing
                     Rectangle hurtbox = getPlayerHurtboxCallback(attacker);
                     int direction = attacker.Facing == "right" ? 1 : -1;
-
-                    // Horizontal: right edge for right facing, left edge for left facing
-                    int startX = direction > 0 ? (hurtbox.X + hurtbox.Width) : (hurtbox.X - 160); // 160 = projectile width
-
-                    // Vertical: center projectile on hurtbox center Y
+                    int startX = direction > 0 ? (hurtbox.X + hurtbox.Width) : (hurtbox.X - 160);
                     int startY = hurtbox.Y + (hurtbox.Height / 2) - (160 / 2);
-
                     projectileManager.SpawnWarriorProjectile(startX, startY, direction, playerNum);
                 };
                 castTimer.Start();
