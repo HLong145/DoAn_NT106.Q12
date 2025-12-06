@@ -6,20 +6,14 @@ namespace DoAn_NT106
 {
     public partial class FormQuenPass : Form
     {
-        private readonly TcpClientService tcpClient;  // ✅ TCP CLIENT
-        private readonly DatabaseService dbService;   // ✅ DATABASE SERVICE
-
-        // ✅ CẤU HÌNH: true = dùng Server, false = dùng Database trực tiếp
-        private bool useServer = true;
+        private readonly PersistentTcpClient tcpClient;  
 
         public FormQuenPass()
         {
             InitializeComponent();
             lblContactError.Text = "";
 
-            // ✅ KHỞI TẠO CẢ HAI SERVICE
-            tcpClient = new TcpClientService("127.0.0.1", 8080);
-            dbService = new DatabaseService();
+            tcpClient = PersistentTcpClient.Instance;
         }
 
         private void btn_backToLogin_Click(object sender, EventArgs e)
@@ -56,66 +50,30 @@ namespace DoAn_NT106
                 string username = null;
                 string otp = null;
 
-                if (useServer)
+                var getUserResponse = await tcpClient.GetUserByContactAsync(input, isEmail);
+
+                if (!getUserResponse.Success)
                 {
-                    // ✅ DÙNG SERVER (ASYNC)
-                    var getUserResponse = await tcpClient.GetUserByContactAsync(input, isEmail);
-
-                    if (!getUserResponse.Success)
-                    {
-                        MessageBox.Show("No account found matching this information!",
-                            "Account Not Found", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        btn_continue.Enabled = true;
-                        return;
-                    }
-
-                    username = getUserResponse.GetDataValue("username");
-
-                    var otpResponse = await tcpClient.GenerateOtpAsync(username);
-
-                    if (!otpResponse.Success)
-                    {
-                        MessageBox.Show("Unable to generate OTP. Please try again!",
-                            "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        btn_continue.Enabled = true;
-                        return;
-                    }
-
-                    otp = otpResponse.GetDataValue("otp");
-                }
-                else
-                {
-                    // ✅ DÙNG DATABASE TRỰC TIẾP
-                    username = dbService.GetUsernameByContact(input, isEmail);
-
-                    if (string.IsNullOrEmpty(username))
-                    {
-                        MessageBox.Show("No account found matching this information!",
-                            "Account Not Found", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        btn_continue.Enabled = true;
-                        return;
-                    }
-
-                    otp = dbService.GenerateOtp(username);
-
-                    if (string.IsNullOrEmpty(otp))
-                    {
-                        MessageBox.Show("Unable to generate OTP. Please try again!",
-                            "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        btn_continue.Enabled = true;
-                        return;
-                    }
+                    MessageBox.Show("No account found matching this information!",
+                        "Account Not Found", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    btn_continue.Enabled = true;
+                    return;
                 }
 
-                // ✅ Hiển thị OTP cho test (sau này bỏ khi gửi thật qua mail/sms)
-                MessageBox.Show(
-                    $"Your OTP code is: {otp}\n(This is shown for testing purposes only. In production, it will be sent via email/SMS.)",
-                    "OTP Generated",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information
-                );
+                username = getUserResponse.GetDataValue("username");
 
-                // ✅ Mở form xác thực OTP
+                var otpResponse = await tcpClient.GenerateOtpAsync(username);
+
+                if (!otpResponse.Success)
+                {
+                    MessageBox.Show("Unable to generate OTP. Please try again!",
+                        "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    btn_continue.Enabled = true;
+                    return;
+                }
+
+                otp = otpResponse.GetDataValue("otp");
+
                 FormXacThucOTP formOtp = new FormXacThucOTP(username);
                 formOtp.Show();
                 this.Hide();
