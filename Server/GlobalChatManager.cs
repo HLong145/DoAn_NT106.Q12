@@ -32,7 +32,7 @@ namespace DoAn_NT106.Server
                 Log($"✅ {username} joined Global Chat. Online: {onlineCount}");
 
                 // ✅ Broadcast thông báo user join
-                BroadcastSystemMessage($"{username} đã tham gia chat", excludeUser: username);
+                BroadcastSystemMessage($"{username} joined chat", excludeUser: username);
 
                 return (true, "Joined Global Chat", onlineCount);
             }
@@ -53,7 +53,7 @@ namespace DoAn_NT106.Server
                     Log($"👋 {username} left Global Chat. Online: {onlineCount}");
 
                     // Broadcast thông báo user leave
-                    BroadcastSystemMessage($"{username} đã rời chat", excludeUser: null);
+                    BroadcastSystemMessage($"{username} left chat", excludeUser: null);
 
                     return (true, onlineCount);
                 }

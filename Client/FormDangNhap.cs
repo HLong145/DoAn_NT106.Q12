@@ -17,7 +17,7 @@ namespace DoAn_NT106
         public string ReturnedUsername { get; private set; }
         public string Token { get; private set; }
 
-        private readonly TcpClientService tcpClient;
+        private readonly PersistentTcpClient tcpClient;
         private readonly DatabaseService dbService = new DatabaseService();
         private static bool isAutoLoginPerformed = false;
 
@@ -29,7 +29,7 @@ namespace DoAn_NT106
             InitializeComponent();
             SetupFloatingAnimation();
 
-            tcpClient = new TcpClientService("127.0.0.1", 8080);
+            tcpClient = PersistentTcpClient.Instance;
             if (!isAutoLoginPerformed)
             {
                 this.Shown += async (sender, e) =>

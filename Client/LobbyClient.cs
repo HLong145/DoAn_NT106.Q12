@@ -1,31 +1,24 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Net.Sockets;
-using System.Text;
 using System.Text.Json;
-using System.Threading;
 using System.Threading.Tasks;
+using DoAn_NT106.Services;
 
 namespace DoAn_NT106.Client
 {
     /// <summary>
-    /// Client để kết nối real-time với Lobby của room
-    /// Tương tự GlobalChatClient
+    /// Lobby Client - Sử dụng PersistentTcpClient singleton
     /// </summary>
     public class LobbyClient : IDisposable
     {
-        private TcpClient client;
-        private NetworkStream stream;
-        private CancellationTokenSource cts;
-        private Task listenTask;
-
-        private readonly string serverAddress;
-        private readonly int serverPort;
+        // Sử dụng PersistentTcpClient singleton
+        private PersistentTcpClient TcpClient => PersistentTcpClient.Instance;
 
         private string roomCode;
         private string username;
         private string token;
         private bool isJoined = false;
+        private bool isDisposed = false;
 
         // Events để UI subscribe
         public event Action OnConnected;
@@ -35,22 +28,30 @@ namespace DoAn_NT106.Client
         // Lobby events
         public event Action<LobbyPlayerData> OnPlayerJoined;
         public event Action<string> OnPlayerLeft;
-        public event Action<string, bool> OnPlayerReadyChanged; // username, isReady
+        public event Action<string, bool> OnPlayerReadyChanged;
         public event Action<LobbyChatMessage> OnChatMessage;
-        public event Action OnAllPlayersReady; // Khi cả 2 ready
+        public event Action OnAllPlayersReady;
         public event Action<LobbyStateData> OnLobbyStateUpdate;
 
-        public bool IsConnected => client?.Connected ?? false;
+        public bool IsConnected => TcpClient.IsConnected;
         public bool IsJoined => isJoined;
 
-        public LobbyClient(string address = "127.0.0.1", int port = 8080)
+        // ===========================
+        // CONSTRUCTOR
+        // ===========================
+        public LobbyClient()
         {
-            serverAddress = address;
-            serverPort = port;
+            // Subscribe vào broadcast của PersistentTcpClient
+            TcpClient.OnBroadcast += HandleBroadcast;
+            TcpClient.OnDisconnected += HandleDisconnected;
+        }
+        public LobbyClient(string address, int port) : this()
+        {
+            // Ignore address/port - dùng PersistentTcpClient singleton
         }
 
         // ===========================
-        // KẾT NỐI VÀ JOIN LOBBY
+        // CONNECT AND JOIN LOBBY
         // ===========================
         public async Task<(bool Success, LobbyStateData State)> ConnectAndJoinAsync(
             string roomCode, string username, string token)
@@ -61,82 +62,63 @@ namespace DoAn_NT106.Client
                 this.username = username;
                 this.token = token;
 
-                // Kết nối TCP
-                client = new TcpClient();
-                await client.ConnectAsync(serverAddress, serverPort);
-                stream = client.GetStream();
-
-                // Gửi request join lobby
-                var request = new
+                // Đảm bảo đã connect
+                if (!TcpClient.IsConnected)
                 {
-                    Action = "LOBBY_JOIN",
-                    Data = new Dictionary<string, object>
+                    bool connected = await TcpClient.ConnectAsync();
+                    if (!connected)
                     {
-                        { "roomCode", roomCode },
-                        { "username", username },
-                        { "token", token }
+                        OnError?.Invoke("Cannot connect to server");
+                        return (false, null);
                     }
-                };
-
-                string requestJson = JsonSerializer.Serialize(request);
-                byte[] requestBytes = Encoding.UTF8.GetBytes(requestJson);
-                await stream.WriteAsync(requestBytes, 0, requestBytes.Length);
-
-                // Đọc response
-                byte[] buffer = new byte[16384];
-                int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
-                string responseJson = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-
-                using var doc = JsonDocument.Parse(responseJson);
-                var root = doc.RootElement;
-
-                bool success = root.GetProperty("Success").GetBoolean();
-
-                if (success)
-                {
-                    isJoined = true;
-                    LobbyStateData state = null;
-
-                    if (root.TryGetProperty("Data", out var data))
-                    {
-                        state = new LobbyStateData
-                        {
-                            RoomCode = roomCode,
-                            RoomName = data.TryGetProperty("roomName", out var rn) ? rn.GetString() : "",
-                            Player1 = data.TryGetProperty("player1", out var p1) ? p1.GetString() : null,
-                            Player2 = data.TryGetProperty("player2", out var p2) ? p2.GetString() : null,
-                            Player1Ready = data.TryGetProperty("player1Ready", out var p1r) && p1r.GetBoolean(),
-                            Player2Ready = data.TryGetProperty("player2Ready", out var p2r) && p2r.GetBoolean()
-                        };
-
-                        // Parse chat history nếu có
-                        if (data.TryGetProperty("chatHistory", out var historyEl))
-                        {
-                            state.ChatHistory = new List<LobbyChatMessage>();
-                            foreach (var item in historyEl.EnumerateArray())
-                            {
-                                state.ChatHistory.Add(new LobbyChatMessage
-                                {
-                                    Username = item.GetProperty("username").GetString(),
-                                    Message = item.GetProperty("message").GetString(),
-                                    Timestamp = item.GetProperty("timestamp").GetString(),
-                                    Type = item.TryGetProperty("type", out var t) ? t.GetString() : "user"
-                                });
-                            }
-                        }
-                    }
-
-                    // Bắt đầu lắng nghe broadcasts
-                    cts = new CancellationTokenSource();
-                    listenTask = Task.Run(() => ListenForBroadcasts(cts.Token));
-
-                    OnConnected?.Invoke();
-                    return (true, state);
                 }
 
-                string message = root.GetProperty("Message").GetString();
-                OnError?.Invoke(message);
-                return (false, null);
+                // Gửi request join lobby
+                var response = await TcpClient.LobbyJoinAsync(roomCode, username, token);
+
+                Console.WriteLine($"[LobbyClient] Join response: {response.Success} - {response.Message}");
+
+                if (!response.Success)
+                {
+                    OnError?.Invoke(response.Message);
+                    return (false, null);
+                }
+
+                isJoined = true;
+                LobbyStateData state = null;
+
+                // Parse response data
+                if (response.RawData.ValueKind != JsonValueKind.Undefined)
+                {
+                    state = new LobbyStateData
+                    {
+                        RoomCode = roomCode,
+                        RoomName = GetStringProp(response.RawData, "roomName"),
+                        Player1 = GetStringProp(response.RawData, "player1"),
+                        Player2 = GetStringProp(response.RawData, "player2"),
+                        Player1Ready = GetBoolProp(response.RawData, "player1Ready"),
+                        Player2Ready = GetBoolProp(response.RawData, "player2Ready"),
+                        ChatHistory = new List<LobbyChatMessage>()
+                    };
+
+                    // Parse chat history nếu có
+                    if (response.RawData.TryGetProperty("chatHistory", out var historyEl))
+                    {
+                        foreach (var item in historyEl.EnumerateArray())
+                        {
+                            state.ChatHistory.Add(new LobbyChatMessage
+                            {
+                                Username = GetStringProp(item, "username"),
+                                Message = GetStringProp(item, "message"),
+                                Timestamp = GetStringProp(item, "timestamp"),
+                                Type = GetStringProp(item, "type")
+                            });
+                        }
+                    }
+                }
+
+                OnConnected?.Invoke();
+                return (true, state);
             }
             catch (Exception ex)
             {
@@ -146,176 +128,123 @@ namespace DoAn_NT106.Client
         }
 
         // ===========================
-        // LẮNG NGHE BROADCASTS
+        // HANDLE BROADCASTS
         // ===========================
-        private async Task ListenForBroadcasts(CancellationToken token)
+        private void HandleBroadcast(string action, JsonElement data)
         {
-            byte[] buffer = new byte[16384];
+            if (!isJoined || isDisposed) return;
+
+            // Kiểm tra roomCode nếu có
+            if (data.TryGetProperty("roomCode", out var rcEl))
+            {
+                string broadcastRoomCode = rcEl.GetString();
+                if (broadcastRoomCode != roomCode) return; // Không phải room này
+            }
 
             try
             {
-                while (!token.IsCancellationRequested && client?.Connected == true)
-                {
-                    int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, token);
-
-                    if (bytesRead == 0) break;
-
-                    string json = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-                    ProcessBroadcast(json);
-                }
-            }
-            catch (OperationCanceledException) { }
-            catch (Exception ex)
-            {
-                OnError?.Invoke($"Listen error: {ex.Message}");
-            }
-            finally
-            {
-                OnDisconnected?.Invoke("Connection closed");
-            }
-        }
-
-        private void ProcessBroadcast(string json)
-        {
-            try
-            {
-                using var doc = JsonDocument.Parse(json);
-                var root = doc.RootElement;
-
-                if (!root.TryGetProperty("Action", out var actionElement))
-                    return;
-
-                string action = actionElement.GetString();
-                var data = root.TryGetProperty("Data", out var d) ? d : default;
-
                 switch (action)
                 {
+                    case "LOBBY_STATE_UPDATE":
+                        ProcessLobbyStateUpdate(data);
+                        break;
+
                     case "LOBBY_PLAYER_JOINED":
-                        HandlePlayerJoined(data);
+                        ProcessPlayerJoined(data);
                         break;
 
                     case "LOBBY_PLAYER_LEFT":
-                        HandlePlayerLeft(data);
+                        ProcessPlayerLeft(data);
                         break;
 
                     case "LOBBY_READY_CHANGED":
-                        HandleReadyChanged(data);
+                        ProcessReadyChanged(data);
                         break;
 
-                    case "LOBBY_CHAT":
-                        HandleChatMessage(data);
+                    case "LOBBY_CHAT_MESSAGE":
+                        ProcessChatMessage(data);
                         break;
 
                     case "LOBBY_ALL_READY":
                         OnAllPlayersReady?.Invoke();
                         break;
 
-                    case "LOBBY_STATE_UPDATE":
-                        HandleStateUpdate(data);
+                    case "LOBBY_START_GAME":
+                        OnAllPlayersReady?.Invoke();
                         break;
                 }
             }
             catch (Exception ex)
             {
-                OnError?.Invoke($"Process broadcast error: {ex.Message}");
+                Console.WriteLine($"[LobbyClient] HandleBroadcast error: {ex.Message}");
             }
         }
 
-        private void HandlePlayerJoined(JsonElement data)
+        private void ProcessLobbyStateUpdate(JsonElement data)
         {
-
-            if (data.TryGetProperty("roomCode", out var rcEl))
+            var state = new LobbyStateData
             {
-                string msgRoomCode = rcEl.GetString();
-                if (!string.IsNullOrEmpty(msgRoomCode) && msgRoomCode != roomCode)
-                {
-                    return;
-                }
-            }
-
-            var playerData = new LobbyPlayerData
-            {
-                Username = data.GetProperty("username").GetString(),
-                IsPlayer1 = data.TryGetProperty("isPlayer1", out var ip1) && ip1.GetBoolean()
+                RoomCode = GetStringProp(data, "roomCode"),
+                RoomName = GetStringProp(data, "roomName"),
+                Player1 = GetStringProp(data, "player1"),
+                Player2 = GetStringProp(data, "player2"),
+                Player1Ready = GetBoolProp(data, "player1Ready"),
+                Player2Ready = GetBoolProp(data, "player2Ready")
             };
-            OnPlayerJoined?.Invoke(playerData);
+
+            Console.WriteLine($"[LobbyClient] State update: P1={state.Player1}, P2={state.Player2}");
+            OnLobbyStateUpdate?.Invoke(state);
         }
 
-        private void HandlePlayerLeft(JsonElement data)
+        private void ProcessPlayerJoined(JsonElement data)
         {
-
-            if (data.TryGetProperty("roomCode", out var rcEl))
+            var player = new LobbyPlayerData
             {
-                string msgRoomCode = rcEl.GetString();
-                if (!string.IsNullOrEmpty(msgRoomCode) && msgRoomCode != roomCode)
-                {
-                    return;
-                }
-            }
+                Username = GetStringProp(data, "username"),
+                IsPlayer1 = GetBoolProp(data, "isPlayer1")
+            };
 
-            string username = data.GetProperty("username").GetString();
-            OnPlayerLeft?.Invoke(username);
+            Console.WriteLine($"[LobbyClient] Player joined: {player.Username}");
+            OnPlayerJoined?.Invoke(player);
         }
 
-        private void HandleReadyChanged(JsonElement data)
+        private void ProcessPlayerLeft(JsonElement data)
         {
-
-            if (data.TryGetProperty("roomCode", out var rcEl))
-            {
-                string msgRoomCode = rcEl.GetString();
-                if (!string.IsNullOrEmpty(msgRoomCode) && msgRoomCode != roomCode)
-                {
-                    return;
-                }
-            }
-
-            string username = data.GetProperty("username").GetString();
-            bool isReady = data.GetProperty("isReady").GetBoolean();
-            OnPlayerReadyChanged?.Invoke(username, isReady);
+            string leftUsername = GetStringProp(data, "username");
+            Console.WriteLine($"[LobbyClient] Player left: {leftUsername}");
+            OnPlayerLeft?.Invoke(leftUsername);
         }
 
-        private void HandleChatMessage(JsonElement data)
+        private void ProcessReadyChanged(JsonElement data)
         {
+            string changedUsername = GetStringProp(data, "username");
+            bool isReady = GetBoolProp(data, "isReady");
 
-            if (data.TryGetProperty("roomCode", out var rcEl))
-            {
-                string msgRoomCode = rcEl.GetString();
-                if (!string.IsNullOrEmpty(msgRoomCode) && msgRoomCode != roomCode)
-                {
-                    return;
-                }
-            }
+            Console.WriteLine($"[LobbyClient] Ready changed: {changedUsername} = {isReady}");
+            OnPlayerReadyChanged?.Invoke(changedUsername, isReady);
+        }
 
+        private void ProcessChatMessage(JsonElement data)
+        {
             var msg = new LobbyChatMessage
             {
-                Username = data.GetProperty("username").GetString(),
-                Message = data.GetProperty("message").GetString(),
-                Timestamp = data.GetProperty("timestamp").GetString(),
-                Type = data.TryGetProperty("type", out var t) ? t.GetString() : "user"
+                Username = GetStringProp(data, "username"),
+                Message = GetStringProp(data, "message"),
+                Timestamp = GetStringProp(data, "timestamp"),
+                Type = GetStringProp(data, "type")
             };
+
+            Console.WriteLine($"[LobbyClient] Chat: {msg.Username}: {msg.Message}");
             OnChatMessage?.Invoke(msg);
         }
 
-        private void HandleStateUpdate(JsonElement data)
+        private void HandleDisconnected(string reason)
         {
-
-            if (data.TryGetProperty("roomCode", out var rcEl))
+            if (isJoined && !isDisposed)
             {
-                string msgRoomCode = rcEl.GetString();
-                if (!string.IsNullOrEmpty(msgRoomCode) && msgRoomCode != roomCode)
-                {
-                    return;
-                }
+                isJoined = false;
+                OnDisconnected?.Invoke(reason);
             }
-
-            var state = new LobbyStateData
-            {
-                Player1 = data.TryGetProperty("player1", out var p1) ? p1.GetString() : null,
-                Player2 = data.TryGetProperty("player2", out var p2) ? p2.GetString() : null,
-                Player1Ready = data.TryGetProperty("player1Ready", out var p1r) && p1r.GetBoolean(),
-                Player2Ready = data.TryGetProperty("player2Ready", out var p2r) && p2r.GetBoolean()
-            };
-            OnLobbyStateUpdate?.Invoke(state);
         }
 
         // ===========================
@@ -327,21 +256,9 @@ namespace DoAn_NT106.Client
             {
                 if (!IsConnected || !isJoined) return false;
 
-                var request = new
-                {
-                    Action = "LOBBY_SET_READY",
-                    Data = new Dictionary<string, object>
-                    {
-                        { "roomCode", roomCode },
-                        { "username", username },
-                        { "isReady", isReady }
-                    }
-                };
-
-                string json = JsonSerializer.Serialize(request);
-                byte[] data = Encoding.UTF8.GetBytes(json);
-                await stream.WriteAsync(data, 0, data.Length);
-                return true;
+                var response = await TcpClient.LobbySetReadyAsync(roomCode, username, isReady);
+                Console.WriteLine($"[LobbyClient] SetReady({isReady}): {response.Success}");
+                return response.Success;
             }
             catch (Exception ex)
             {
@@ -355,22 +272,11 @@ namespace DoAn_NT106.Client
             try
             {
                 if (!IsConnected || !isJoined) return false;
+                if (string.IsNullOrEmpty(message)) return false;
 
-                var request = new
-                {
-                    Action = "LOBBY_CHAT_SEND",
-                    Data = new Dictionary<string, object>
-                    {
-                        { "roomCode", roomCode },
-                        { "username", username },
-                        { "message", message }
-                    }
-                };
-
-                string json = JsonSerializer.Serialize(request);
-                byte[] data = Encoding.UTF8.GetBytes(json);
-                await stream.WriteAsync(data, 0, data.Length);
-                return true;
+                var response = await TcpClient.LobbySendChatAsync(roomCode, username, message);
+                Console.WriteLine($"[LobbyClient] SendChat: {response.Success}");
+                return response.Success;
             }
             catch (Exception ex)
             {
@@ -385,44 +291,55 @@ namespace DoAn_NT106.Client
             {
                 if (IsConnected && isJoined)
                 {
-                    var request = new
-                    {
-                        Action = "LOBBY_LEAVE",
-                        Data = new Dictionary<string, object>
-                        {
-                            { "roomCode", roomCode },
-                            { "username", username }
-                        }
-                    };
-
-                    string json = JsonSerializer.Serialize(request);
-                    byte[] data = Encoding.UTF8.GetBytes(json);
-                    await stream.WriteAsync(data, 0, data.Length);
+                    var response = await TcpClient.LobbyLeaveAsync(roomCode, username);
+                    Console.WriteLine($"[LobbyClient] Leave: {response.Success}");
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[LobbyClient] Leave error: {ex.Message}");
+            }
             finally
             {
                 isJoined = false;
             }
         }
 
+        // ===========================
+        // DISPOSE
+        // ===========================
         public void Dispose()
         {
+            if (isDisposed) return;
+            isDisposed = true;
+
             try
             {
-                cts?.Cancel();
-                if (isJoined) _ = LeaveAsync();
-                stream?.Close();
-                client?.Close();
+                // Unsubscribe từ events
+                TcpClient.OnBroadcast -= HandleBroadcast;
+                TcpClient.OnDisconnected -= HandleDisconnected;
+
+                // Leave lobby nếu đang joined
+                if (isJoined)
+                {
+                    _ = LeaveAsync();
+                }
             }
             catch { }
-            finally
-            {
-                cts?.Dispose();
-                stream?.Dispose();
-                client?.Dispose();
-            }
+
+        }
+
+        // ===========================
+        // HELPER METHODS
+        // ===========================
+        private string GetStringProp(JsonElement el, string name)
+        {
+            return el.TryGetProperty(name, out var prop) ? prop.GetString() ?? "" : "";
+        }
+
+        private bool GetBoolProp(JsonElement el, string name)
+        {
+            return el.TryGetProperty(name, out var prop) && prop.GetBoolean();
         }
     }
 

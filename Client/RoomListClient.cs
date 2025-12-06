@@ -1,36 +1,46 @@
 ﻿using System;
-using System.Net.Sockets;
-using System.Text;
-using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Text.Json;
+using System.Threading.Tasks;
+using DoAn_NT106.Services;
 
 namespace DoAn_NT106.Client
 {
+    /// <summary>
+    /// Room List Client - Sử dụng PersistentTcpClient singleton
+    /// /// </summary>
     public class RoomListClient
     {
-        private TcpClient client;
-        private NetworkStream stream;
-        private CancellationTokenSource cts;
-        private string serverAddress;
-        private int serverPort;
+        // Sử dụng PersistentTcpClient singleton
+        private PersistentTcpClient TcpClient => PersistentTcpClient.Instance;
+
         private string username;
         private string token;
-        private bool isConnected;
+        private bool isConnected = false;
+        private bool isDisposed = false;
 
         // Events
         public event Action<List<RoomListInfo>> OnRoomListUpdated;
         public event Action<string> OnError;
 
-        public RoomListClient(string address = "127.0.0.1", int port = 8080)
+        public bool IsConnected => isConnected && TcpClient.IsConnected;
+
+        // ===========================
+        // CONSTRUCTOR
+        // ===========================
+        public RoomListClient()
         {
-            serverAddress = address;
-            serverPort = port;
+            // Subscribe vào broadcast của PersistentTcpClient
+            TcpClient.OnBroadcast += HandleBroadcast;
+        }
+
+        public RoomListClient(string address, int port) : this()
+        {
+            // Ignore address/port - dùng PersistentTcpClient singleton
         }
 
         // ===========================
-        // KẾT NỐI VÀ SUBSCRIBE
+        // CONNECT AND SUBSCRIBE
         // ===========================
         public async Task<bool> ConnectAndSubscribeAsync(string username, string token)
         {
@@ -39,60 +49,44 @@ namespace DoAn_NT106.Client
                 this.username = username;
                 this.token = token;
 
-                client = new TcpClient();
-                await client.ConnectAsync(serverAddress, serverPort);
-                stream = client.GetStream();
+                // Đảm bảo đã connect
+                if (!TcpClient.IsConnected)
+                {
+                    bool connected = await TcpClient.ConnectAsync();
+                    if (!connected)
+                    {
+                        OnError?.Invoke("Cannot connect to server");
+                        return false;
+                    }
+                }
 
                 // Gửi request subscribe
-                var request = new
-                {
-                    Action = "ROOM_LIST_SUBSCRIBE",
-                    Data = new Dictionary<string, object>
+                var response = await TcpClient.SendRequestAsync("ROOM_LIST_SUBSCRIBE",
+                    new Dictionary<string, object>
                     {
                         { "username", username },
                         { "token", token }
-                    }
-                };
+                    });
 
-                string requestJson = JsonSerializer.Serialize(request);
-                byte[] requestBytes = Encoding.UTF8.GetBytes(requestJson);
-                await stream.WriteAsync(requestBytes, 0, requestBytes.Length);
+                Console.WriteLine($"[RoomListClient] Subscribe response: {response.Success} - {response.Message}");
 
-                // Đọc response
-                byte[] buffer = new byte[65536];
-                int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
-                string responseJson = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-
-                Console.WriteLine($"[RoomListClient] Response: {responseJson.Substring(0, Math.Min(300, responseJson.Length))}...");
-
-                using var doc = JsonDocument.Parse(responseJson);
-                var root = doc.RootElement;
-
-                bool success = root.GetProperty("Success").GetBoolean();
-
-                if (success)
+                if (response.Success)
                 {
                     isConnected = true;
 
                     // Parse danh sách phòng từ response
-                    if (root.TryGetProperty("Data", out var data) &&
-                        data.TryGetProperty("rooms", out var roomsArray))
+                    if (response.RawData.ValueKind != JsonValueKind.Undefined &&
+                        response.RawData.TryGetProperty("rooms", out var roomsArray))
                     {
                         var rooms = ParseRoomsFromJson(roomsArray);
-
                         Console.WriteLine($"[RoomListClient] Initial rooms: {rooms.Count}");
-
-                        // Invoke event với danh sách phòng ban đầu
                         OnRoomListUpdated?.Invoke(rooms);
                     }
-
-                    // Bắt đầu listen cho broadcasts tiếp theo
-                    cts = new CancellationTokenSource();
-                    _ = Task.Run(() => ListenForBroadcasts(cts.Token));
 
                     return true;
                 }
 
+                OnError?.Invoke(response.Message);
                 return false;
             }
             catch (Exception ex)
@@ -103,52 +97,18 @@ namespace DoAn_NT106.Client
         }
 
         // ===========================
-        // LẮNG NGHE BROADCAST
+        // HANDLE BROADCASTS
         // ===========================
-        private async Task ListenForBroadcasts(CancellationToken token)
+        private void HandleBroadcast(string action, JsonElement data)
         {
-            byte[] buffer = new byte[65536];
+            if (!isConnected || isDisposed) return;
 
             try
             {
-                while (!token.IsCancellationRequested && stream != null && client?.Connected == true)
+                if (action == "ROOM_LIST_UPDATE")
                 {
-                    int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, token);
-                    if (bytesRead == 0) break;
+                    Console.WriteLine($"[RoomListClient] Room list update received");
 
-                    string json = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-                    ProcessBroadcast(json);
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                // Normal cancellation
-            }
-            catch (Exception ex)
-            {
-                OnError?.Invoke($"Listen error: {ex.Message}");
-            }
-        }
-
-        // ===========================
-        // XỬ LÝ BROADCAST
-        // ===========================
-        private void ProcessBroadcast(string json)
-        {
-            try
-            {
-                Console.WriteLine($"[RoomListClient] Broadcast received: {json.Substring(0, Math.Min(300, json.Length))}...");
-
-                using var doc = JsonDocument.Parse(json);
-                var root = doc.RootElement;
-
-                if (!root.TryGetProperty("Action", out var actionElement))
-                    return;
-
-                string action = actionElement.GetString();
-
-                if (action == "ROOM_LIST_UPDATE" && root.TryGetProperty("Data", out var data))
-                {
                     if (data.TryGetProperty("rooms", out var roomsArray))
                     {
                         var rooms = ParseRoomsFromJson(roomsArray);
@@ -159,6 +119,7 @@ namespace DoAn_NT106.Client
             }
             catch (Exception ex)
             {
+                Console.WriteLine($"[RoomListClient] HandleBroadcast error: {ex.Message}");
                 OnError?.Invoke($"Process broadcast error: {ex.Message}");
             }
         }
@@ -211,23 +172,35 @@ namespace DoAn_NT106.Client
         }
 
         // ===========================
-        // DISCONNECT
+        // DISCONNECT / UNSUBSCRIBE
         // ===========================
         public void Disconnect()
         {
+            if (isDisposed) return;
+            isDisposed = true;
+
             try
             {
+                // Unsubscribe từ events
+                TcpClient.OnBroadcast -= HandleBroadcast;
+
+                // Gửi unsubscribe request nếu đang connected
+                if (isConnected && TcpClient.IsConnected)
+                {
+                    _ = TcpClient.SendRequestAsync("ROOM_LIST_UNSUBSCRIBE",
+                        new Dictionary<string, object> { { "username", username } });
+                }
+
                 isConnected = false;
-                cts?.Cancel();
-                stream?.Close();
-                client?.Close();
             }
             catch { }
+
+            // KHÔNG disconnect PersistentTcpClient vì nó dùng chung
         }
     }
 
     // ===========================
-    // DATA CLASS (Đổi tên để tránh conflict)
+    // DATA CLASS
     // ===========================
     public class RoomListInfo
     {

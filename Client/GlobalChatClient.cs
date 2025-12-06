@@ -1,25 +1,25 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Net.Sockets;
-using System.Text;
 using System.Text.Json;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace DoAn_NT106.Services
 {
+    /// <summary>
+    /// Global Chat Client - Sử dụng PersistentTcpClient singleton
+    /// KHÔNG tạo connection riêng
+    /// </summary>
     public class GlobalChatClient : IDisposable
     {
-        private TcpClient client;
-        private NetworkStream stream;
-        private CancellationTokenSource cts;
-        private Task listenTask;
-        private readonly string serverAddress;
-        private readonly int serverPort;
+        // Sử dụng PersistentTcpClient singleton thay vì tạo connection riêng
+        private PersistentTcpClient TcpClient => PersistentTcpClient.Instance;
+
         private string username;
         private string token;
         private bool isJoined = false;
+        private bool isDisposed = false;
 
+        // Events
         public event Action<ChatMessageData> OnChatMessage;
         public event Action<int> OnOnlineCountUpdate;
         public event Action<List<ChatMessageData>> OnHistoryReceived;
@@ -27,15 +27,28 @@ namespace DoAn_NT106.Services
         public event Action OnConnected;
         public event Action OnDisconnected;
 
-        public bool IsConnected => client?.Connected ?? false;
+        // Properties
+        public bool IsConnected => TcpClient.IsConnected;
         public bool IsJoined => isJoined;
 
-        public GlobalChatClient(string address = "127.0.0.1", int port = 8080)
+        // ===========================
+        // CONSTRUCTOR
+        // ===========================
+        public GlobalChatClient()
         {
-            serverAddress = address;
-            serverPort = port;
+            // Subscribe vào broadcast của PersistentTcpClient
+            TcpClient.OnBroadcast += HandleBroadcast;
+            TcpClient.OnDisconnected += HandleDisconnected;
         }
 
+        public GlobalChatClient(string address, int port) : this()
+        {
+            // Ignore address/port - dùng PersistentTcpClient singleton
+        }
+
+        // ===========================
+        // CONNECT AND JOIN
+        // ===========================
         public async Task<(bool Success, int OnlineCount, List<ChatMessageData> History)> ConnectAndJoinAsync(string username, string token)
         {
             try
@@ -43,91 +56,61 @@ namespace DoAn_NT106.Services
                 this.username = username;
                 this.token = token;
 
-                client = new TcpClient();
-                await client.ConnectAsync(serverAddress, serverPort);
-                stream = client.GetStream();
-
-                var request = new
+                // Đảm bảo đã connect
+                if (!TcpClient.IsConnected)
                 {
-                    Action = "GLOBAL_CHAT_JOIN",
-                    Data = new Dictionary<string, object>
+                    bool connected = await TcpClient.ConnectAsync();
+                    if (!connected)
                     {
-                        { "username", username },
-                        { "token", token }
+                        OnError?.Invoke("Cannot connect to server");
+                        return (false, 0, null);
                     }
-                };
-
-                string requestJson = JsonSerializer.Serialize(request);
-                byte[] requestBytes = Encoding.UTF8.GetBytes(requestJson);
-                await stream.WriteAsync(requestBytes, 0, requestBytes.Length);
-
-                byte[] buffer = new byte[65536];
-                int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
-                string responseJson = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-
-                // ✅ Log response để debug
-                Console.WriteLine($"[GlobalChatClient] Raw response: {responseJson}");
-
-                using var doc = JsonDocument.Parse(responseJson);
-                var root = doc.RootElement;
-
-                bool success = root.GetProperty("Success").GetBoolean();
-                Console.WriteLine($"[GlobalChatClient] Success: {success}");
-
-                if (success)
-                {
-                    isJoined = true;
-                    int onlineCount = 0;
-                    var history = new List<ChatMessageData>();
-
-                    if (root.TryGetProperty("Data", out var data))
-                    {
-                        Console.WriteLine($"[GlobalChatClient] Data found");
-
-                        if (data.TryGetProperty("onlineCount", out var countEl))
-                        {
-                            onlineCount = countEl.GetInt32();
-                            Console.WriteLine($"[GlobalChatClient] ✅ Parsed onlineCount: {onlineCount}");
-                        }
-                        else
-                        {
-                            Console.WriteLine($"[GlobalChatClient] ⚠️ 'onlineCount' NOT found in Data");
-                        }
-
-                        if (data.TryGetProperty("history", out var historyEl))
-                        {
-                            foreach (var item in historyEl.EnumerateArray())
-                            {
-                                history.Add(new ChatMessageData
-                                {
-                                    Id = GetStringProp(item, "id"),
-                                    Username = GetStringProp(item, "username"),
-                                    Message = GetStringProp(item, "message"),
-                                    Timestamp = GetStringProp(item, "timestamp"),
-                                    Type = GetStringProp(item, "type")
-                                });
-                            }
-                            Console.WriteLine($"[GlobalChatClient] Loaded {history.Count} history messages");
-                        }
-                    }
-                    else
-                    {
-                        Console.WriteLine($"[GlobalChatClient] ⚠️ 'Data' NOT found in response");
-                    }
-
-                    // Bắt đầu listen broadcasts
-                    cts = new CancellationTokenSource();
-                    listenTask = Task.Run(() => ListenForBroadcasts(cts.Token));
-
-                    OnConnected?.Invoke();
-
-                    Console.WriteLine($"[GlobalChatClient] Returning: Success=true, OnlineCount={onlineCount}");
-                    return (true, onlineCount, history);
                 }
 
-                string message = root.TryGetProperty("Message", out var msgEl) ? msgEl.GetString() : "Unknown error";
-                OnError?.Invoke(message);
-                return (false, 0, null);
+                // Gửi request qua PersistentTcpClient
+                var response = await TcpClient.GlobalChatJoinAsync(username, token);
+
+                Console.WriteLine($"[GlobalChatClient] Join response: {response.Success} - {response.Message}");
+
+                if (!response.Success)
+                {
+                    OnError?.Invoke(response.Message);
+                    return (false, 0, null);
+                }
+
+                isJoined = true;
+
+                // Parse response data
+                int onlineCount = 0;
+                var history = new List<ChatMessageData>();
+
+                if (response.RawData.ValueKind != JsonValueKind.Undefined)
+                {
+                    if (response.RawData.TryGetProperty("onlineCount", out var countEl))
+                    {
+                        onlineCount = countEl.GetInt32();
+                        Console.WriteLine($"[GlobalChatClient] ✅ Parsed onlineCount: {onlineCount}");
+                    }
+
+                    if (response.RawData.TryGetProperty("history", out var historyEl))
+                    {
+                        foreach (var item in historyEl.EnumerateArray())
+                        {
+                            history.Add(new ChatMessageData
+                            {
+                                Id = GetStringProp(item, "id"),
+                                Username = GetStringProp(item, "username"),
+                                Message = GetStringProp(item, "message"),
+                                Timestamp = GetStringProp(item, "timestamp"),
+                                Type = GetStringProp(item, "type")
+                            });
+                        }
+                        Console.WriteLine($"[GlobalChatClient] Loaded {history.Count} history messages");
+                    }
+                }
+
+                OnConnected?.Invoke();
+                return (true, onlineCount, history);
             }
             catch (Exception ex)
             {
@@ -137,146 +120,76 @@ namespace DoAn_NT106.Services
             }
         }
 
-        private string GetStringProp(JsonElement el, string name)
+        // ===========================
+        // HANDLE BROADCASTS
+        // ===========================
+        private void HandleBroadcast(string action, JsonElement data)
         {
-            return el.TryGetProperty(name, out var prop) ? prop.GetString() ?? "" : "";
-        }
-
-        private async Task ListenForBroadcasts(CancellationToken token)
-        {
-            byte[] buffer = new byte[65536];
+            if (!isJoined || isDisposed) return;
 
             try
             {
-                while (!token.IsCancellationRequested && client?.Connected == true)
+                switch (action)
                 {
-                    int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, token);
-
-                    if (bytesRead == 0)
-                    {
-                        Console.WriteLine("[GlobalChatClient] Server disconnected (0 bytes)");
+                    case "GLOBAL_CHAT_MESSAGE":
+                        ProcessChatMessage(data);
                         break;
-                    }
 
-                    string json = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-                    Console.WriteLine($"[GlobalChatClient] Broadcast received: {json.Substring(0, Math.Min(200, json.Length))}...");
-
-                    ProcessBroadcast(json);
+                    case "GLOBAL_CHAT_ONLINE_UPDATE":
+                        ProcessOnlineUpdate(data);
+                        break;
                 }
-            }
-            catch (OperationCanceledException)
-            {
-                Console.WriteLine("[GlobalChatClient] Listen cancelled");
             }
             catch (Exception ex)
             {
-                if (!token.IsCancellationRequested)
-                {
-                    Console.WriteLine($"[GlobalChatClient] Listen error: {ex.Message}");
-                    OnError?.Invoke($"Listen error: {ex.Message}");
-                }
+                Console.WriteLine($"[GlobalChatClient] HandleBroadcast error: {ex.Message}");
             }
-            finally
+        }
+
+        private void ProcessChatMessage(JsonElement data)
+        {
+            var msg = new ChatMessageData
+            {
+                Id = GetStringProp(data, "id"),
+                Username = GetStringProp(data, "username"),
+                Message = GetStringProp(data, "message"),
+                Timestamp = GetStringProp(data, "timestamp"),
+                Type = GetStringProp(data, "type")
+            };
+
+            Console.WriteLine($"[GlobalChatClient] Chat message from {msg.Username}: {msg.Message}");
+
+            // Cập nhật online count nếu có trong message
+            if (data.TryGetProperty("onlineCount", out var countEl))
+            {
+                OnOnlineCountUpdate?.Invoke(countEl.GetInt32());
+            }
+
+            OnChatMessage?.Invoke(msg);
+        }
+
+        private void ProcessOnlineUpdate(JsonElement data)
+        {
+            if (data.TryGetProperty("onlineCount", out var countEl))
+            {
+                int count = countEl.GetInt32();
+                Console.WriteLine($"[GlobalChatClient] ✅ Online update: {count}");
+                OnOnlineCountUpdate?.Invoke(count);
+            }
+        }
+
+        private void HandleDisconnected(string reason)
+        {
+            if (isJoined && !isDisposed)
             {
                 isJoined = false;
                 OnDisconnected?.Invoke();
             }
         }
 
-        private void ProcessBroadcast(string json)
-        {
-            try
-            {
-                using var doc = JsonDocument.Parse(json);
-                var root = doc.RootElement;
-
-                if (!root.TryGetProperty("Action", out var actionEl))
-                {
-                    Console.WriteLine("[GlobalChatClient] No 'Action' in broadcast");
-                    return;
-                }
-
-                string action = actionEl.GetString();
-                Console.WriteLine($"[GlobalChatClient] Processing action: {action}");
-
-                switch (action)
-                {
-                    case "GLOBAL_CHAT_MESSAGE":
-                        HandleChatMessage(root);
-                        break;
-
-                    case "GLOBAL_CHAT_ONLINE_UPDATE":
-                        HandleOnlineUpdate(root);
-                        break;
-
-                    default:
-                        Console.WriteLine($"[GlobalChatClient] Unknown action: {action}");
-                        break;
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[GlobalChatClient] Process error: {ex.Message}");
-                OnError?.Invoke($"Process error: {ex.Message}");
-            }
-        }
-
-        private void HandleChatMessage(JsonElement root)
-        {
-            try
-            {
-                if (!root.TryGetProperty("Data", out var data))
-                    return;
-
-                var chatMessage = new ChatMessageData
-                {
-                    Id = GetStringProp(data, "id"),
-                    Username = GetStringProp(data, "username"),
-                    Message = GetStringProp(data, "message"),
-                    Timestamp = GetStringProp(data, "timestamp"),
-                    Type = GetStringProp(data, "type")
-                };
-
-                Console.WriteLine($"[GlobalChatClient] Chat message from {chatMessage.Username}: {chatMessage.Message}");
-
-                // Cập nhật online count nếu có
-                if (data.TryGetProperty("onlineCount", out var countEl))
-                {
-                    int count = countEl.GetInt32();
-                    Console.WriteLine($"[GlobalChatClient] Online count in chat message: {count}");
-                    OnOnlineCountUpdate?.Invoke(count);
-                }
-
-                OnChatMessage?.Invoke(chatMessage);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[GlobalChatClient] HandleChatMessage error: {ex.Message}");
-                OnError?.Invoke($"HandleChatMessage error: {ex.Message}");
-            }
-        }
-
-        private void HandleOnlineUpdate(JsonElement root)
-        {
-            try
-            {
-                if (!root.TryGetProperty("Data", out var data))
-                    return;
-
-                if (data.TryGetProperty("onlineCount", out var countEl))
-                {
-                    int count = countEl.GetInt32();
-                    Console.WriteLine($"[GlobalChatClient] ✅ Online update received: {count}");
-                    OnOnlineCountUpdate?.Invoke(count);
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[GlobalChatClient] HandleOnlineUpdate error: {ex.Message}");
-                OnError?.Invoke($"HandleOnlineUpdate error: {ex.Message}");
-            }
-        }
-
+        // ===========================
+        // SEND MESSAGE
+        // ===========================
         public async Task<bool> SendMessageAsync(string message)
         {
             try
@@ -287,26 +200,15 @@ namespace DoAn_NT106.Services
                     return false;
                 }
 
+                if (string.IsNullOrEmpty(message)) return false;
+
                 if (message.Length > 1000)
                     message = message.Substring(0, 1000);
 
-                var request = new
-                {
-                    Action = "GLOBAL_CHAT_SEND",
-                    Data = new Dictionary<string, object>
-                    {
-                        { "username", username },
-                        { "message", message },
-                        { "token", token }
-                    }
-                };
+                var response = await TcpClient.GlobalChatSendAsync(username, message);
 
-                string json = JsonSerializer.Serialize(request);
-                byte[] data = Encoding.UTF8.GetBytes(json);
-                await stream.WriteAsync(data, 0, data.Length);
-
-                Console.WriteLine($"[GlobalChatClient] Sent message: {message}");
-                return true;
+                Console.WriteLine($"[GlobalChatClient] Send result: {response.Success}");
+                return response.Success;
             }
             catch (Exception ex)
             {
@@ -316,52 +218,66 @@ namespace DoAn_NT106.Services
             }
         }
 
+        // ===========================
+        // LEAVE
+        // ===========================
         public async Task LeaveAsync()
         {
             try
             {
                 if (IsConnected && isJoined)
                 {
-                    var request = new
-                    {
-                        Action = "GLOBAL_CHAT_LEAVE",
-                        Data = new Dictionary<string, object>
-                        {
-                            { "username", username }
-                        }
-                    };
-
-                    string json = JsonSerializer.Serialize(request);
-                    byte[] data = Encoding.UTF8.GetBytes(json);
-                    await stream.WriteAsync(data, 0, data.Length);
+                    await TcpClient.GlobalChatLeaveAsync(username);
+                    Console.WriteLine($"[GlobalChatClient] Left global chat");
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GlobalChatClient] Leave error: {ex.Message}");
+            }
             finally
             {
                 isJoined = false;
             }
         }
 
+        // ===========================
+        // DISPOSE
+        // ===========================
         public void Dispose()
         {
+            if (isDisposed) return;
+            isDisposed = true;
+
             try
             {
-                cts?.Cancel();
-                if (isJoined) _ = LeaveAsync();
-                stream?.Close();
-                client?.Close();
+                // Unsubscribe từ events
+                TcpClient.OnBroadcast -= HandleBroadcast;
+                TcpClient.OnDisconnected -= HandleDisconnected;
+
+                // Leave chat nếu đang joined
+                if (isJoined)
+                {
+                    _ = LeaveAsync();
+                }
             }
             catch { }
-            finally
-            {
-                cts?.Dispose();
-                stream?.Dispose();
-                client?.Dispose();
-            }
+
+            // KHÔNG disconnect PersistentTcpClient vì nó dùng chung cho toàn app
+        }
+
+        // ===========================
+        // HELPER
+        // ===========================
+        private string GetStringProp(JsonElement el, string name)
+        {
+            return el.TryGetProperty(name, out var prop) ? prop.GetString() ?? "" : "";
         }
     }
 
+    // ===========================
+    // DATA CLASS
+    // ===========================
     public class ChatMessageData
     {
         public string Id { get; set; }

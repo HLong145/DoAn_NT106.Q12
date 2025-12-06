@@ -16,7 +16,7 @@ namespace DoAn_NT106
         private string username;
         private string token;
         private bool isLoggedIn = false;
-        private readonly TcpClientService tcpClient;
+        private readonly PersistentTcpClient tcpClient;
         private System.Windows.Forms.Timer rainTimer;
         private List<Particle> particles = new List<Particle>();
         private Random rand = new Random();
@@ -44,7 +44,7 @@ namespace DoAn_NT106
             this.token = token;
             this.isLoggedIn = true;
 
-            tcpClient = new TcpClientService("127.0.0.1", 8080);
+            tcpClient = PersistentTcpClient.Instance;
             UpdateUsernameDisplay(username);
 
             this.Load += (s, e) =>

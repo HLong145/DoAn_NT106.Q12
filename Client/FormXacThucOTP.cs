@@ -10,7 +10,7 @@ namespace DoAn_NT106
     public partial class FormXacThucOTP : Form
     {
         private readonly string _username;
-        private readonly TcpClientService tcpClient; // ✅ TCP CLIENT
+        private readonly PersistentTcpClient tcpClient;
         private readonly DatabaseService dbService; // ✅ DATABASE SERVICE
         private System.Windows.Forms.Timer otpTimer;
         private int remainingSeconds = 300;
@@ -24,7 +24,7 @@ namespace DoAn_NT106
             _username = username;
 
             // ✅ KHỞI TẠO CẢ HAI SERVICE
-            tcpClient = new TcpClientService("127.0.0.1", 8080);
+            tcpClient = PersistentTcpClient.Instance;
             dbService = new DatabaseService();
 
             InitializeTimer();

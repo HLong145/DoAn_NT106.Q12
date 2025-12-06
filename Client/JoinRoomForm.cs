@@ -759,7 +759,7 @@ namespace PixelGameLobby
             {
                 Console.WriteLine($"[JoinRoomForm] Connecting to GlobalChat as {username}...");
 
-                globalChatClient = new GlobalChatClient("127.0.0.1", 8080);
+                globalChatClient = new GlobalChatClient();
 
                 globalChatClient.OnChatMessage += GlobalChat_OnChatMessage;
                 globalChatClient.OnOnlineCountUpdate += GlobalChat_OnOnlineCountUpdate;

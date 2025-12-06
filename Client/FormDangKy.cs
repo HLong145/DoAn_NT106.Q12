@@ -8,7 +8,7 @@ namespace DoAn_NT106
 {
     public partial class FormDangKy : Form
     {
-        private readonly TcpClientService tcpClient; // ✅ TCP CLIENT
+        private readonly PersistentTcpClient tcpClient;
         private readonly DatabaseService dbService;  // ✅ DATABASE SERVICE
         private readonly ValidationService validationService = new ValidationService();
 
@@ -25,7 +25,7 @@ namespace DoAn_NT106
             InitializeCustomUI();
             this.VisibleChanged += FormDangKy_VisibleChanged;
             // ✅ KHỞI TẠO CẢ HAI SERVICE
-            tcpClient = new TcpClientService("127.0.0.1", 8080);
+            tcpClient = PersistentTcpClient.Instance;
             dbService = new DatabaseService();
             this.Shown += (s, e) =>
             {

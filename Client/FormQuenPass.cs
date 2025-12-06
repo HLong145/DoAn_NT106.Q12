@@ -6,7 +6,7 @@ namespace DoAn_NT106
 {
     public partial class FormQuenPass : Form
     {
-        private readonly TcpClientService tcpClient;  // ✅ TCP CLIENT
+        private readonly PersistentTcpClient tcpClient;
         private readonly DatabaseService dbService;   // ✅ DATABASE SERVICE
 
         // ✅ CẤU HÌNH: true = dùng Server, false = dùng Database trực tiếp
@@ -18,7 +18,7 @@ namespace DoAn_NT106
             lblContactError.Text = "";
 
             // ✅ KHỞI TẠO CẢ HAI SERVICE
-            tcpClient = new TcpClientService("127.0.0.1", 8080);
+            tcpClient = PersistentTcpClient.Instance;
             dbService = new DatabaseService();
         }
 
