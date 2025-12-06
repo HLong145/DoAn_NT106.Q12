@@ -3,7 +3,7 @@ using System.Windows.Forms;
 
 namespace DoAn_NT106
 {
-    partial class PasswordForm
+    partial class PasswordToJoinRoom
     {
         private DoAn_NT106.Tb_Pixel txtPassword;
         private DoAn_NT106.Btn_Pixel btnOK;
