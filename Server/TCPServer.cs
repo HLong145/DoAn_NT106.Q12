@@ -1,4 +1,5 @@
-﻿using DoAn_NT106.Services;
+﻿using Azure;
+using DoAn_NT106.Services;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -250,6 +251,7 @@ namespace DoAn_NT106.Server
             try
             {
                 byte[] buffer = new byte[8192];
+                StringBuilder msgBuffer = new StringBuilder(); 
 
                 while (tcpClient.Connected)
                 {
@@ -257,16 +259,49 @@ namespace DoAn_NT106.Server
 
                     if (bytesRead == 0) break;
 
-                    string requestJson = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-                    string safeLog = HideSensitiveData(requestJson);
-                    server.Log($"📨 Received: {safeLog.Substring(0, Math.Min(100, safeLog.Length))}...");
+                    string receivedData = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                    msgBuffer.Append(receivedData);
 
-                    var response = ProcessRequest(requestJson);
+                    string bufferContent = msgBuffer.ToString();
+                    int newlineIndex;
 
-                    byte[] responseBytes = Encoding.UTF8.GetBytes(response);
-                    await stream.WriteAsync(responseBytes, 0, responseBytes.Length);
+                    while ((newlineIndex = bufferContent.IndexOf('\n')) != -1)
+                    {
+                        string encryptedRequest = bufferContent.Substring(0, newlineIndex);
+                        bufferContent = bufferContent.Substring(newlineIndex + 1);
 
-                    server.Log($"📤 Sent response");
+                        if (string.IsNullOrWhiteSpace(encryptedRequest))
+                            continue;
+
+                   
+                        string requestJson;
+                        try
+                        {
+                            requestJson = DoAn_NT106.Services.EncryptionService.Decrypt(encryptedRequest);
+                        }
+                        catch (Exception ex)
+                        {
+                            server.Log($"❌ Decryption failed: {ex.Message}");
+                            continue;
+                        }
+
+                        string safeLog = HideSensitiveData(requestJson);
+                        server.Log($"📨 Received: {safeLog.Substring(0, Math.Min(100, safeLog.Length))}...");
+
+                        var response = ProcessRequest(requestJson);
+
+                        // ✅ Mã hóa response trước khi gửi
+                        string encryptedResponse = DoAn_NT106.Services.EncryptionService.Encrypt(response);
+
+                        byte[] responseBytes = Encoding.UTF8.GetBytes(encryptedResponse);
+                        await stream.WriteAsync(responseBytes, 0, responseBytes.Length);
+
+                        server.Log($"📤 Sent response {encryptedRequest}");
+                    }
+
+                    // ✅ Giữ lại phần chưa đầy đủ
+                    msgBuffer.Clear();
+                    msgBuffer.Append(bufferContent);
                 }
             }
             catch (Exception ex)
@@ -281,7 +316,6 @@ namespace DoAn_NT106.Server
                     globalChatManager.LeaveGlobalChat(globalChatUsername);
                 }
 
-                // ✅ THÊM: Cleanup lobby connection
                 if (!string.IsNullOrEmpty(lobbyRoomCode) && !string.IsNullOrEmpty(lobbyUsername))
                 {
                     lobbyManager?.LeaveLobby(lobbyRoomCode, lobbyUsername);
@@ -305,7 +339,9 @@ namespace DoAn_NT106.Server
                 if (tcpClient == null || !tcpClient.Connected)
                     return;
 
-                byte[] data = Encoding.UTF8.GetBytes(json);
+                string encrypted = DoAn_NT106.Services.EncryptionService.Encrypt(json);
+                
+                byte[] data = Encoding.UTF8.GetBytes(encrypted);
                 stream.Write(data, 0, data.Length);
             }
             catch (Exception ex)
