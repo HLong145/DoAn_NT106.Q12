@@ -47,10 +47,10 @@ namespace DoAn_NT106.Server
             // ✅ THÊM MỚI: Link broadcaster vào RoomManager
             roomManager.RoomListBroadcaster = roomListBroadcaster;
 
-            globalChatManager = new GlobalChatManager();
+            globalChatManager = new GlobalChatManager(dbService);
             globalChatManager.OnLog += LogMessage;
 
-            lobbyManager = new LobbyManager();
+            lobbyManager = new LobbyManager(dbService);
             lobbyManager.OnLog += LogMessage;
         }
         public void Start(int port)

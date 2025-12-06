@@ -345,8 +345,8 @@ namespace DoAn_NT106.Services
         public Task<ServerResponse> GlobalChatJoinAsync(string username, string token)
             => SendRequestAsync("GLOBAL_CHAT_JOIN", new Dictionary<string, object> { { "username", username }, { "token", token } });
 
-        public Task<ServerResponse> GlobalChatSendAsync(string username, string message)
-            => SendRequestAsync("GLOBAL_CHAT_SEND", new Dictionary<string, object> { { "username", username }, { "message", message } });
+        public Task<ServerResponse> GlobalChatSendAsync(string username, string message, string token)
+            => SendRequestAsync("GLOBAL_CHAT_SEND", new Dictionary<string, object> { { "username", username }, { "message", message }, { "token", token } });
 
         public Task<ServerResponse> GlobalChatLeaveAsync(string username)
             => SendRequestAsync("GLOBAL_CHAT_LEAVE", new Dictionary<string, object> { { "username", username } });

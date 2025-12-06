@@ -205,7 +205,7 @@ namespace DoAn_NT106.Services
                 if (message.Length > 1000)
                     message = message.Substring(0, 1000);
 
-                var response = await TcpClient.GlobalChatSendAsync(username, message);
+                var response = await TcpClient.GlobalChatSendAsync(username, message, token);
 
                 Console.WriteLine($"[GlobalChatClient] Send result: {response.Success}");
                 return response.Success;

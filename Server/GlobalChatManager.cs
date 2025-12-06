@@ -1,4 +1,5 @@
-﻿using System;
+﻿using DoAn_NT106.Services;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,9 +12,15 @@ namespace DoAn_NT106.Server
         private ConcurrentDictionary<string, ClientHandler> onlineUsers = new ConcurrentDictionary<string, ClientHandler>();
         private List<GlobalChatMessage> chatHistory = new List<GlobalChatMessage>();
         private readonly object historyLock = new object();
+        private DatabaseService dbService;
         private const int MAX_HISTORY = 100;
 
         public event Action<string> OnLog;
+
+        public GlobalChatManager(DatabaseService dbService = null)
+        {
+            this.dbService = dbService ?? new DatabaseService();
+        }
 
         // ===========================
         // QUẢN LÝ USER ONLINE
@@ -90,6 +97,19 @@ namespace DoAn_NT106.Server
                 {
                     Log($"⚠️ {username} not in online users, cannot send message");
                     return (false, "User not in Global Chat");
+                }
+
+                try
+                {
+                    var dbResult = dbService.SaveGlobalChatMessage(username, message);
+                    if (!dbResult.Success)
+                    {
+                        Log($"⚠️ Failed to save to DB: {dbResult.Message}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log($"⚠️ DB save error: {ex.Message}");
                 }
 
                 var chatMessage = new GlobalChatMessage
