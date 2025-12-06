@@ -169,13 +169,14 @@ namespace DoAn_NT106.Services
                 using (var connection = new SqlConnection(connectionString))
                 {
                     connection.Open();
+
                     string query = isEmail
-                        ? "SELECT USERNAME FROM PLAYERS WHERE EMAIL = @Contact"
-                        : "SELECT USERNAME FROM PLAYERS WHERE PHONE = @Contact";
+                        ? "SELECT USERNAME FROM PLAYERS WHERE LOWER(LTRIM(RTRIM(EMAIL))) = LOWER(LTRIM(RTRIM(@Contact)))"
+                        : "SELECT USERNAME FROM PLAYERS WHERE LTRIM(RTRIM(PHONE)) = LTRIM(RTRIM(@Contact))";
 
                     using (var command = new SqlCommand(query, connection))
                     {
-                        command.Parameters.AddWithValue("@Contact", contact);
+                        command.Parameters.Add("@Contact", SqlDbType.NVarChar).Value = contact.Trim();
                         var result = command.ExecuteScalar();
                         return result?.ToString();
                     }
@@ -187,6 +188,30 @@ namespace DoAn_NT106.Services
                 return null;
             }
         }
+
+        public string GetEmailByUsername(string username)
+        {
+            try
+            {
+                using (var connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    string query = "SELECT EMAIL FROM PLAYERS WHERE USERNAME = @User";
+
+                    using (var command = new SqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@User", username);
+                        var result = command.ExecuteScalar();
+                        return result?.ToString();
+                    }
+                }
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
 
         // ✅ RESET PASSWORD - BẢN ĐÃ SỬA
         public bool ResetPassword(string username, string newPassword)
