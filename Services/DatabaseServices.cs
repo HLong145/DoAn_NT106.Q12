@@ -171,12 +171,12 @@ namespace DoAn_NT106.Services
                     connection.Open();
 
                     string query = isEmail
-                        ? "SELECT USERNAME FROM PLAYERS WHERE LOWER(LTRIM(RTRIM(EMAIL))) = LOWER(LTRIM(RTRIM(@Contact)))"
-                        : "SELECT USERNAME FROM PLAYERS WHERE LTRIM(RTRIM(PHONE)) = LTRIM(RTRIM(@Contact))";
+                        ? "SELECT USERNAME FROM PLAYERS WHERE EMAIL = @Contact"
+                        : "SELECT USERNAME FROM PLAYERS WHERE PHONE = @Contact";
 
                     using (var command = new SqlCommand(query, connection))
                     {
-                        command.Parameters.Add("@Contact", SqlDbType.NVarChar).Value = contact.Trim();
+                        command.Parameters.AddWithValue("@Contact", contact);
                         var result = command.ExecuteScalar();
                         return result?.ToString();
                     }
