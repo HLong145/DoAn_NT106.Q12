@@ -28,9 +28,18 @@ namespace DoAn_NT106
         private string GetRoundCenterText()
         {
             var remaining = TimeSpan.FromMilliseconds(Math.Max(0, _roundTimeRemainingMs));
-            return $"ROUND {_roundNumber}/3\n\n" +
-                   $"⏱️ {remaining.Minutes:00}:{remaining.Seconds:00}\n\n" +
-                   $"{username} ({_player1Wins}W) VS ({_player2Wins}W) {opponent}";
+            
+            // ✅ Đảm bảo có giá trị cho player names
+            string p1Name = !string.IsNullOrEmpty(username) ? username.ToUpper() : "PLAYER 1";
+            string p2Name = !string.IsNullOrEmpty(opponent) ? opponent.ToUpper() : "PLAYER 2";
+
+            // Header line
+            string header = $"[ ROUND {_roundNumber} ]";
+            // Body line: PLAYER 1 (xW)  ⏱ mm:ss  (yW) PLAYER 2
+            string body = $"{p1Name} ({_player1Wins}W)  ⏱️ {remaining.Minutes:00}:{remaining.Seconds:00}  ({_player2Wins}W) {p2Name}";
+
+            // Compose with spacing lines
+            return header + "\n\n" + body + "\n\n";
         }
 
         /// <summary>Updates the center label text with current round info</summary>
@@ -39,7 +48,30 @@ namespace DoAn_NT106
             if (_lblRoundCenter != null)
             {
                 _lblRoundCenter.Text = GetRoundCenterText();
+                ResizeRoundCenterLabel();
+                _lblRoundCenter.Refresh();
+                PositionRoundCenterLabel();
             }
+        }
+
+        /// <summary>Resizes the center label to fit the formatted text snugly</summary>
+        private void ResizeRoundCenterLabel()
+        {
+            if (_lblRoundCenter == null) return;
+            var text = _lblRoundCenter.Text;
+            var font = _lblRoundCenter.Font;
+            // Measure text size accurately for Label
+            var measured = TextRenderer.MeasureText(text, font, new Size(int.MaxValue, int.MaxValue),
+                TextFormatFlags.TextBoxControl | TextFormatFlags.WordBreak | TextFormatFlags.NoClipping);
+
+            // Apply small padding
+            int padX = 16;
+            int padY = 10;
+            int newW = measured.Width + padX;
+            int newH = measured.Height + padY;
+            // Ensure a minimum width so the last token doesn't wrap/cut
+            if (newW < 580) newW = 580;
+            _lblRoundCenter.Size = new Size(newW, newH);
         }
 
         /// <summary>Positions the round center label at top center, ngang với các thanh HP/Stamina/Mana</summary>
@@ -61,19 +93,26 @@ namespace DoAn_NT106
             // Create center label if not already created
             if (_lblRoundCenter == null)
             {
+                string initialText = GetRoundCenterText();
                 _lblRoundCenter = new Label
                 {
                     Text = GetRoundCenterText(),
-                    Size = new Size(500, 150),
+                    Size = new Size(1, 1),
                     ForeColor = Color.Gold,
-                    Font = new Font("Arial", 20, FontStyle.Bold),
+                    Font = new Font("Courier New", 15, FontStyle.Bold),
                     BackColor = Color.FromArgb(200, 0, 0, 0),
                     TextAlign = ContentAlignment.MiddleCenter,
                     BorderStyle = BorderStyle.FixedSingle,
-                    Padding = new Padding(15),
+                    Padding = new Padding(6),
                     AutoSize = false
                 };
                 this.Controls.Add(_lblRoundCenter);
+                ResizeRoundCenterLabel();
+                _lblRoundCenter.BringToFront();
+            }
+            else
+            {
+                UpdateRoundCenterText(); 
             }
             PositionRoundCenterLabel();
 
@@ -109,7 +148,7 @@ namespace DoAn_NT106
             }
 
             // Delay hiển thị ROUND 1 cho đến khi form đã load xong
-            var delayTimer = new System.Windows.Forms.Timer { Interval = 100 };
+            var delayTimer = new System.Windows.Forms.Timer { Interval = 200 };
             delayTimer.Tick += (s, e) =>
             {
                 delayTimer.Stop();
@@ -118,9 +157,13 @@ namespace DoAn_NT106
                 // Kiểm tra form đã sẵn sàng chưa
                 if (this.ClientSize.Width > 100 && this.ClientSize.Height > 100)
                 {
-                    // Cập nhật lại text và vị trí
+                    // ✅ Cập nhật lại text và vị trí SAU KHI form đã load
+                    Console.WriteLine($"[RoundSystem] Updating center text with: {username} vs {opponent}");
                     UpdateRoundCenterText();
                     PositionRoundCenterLabel();
+                    _lblRoundCenter?.BringToFront();
+                    
+                    // Hiển thị ROUND animation
                     DisplayRoundStartAnimation();
                 }
             };
@@ -143,16 +186,19 @@ namespace DoAn_NT106
                 screenHeight = 1080;
             }
             
-            _roundStartCountdownMs = 2000; // 2 seconds
+            _roundStartCountdownMs = 1000; // 1 seconds
             _lblRoundStart.Text = $"ROUND {_roundNumber}";
             
-            // Căn giữa chính xác
-            int labelWidth = _lblRoundStart.Width;
-            int labelHeight = _lblRoundStart.Height;
-            _lblRoundStart.Location = new Point(
-                (screenWidth - labelWidth) / 2,
-                (screenHeight - labelHeight) / 2
-            );
+            // ✅ Đo kích thước thực tế của label
+            using (var g = _lblRoundStart.CreateGraphics())
+            {
+                var size = g.MeasureString(_lblRoundStart.Text, _lblRoundStart.Font);
+                // Căn giữa dựa trên kích thước thực tế
+                _lblRoundStart.Location = new Point(
+                    (screenWidth - (int)size.Width) / 2 - 50,
+                    (screenHeight - (int)size.Height) / 2 - 50
+                );
+            }
             
             _lblRoundStart.Visible = true;
             _lblRoundStart.BringToFront();
@@ -166,8 +212,10 @@ namespace DoAn_NT106
             
             _roundInProgress = false; // Lock gameplay during countdown
             
-            // Cập nhật lại center text
+            // ✅ Cập nhật lại center text với tên player
             UpdateRoundCenterText();
+            
+            Console.WriteLine($"[RoundSystem] Displaying ROUND {_roundNumber} at center");
         }
 
         /// <summary>Countdown timer tick - updates every 1 second</summary>
