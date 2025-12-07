@@ -181,6 +181,16 @@ namespace DoAn_NT106.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized resource of type System.Drawing.Bitmap.
+        /// </summary>
+        internal static System.Drawing.Bitmap Bringer {
+            get {
+                object obj = ResourceManager.GetObject("Bringer", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized resource of type System.Byte[].
         /// </summary>
         internal static byte[] BringerofDeath_Attack1 {
@@ -411,6 +421,16 @@ namespace DoAn_NT106.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized resource of type System.Drawing.Bitmap.
+        /// </summary>
+        internal static System.Drawing.Bitmap Goatman1 {
+            get {
+                object obj = ResourceManager.GetObject("Goatman1", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized resource of type System.Byte[].
         /// </summary>
         internal static byte[] hit_effect {
@@ -436,6 +456,16 @@ namespace DoAn_NT106.Properties {
         internal static System.Drawing.Bitmap key {
             get {
                 object obj = ResourceManager.GetObject("key", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Drawing.Bitmap.
+        /// </summary>
+        internal static System.Drawing.Bitmap Knightgirl {
+            get {
+                object obj = ResourceManager.GetObject("Knightgirl", resourceCulture);
                 return ((System.Drawing.Bitmap)(obj));
             }
         }
@@ -627,6 +657,16 @@ namespace DoAn_NT106.Properties {
         internal static System.Drawing.Bitmap thor {
             get {
                 object obj = ResourceManager.GetObject("thor", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Drawing.Bitmap.
+        /// </summary>
+        internal static System.Drawing.Bitmap warrior {
+            get {
+                object obj = ResourceManager.GetObject("warrior", resourceCulture);
                 return ((System.Drawing.Bitmap)(obj));
             }
         }

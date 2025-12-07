@@ -153,12 +153,12 @@ namespace DoAn_NT106
             label5.BackColor = Color.FromArgb(180, 83, 9);
             label5.Font = new Font("Courier New", 14F, FontStyle.Bold, GraphicsUnit.Point, 0);
             label5.ForeColor = Color.FromArgb(64, 0, 0);
-            label5.Location = new Point(61, 620);
+            label5.Location = new Point(43, 640);
             label5.Margin = new Padding(4, 0, 4, 0);
             label5.Name = "label5";
-            label5.Size = new Size(194, 27);
+            label5.Size = new Size(236, 27);
             label5.TabIndex = 16;
-            label5.Text = "Longnor Blaze";
+            label5.Text = "Bringer of Death";
             // 
             // label4
             // 
@@ -166,12 +166,12 @@ namespace DoAn_NT106
             label4.BackColor = Color.FromArgb(180, 83, 9);
             label4.Font = new Font("Courier New", 14F, FontStyle.Bold, GraphicsUnit.Point, 0);
             label4.ForeColor = Color.FromArgb(64, 0, 0);
-            label4.Location = new Point(299, 620);
+            label4.Location = new Point(332, 640);
             label4.Margin = new Padding(4, 0, 4, 0);
             label4.Name = "label4";
-            label4.Size = new Size(166, 27);
+            label4.Size = new Size(124, 27);
             label4.TabIndex = 15;
-            label4.Text = "Linvay Gray";
+            label4.Text = "Goat man";
             // 
             // label3
             // 
@@ -179,7 +179,7 @@ namespace DoAn_NT106
             label3.BackColor = Color.FromArgb(180, 83, 9);
             label3.Font = new Font("Courier New", 14F, FontStyle.Bold, GraphicsUnit.Point, 0);
             label3.ForeColor = Color.FromArgb(64, 0, 0);
-            label3.Location = new Point(719, 620);
+            label3.Location = new Point(719, 640);
             label3.Margin = new Padding(4, 0, 4, 0);
             label3.Name = "label3";
             label3.Size = new Size(208, 27);
@@ -192,12 +192,12 @@ namespace DoAn_NT106
             label2.BackColor = Color.FromArgb(180, 83, 9);
             label2.Font = new Font("Courier New", 14F, FontStyle.Bold, GraphicsUnit.Point, 0);
             label2.ForeColor = Color.FromArgb(64, 0, 0);
-            label2.Location = new Point(530, 620);
+            label2.Location = new Point(540, 640);
             label2.Margin = new Padding(4, 0, 4, 0);
             label2.Name = "label2";
             label2.Size = new Size(138, 27);
             label2.TabIndex = 13;
-            label2.Text = "Bruise Li";
+            label2.Text = "Rose Lili";
             // 
             // label1
             // 
@@ -205,7 +205,7 @@ namespace DoAn_NT106
             label1.BackColor = Color.FromArgb(180, 83, 9);
             label1.Font = new Font("Courier New", 40F, FontStyle.Bold, GraphicsUnit.Point, 0);
             label1.ForeColor = Color.FromArgb(64, 0, 0);
-            label1.Location = new Point(157, 283);
+            label1.Location = new Point(141, 272);
             label1.Margin = new Padding(4, 0, 4, 0);
             label1.Name = "label1";
             label1.Size = new Size(672, 76);
@@ -216,7 +216,7 @@ namespace DoAn_NT106
             // 
             pictureBox7.BackColor = Color.FromArgb(180, 83, 9);
             pictureBox7.Image = Properties.Resources.thanhspeed;
-            pictureBox7.Location = new Point(746, 416);
+            pictureBox7.Location = new Point(746, 352);
             pictureBox7.Name = "pictureBox7";
             pictureBox7.Size = new Size(148, 54);
             pictureBox7.SizeMode = PictureBoxSizeMode.Zoom;
@@ -227,9 +227,9 @@ namespace DoAn_NT106
             // 
             pictureBox9.BackColor = Color.FromArgb(180, 83, 9);
             pictureBox9.Image = Properties.Resources.balanceskill;
-            pictureBox9.Location = new Point(504, 391);
+            pictureBox9.Location = new Point(517, 351);
             pictureBox9.Name = "pictureBox9";
-            pictureBox9.Size = new Size(186, 79);
+            pictureBox9.Size = new Size(186, 78);
             pictureBox9.SizeMode = PictureBoxSizeMode.Zoom;
             pictureBox9.TabIndex = 11;
             pictureBox9.TabStop = false;
@@ -238,7 +238,7 @@ namespace DoAn_NT106
             // 
             pictureBox8.BackColor = Color.FromArgb(180, 83, 9);
             pictureBox8.Image = Properties.Resources.thanhdamage;
-            pictureBox8.Location = new Point(69, 416);
+            pictureBox8.Location = new Point(84, 362);
             pictureBox8.Name = "pictureBox8";
             pictureBox8.Size = new Size(173, 54);
             pictureBox8.SizeMode = PictureBoxSizeMode.Zoom;
@@ -249,9 +249,9 @@ namespace DoAn_NT106
             // 
             pictureBox6.BackColor = Color.FromArgb(180, 83, 9);
             pictureBox6.Image = Properties.Resources.thanh_hp;
-            pictureBox6.Location = new Point(306, 397);
+            pictureBox6.Location = new Point(311, 362);
             pictureBox6.Name = "pictureBox6";
-            pictureBox6.Size = new Size(145, 64);
+            pictureBox6.Size = new Size(145, 53);
             pictureBox6.SizeMode = PictureBoxSizeMode.Zoom;
             pictureBox6.TabIndex = 8;
             pictureBox6.TabStop = false;
@@ -270,10 +270,10 @@ namespace DoAn_NT106
             // pictureBox4
             // 
             pictureBox4.BackColor = Color.FromArgb(180, 83, 9);
-            pictureBox4.Image = Properties.Resources.boy3;
-            pictureBox4.Location = new Point(296, 467);
+            pictureBox4.Image = Properties.Resources.Goatman1;
+            pictureBox4.Location = new Point(295, 414);
             pictureBox4.Name = "pictureBox4";
-            pictureBox4.Size = new Size(164, 140);
+            pictureBox4.Size = new Size(172, 223);
             pictureBox4.SizeMode = PictureBoxSizeMode.Zoom;
             pictureBox4.TabIndex = 6;
             pictureBox4.TabStop = false;
@@ -281,10 +281,10 @@ namespace DoAn_NT106
             // pictureBox3
             // 
             pictureBox3.BackColor = Color.FromArgb(180, 83, 9);
-            pictureBox3.Image = Properties.Resources.boy2;
-            pictureBox3.Location = new Point(516, 467);
+            pictureBox3.Image = Properties.Resources.warrior;
+            pictureBox3.Location = new Point(732, 403);
             pictureBox3.Name = "pictureBox3";
-            pictureBox3.Size = new Size(164, 140);
+            pictureBox3.Size = new Size(186, 248);
             pictureBox3.SizeMode = PictureBoxSizeMode.Zoom;
             pictureBox3.TabIndex = 5;
             pictureBox3.TabStop = false;
@@ -292,10 +292,10 @@ namespace DoAn_NT106
             // pictureBox2
             // 
             pictureBox2.BackColor = Color.FromArgb(180, 83, 9);
-            pictureBox2.Image = Properties.Resources.boy1;
-            pictureBox2.Location = new Point(69, 467);
+            pictureBox2.Image = Properties.Resources.Bringer;
+            pictureBox2.Location = new Point(67, 376);
             pictureBox2.Name = "pictureBox2";
-            pictureBox2.Size = new Size(164, 140);
+            pictureBox2.Size = new Size(222, 313);
             pictureBox2.SizeMode = PictureBoxSizeMode.Zoom;
             pictureBox2.TabIndex = 4;
             pictureBox2.TabStop = false;
@@ -303,10 +303,10 @@ namespace DoAn_NT106
             // pictureBox1
             // 
             pictureBox1.BackColor = Color.FromArgb(180, 83, 9);
-            pictureBox1.Image = Properties.Resources.girlwithgun;
-            pictureBox1.Location = new Point(737, 467);
+            pictureBox1.Image = Properties.Resources.Knightgirl;
+            pictureBox1.Location = new Point(530, 414);
             pictureBox1.Name = "pictureBox1";
-            pictureBox1.Size = new Size(164, 140);
+            pictureBox1.Size = new Size(164, 253);
             pictureBox1.SizeMode = PictureBoxSizeMode.Zoom;
             pictureBox1.TabIndex = 3;
             pictureBox1.TabStop = false;

@@ -118,205 +118,217 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <assembly alias="System.Windows.Forms" name="System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" />
-  <data name="mây" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\mây.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
-  <data name="núi" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\núi.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
-  <data name="girlwithgun" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\girlwithgun.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
-  <data name="mayxanh" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\mayxanh.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
-  <data name="thanh_hp" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\thanh_hp.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
-  <data name="cay" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\cay.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
-  <data name="background2" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\background2.gif;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
-  <data name="thor" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\thor.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
-  <data name="91ffbf8e-95d9-4acf-8e38-a7b34efa86ca" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\91ffbf8e-95d9-4acf-8e38-a7b34efa86ca.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
-  <data name="girlwithgun1" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\girlwithgun1.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
-  <data name="c6d82a81-54de-43be-a1c7-439b407ae76c" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\c6d82a81-54de-43be-a1c7-439b407ae76c.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
-  <data name="thanhdamage" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\thanhdamage.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
-  <data name="background" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\background.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
-  <data name="boy3" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\boy3.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
-  <data name="background1" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\background1.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
-  <data name="key" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\key.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
-  <data name="moon" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\moon.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
-  <data name="png-transparent-sword-weapon-pixel-art-pixelation-pixel-angle-katana-8bit-color-thumbnail" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\png-transparent-sword-weapon-pixel-art-pixelation-pixel-angle-katana-8bit-color-thumbnail.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
-  <data name="thanhspeed" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\thanhspeed.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
-  <data name="boy1" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\boy1.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
-  <data name="images__1_-removebg-preview" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\images__1_-removebg-preview.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
-  <data name="balanceskill" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\balanceskill.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
-  <data name="boy2" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\boy2.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
-  <data name="logogame" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\logogame.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
-  <data name="battleground1" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\Battleground1.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
-  <data name="battleground2" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\battleground2.jpg;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
-  <data name="battleground3" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\Battleground3.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
-  <data name="battleground4" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\Battleground4.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
-  <data name="fireball" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\fireball.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="BringerofDeath_Attack1" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\BringerofDeath_Attack1.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="BringerofDeath_Attack2" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\BringerofDeath_Attack2.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="BringerofDeath_Cast" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\BringerofDeath_Cast.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="BringerofDeath_Hurt" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\BringerofDeath_Hurt.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="BringerofDeath_Idle" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\BringerofDeath_Idle.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="BringerofDeath_Parry" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\BringerofDeath_Parry.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="BringerofDeath_Walk" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\BringerofDeath_Walk.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="BringerofDeath_Spell" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\BringerofDeath_Spell.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="GM_Attack1" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\GM_Attack1.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="GM_Attack2" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\GM_Attack2.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="GM_Hurt" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\GM_Hurt.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="GM_Idle" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\GM_Idle.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="GM_impact" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\GM_impact.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="GM_jump" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\GM_jump.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="GM_parry" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\GM_parry.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="GM_run" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\GM_run.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="GM_skill" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\GM_skill.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  <data name="Knightgirl_Walking" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Knightgirl_Walking.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
   <data name="hit_effect" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\hit_effect.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
-  <data name="Knightgirl_Attack1" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\Knightgirl_Attack1.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  <data name="cay" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\cay.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
-  <data name="Knightgirl_Attack2" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\Knightgirl_Attack2.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  <data name="key" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\key.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
-  <data name="Knightgirl_Dash" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\Knightgirl_Dash.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  <data name="background1" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\background1.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
-  <data name="Knightgirl_Hurt" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\Knightgirl_Hurt.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  <data name="c6d82a81-54de-43be-a1c7-439b407ae76c" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\c6d82a81-54de-43be-a1c7-439b407ae76c.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
-  <data name="Knightgirl_Idle" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\Knightgirl_Idle.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="Knightgirl_Jump" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\Knightgirl_Jump.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  <data name="background2" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\background2.gif;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
   <data name="Knightgirl_parry" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\Knightgirl_parry.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
-  <data name="Knightgirl_Skill" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\Knightgirl_Skill.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="Knightgirl_Walking" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\Knightgirl_Walking.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="Warrior_Attack1" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\Warrior_Attack1.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="Warrior_Attack2" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\Warrior_Attack2.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="Warrior_Dash" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\Warrior_Dash.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="Warrior_Hurt" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\Warrior_Hurt.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="Warrior_Idle" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\Warrior_Idle.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="Warrior_Jump" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\Warrior_Jump.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="Warrior_Parry" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\Warrior_Parry.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="Warrior_Skill" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\Warrior_Skill.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  <data name="GM_skill" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\GM_skill.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
   <data name="Warrior_skill_effect" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\Warrior_skill_effect.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
+  <data name="girlwithgun" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\girlwithgun.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="images__1_-removebg-preview" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\images__1_-removebg-preview.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="boy1" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\boy1.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
   <data name="Warrior_Walk" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\Warrior_Walk.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
+  <data name="Knightgirl_Attack1" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Knightgirl_Attack1.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="BringerofDeath_Parry" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\BringerofDeath_Parry.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="Warrior_Idle" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Warrior_Idle.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="Knightgirl_Attack2" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Knightgirl_Attack2.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="moon" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\moon.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="background" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\background.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="BringerofDeath_Spell" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\BringerofDeath_Spell.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="battleground3" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Battleground3.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
   <data name="Dash_effect" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\Dash_effect.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="Knightgirl_Hurt" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Knightgirl_Hurt.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="GM_run" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\GM_run.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="GM_Attack1" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\GM_Attack1.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="thanhdamage" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\thanhdamage.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="boy3" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\boy3.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="Knightgirl_Skill" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Knightgirl_Skill.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="thanhspeed" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\thanhspeed.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="mây" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\mây.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="Knightgirl_Jump" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Knightgirl_Jump.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="mayxanh" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\mayxanh.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="Warrior_Attack1" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Warrior_Attack1.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="Bringer" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Bringer.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="GM_Idle" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\GM_Idle.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="battleground4" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Battleground4.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="thanh_hp" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\thanh_hp.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="núi" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\núi.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="Goatman1" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Goatman.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="warrior" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\warrior.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="GM_Hurt" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\GM_Hurt.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="BringerofDeath_Cast" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\BringerofDeath_Cast.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="GM_parry" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\GM_parry.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="Warrior_Attack2" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Warrior_Attack2.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="BringerofDeath_Attack1" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\BringerofDeath_Attack1.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="Warrior_Hurt" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Warrior_Hurt.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="BringerofDeath_Hurt" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\BringerofDeath_Hurt.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="GM_Attack2" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\GM_Attack2.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="png-transparent-sword-weapon-pixel-art-pixelation-pixel-angle-katana-8bit-color-thumbnail" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\png-transparent-sword-weapon-pixel-art-pixelation-pixel-angle-katana-8bit-color-thumbnail.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="boy2" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\boy2.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="Warrior_Skill" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Warrior_Skill.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="balanceskill" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\balanceskill.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="91ffbf8e-95d9-4acf-8e38-a7b34efa86ca" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\91ffbf8e-95d9-4acf-8e38-a7b34efa86ca.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="thor" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\thor.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="Warrior_Parry" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Warrior_Parry.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="Warrior_Jump" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Warrior_Jump.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="girlwithgun1" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\girlwithgun1.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="fireball" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\fireball.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="logogame" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\logogame.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="Warrior_Dash" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Warrior_Dash.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="GM_impact" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\GM_impact.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="battleground1" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Battleground1.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="Knightgirl_Idle" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Knightgirl_Idle.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="BringerofDeath_Walk" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\BringerofDeath_Walk.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="BringerofDeath_Attack2" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\BringerofDeath_Attack2.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="Knightgirl_Dash" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Knightgirl_Dash.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="battleground2" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\battleground2.jpg;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="BringerofDeath_Idle" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\BringerofDeath_Idle.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="GM_jump" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\GM_jump.gif;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="Knightgirl" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Knightgirl.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
 </root>
