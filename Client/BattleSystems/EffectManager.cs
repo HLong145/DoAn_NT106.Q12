@@ -21,11 +21,10 @@ namespace DoAn_NT106.Client.BattleSystems
     public class EffectManager
     {
         private List<HitEffectInstance> activeHitEffects = new List<HitEffectInstance>();
-        private Image hitEffectImage;
+        private Image hitEffectImage; // base reference
         private Image dashEffectImage; // GIF effect for dash
         private Image gmImpactEffect;
 
-        // DASH EFFECTS - TELEPORT STYLE
         public class DashEffectInstance
         {
             public int X { get; set; }
@@ -37,7 +36,6 @@ namespace DoAn_NT106.Client.BattleSystems
 
         private List<DashEffectInstance> activeDashEffects = new List<DashEffectInstance>();
 
-        // Impact effects (Goatman)
         public bool Impact1Active { get; set; }
         public bool Impact2Active { get; set; }
         public int Impact1X { get; set; }
@@ -49,9 +47,9 @@ namespace DoAn_NT106.Client.BattleSystems
         public Timer Impact1Timer { get; set; }
         public Timer Impact2Timer { get; set; }
 
-        private const int HIT_EFFECT_DURATION_MS = 150;
+        private const int HIT_EFFECT_DURATION_MS = 300; // 0.3s
         private const int DASH_EFFECT_DURATION_MS = 150; // 0.15s duration
-        private const int GM_IMPACT_DURATION_MS = 200;   
+        private const int GM_IMPACT_DURATION_MS = 200;
 
         public EffectManager()
         {
@@ -67,8 +65,7 @@ namespace DoAn_NT106.Client.BattleSystems
                 // TRY TO LOAD DASH EFFECT GIF từ Resources
                 try
                 {
-                    // Thử load từ Resources (nếu có Dash_effect hoặc dash_effect)
-                    var dashResource = Properties.Resources.ResourceManager.GetObject("Dash_effect") 
+                    var dashResource = Properties.Resources.ResourceManager.GetObject("Dash_effect")
                                     ?? Properties.Resources.ResourceManager.GetObject("dash_effect");
                     
                     if (dashResource != null)
@@ -93,8 +90,22 @@ namespace DoAn_NT106.Client.BattleSystems
                     dashEffectImage = CreateDashEffectImage();
                 }
 
-                // Load other effects
-                hitEffectImage = CreateColoredImage(50, 50, Color.FromArgb(220, Color.Red));
+                // Load hit_effect GIF reference (for cloning per spawn)
+                try
+                {
+                    hitEffectImage = ResourceToImage(Properties.Resources.hit_effect);
+                    if (hitEffectImage != null && ImageAnimator.CanAnimate(hitEffectImage))
+                    {
+                        // Pre-animate reference (instances will be reset per spawn)
+                        ImageAnimator.Animate(hitEffectImage, (s, e) => { });
+                        Console.WriteLine("✓ Loaded hit_effect GIF from Resources");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"⚠️ Could not load hit_effect from Resources: {ex.Message}");
+                    hitEffectImage = CreateColoredImage(50, 50, Color.FromArgb(220, Color.Red));
+                }
 
                 // Try to load GM_impact from resources (gif as byte[])
                 try
@@ -126,12 +137,8 @@ namespace DoAn_NT106.Client.BattleSystems
             }
         }
 
-        /// <summary>
-        /// Create dash effect image programmatically (fallback)
-        /// </summary>
         private Image CreateDashEffectImage()
         {
-            // Create a simple animated dash effect (3 frames)
             var bmp = new Bitmap(80, 40);
             using (var g = Graphics.FromImage(bmp))
             {
@@ -208,15 +215,44 @@ namespace DoAn_NT106.Client.BattleSystems
         }
 
         /// <summary>
-        /// Show hit effect at player position
+        /// Show hit effect at player position with per-character horizontal offset
         /// </summary>
-        public void ShowHitEffectAtPosition(int x, int y, Action invalidateCallback)
+        public void ShowHitEffectAtPosition(string characterType, int x, int y, Action invalidateCallback)
         {
+            // Apply horizontal offset by character type
+            int offsetX = 0;
+            if (string.Equals(characterType, "girlknight", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(characterType, "goatman", StringComparison.OrdinalIgnoreCase))
+            {
+                offsetX = -50; // shift left
+            }
+            else if (string.Equals(characterType, "bringerofdeath", StringComparison.OrdinalIgnoreCase))
+            {
+                offsetX = 150; // shift right
+            }
+
+            // Create a fresh instance of the GIF to guarantee starting at first frame
+            Image instance = null;
+            try
+            {
+                instance = ResourceToImage(Properties.Resources.hit_effect);
+                if (instance != null && ImageAnimator.CanAnimate(instance))
+                {
+                    // Reset/animate per instance
+                    ImageAnimator.Animate(instance, (s, e) => { invalidateCallback?.Invoke(); });
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ hit_effect reload error: {ex.Message}");
+                instance = CreateColoredImage(50, 50, Color.FromArgb(220, Color.Red));
+            }
+
             var effect = new HitEffectInstance
             {
-                X = x,
+                X = x + offsetX,
                 Y = y,
-                EffectImage = hitEffectImage,
+                EffectImage = instance ?? hitEffectImage,
                 Timer = new Timer { Interval = HIT_EFFECT_DURATION_MS }
             };
 
@@ -379,15 +415,32 @@ namespace DoAn_NT106.Client.BattleSystems
         /// </summary>
         public void DrawHitEffects(Graphics g, int viewportX, int playerWidth, int playerHeight)
         {
+            // Advance hit_effect frames per instance
+            foreach (var effect in activeHitEffects.ToArray())
+            {
+                if (effect.EffectImage != null && ImageAnimator.CanAnimate(effect.EffectImage))
+                {
+                    ImageAnimator.UpdateFrames(effect.EffectImage);
+                }
+            }
+
+            const int DRAW_W = 150; // 3x scale from 50
+            const int DRAW_H = 150; // 3x scale from 50
+
             foreach (var effect in activeHitEffects.ToArray())
             {
                 int screenX = effect.X - viewportX;
-                if (screenX >= -50 && screenX <= g.ClipBounds.Width)
+                if (screenX >= -DRAW_W && screenX <= g.ClipBounds.Width)
                 {
+                    // Center the larger effect around player center
+                    int drawX = screenX + playerWidth / 2 - (DRAW_W / 2);
+                    int drawY = effect.Y + playerHeight / 2 - (DRAW_H / 2);
+
                     g.DrawImage(effect.EffectImage,
-                        screenX + playerWidth / 2 - 25,
-                        effect.Y + playerHeight / 2 - 25,
-                        50, 50);
+                        drawX,
+                        drawY,
+                        DRAW_W,
+                        DRAW_H);
                 }
             }
         }

@@ -941,7 +941,7 @@ namespace DoAn_NT106.Client.BattleSystems
             
             target.TakeDamage(damage);
             showHitEffectCallback?.Invoke($"-{damage}", Color.Red);
-            effectManager.ShowHitEffectAtPosition(target.X, target.Y, invalidateCallback);
+            effectManager.ShowHitEffectAtPosition(target.CharacterType, target.X, target.Y, invalidateCallback);
             
             target.IsStunned = true;
             CancelAttack(targetPlayer);
