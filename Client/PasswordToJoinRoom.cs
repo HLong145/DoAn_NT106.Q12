@@ -3,11 +3,11 @@ using System.Windows.Forms;
 
 namespace DoAn_NT106
 {
-    public partial class PasswordRoom : Form
+    public partial class PasswordToJoinRoom : Form
     {
         public string Password { get; private set; }
 
-        public PasswordRoom(string roomName)
+        public PasswordToJoinRoom(string roomName)
         {
             InitializeComponent();
             lblInfo.Text = $"Room: {roomName}";

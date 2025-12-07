@@ -94,18 +94,18 @@ namespace DoAn_NT106
             btnCancel.Text = "Cancel";
             btnCancel.Click += BtnCancel_Click;
             // 
-            // PasswordForm
+            // PasswordToJoinRoom (Form)
             // 
-            BackColor = Color.FromArgb(240, 240, 240);
-            BackgroundImage = Properties.Resources.background2;
-            ClientSize = new Size(391, 205);
-            Controls.Add(mainPanel);
-            FormBorderStyle = FormBorderStyle.FixedDialog;
-            MaximizeBox = false;
-            MinimizeBox = false;
-            Name = "PasswordForm";
-            StartPosition = FormStartPosition.CenterParent;
-            Text = "Enter Password";
+            this.BackColor = Color.FromArgb(240, 240, 240);
+            this.BackgroundImage = Properties.Resources.background2;
+            this.ClientSize = new Size(391, 205);
+            this.Controls.Add(mainPanel);
+            this.FormBorderStyle = FormBorderStyle.FixedDialog;
+            this.MaximizeBox = false;
+            this.MinimizeBox = false;
+            this.Name = "PasswordToJoinRoom";
+            this.StartPosition = FormStartPosition.CenterParent;
+            this.Text = "Enter Password";
             mainPanel.ResumeLayout(false);
             mainPanel.PerformLayout();
             ResumeLayout(false);
