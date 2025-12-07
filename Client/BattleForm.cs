@@ -880,6 +880,9 @@ namespace DoAn_NT106
             }
 
             SetupControlsInfo();
+
+            // Initialize round system
+            InitializeRoundSystem();
         }
 
         // In BattleForm.cs - GameTimer_Tick() - VERSION CLEAN
@@ -1031,17 +1034,12 @@ namespace DoAn_NT106
             resourceSystem.RegenerateResources();
             resourceSystem.UpdateBars();
 
-            // ===== CHECK GAME OVER =====
+            // ===== CHECK ROUND END (by HP depletion) =====
             if (player1State.IsDead || player2State.IsDead)
             {
                 gameTimer.Stop();
                 walkAnimationTimer.Stop();
-                string winner;
-                if (player1State.IsDead && player2State.IsDead)
-                    winner = "Draw";
-                else
-                    winner = player1State.IsDead ? opponent : username;
-                ShowGameOver(winner);
+                HandleRoundEndByDeath();
             }
 
             this.Invalidate();
@@ -1494,6 +1492,9 @@ namespace DoAn_NT106
                 {
                     lblControlsInfo.Location = new Point(screenWidth / 2 - 350, this.ClientSize.Height - 60);
                 }
+
+                // Update round center label position
+                PositionRoundCenterLabel();
             }
         }
         private (int actualWidth, int actualHeight, int yOffset, int groundAdjustment) GetActualCharacterSize(string characterType)
@@ -2039,26 +2040,6 @@ namespace DoAn_NT106
                     break;
                 }
             }
-        }
-
-        private void ShowGameOver(string winner)
-        {
-            string result;
-            if (winner == "Draw")
-            {
-                result = $"🤝 DRAW!\n\n{username}: {player1Health} HP\n{opponent}: {player2Health} HP";
-            }
-            else
-            {
-                result = $"🎉 {winner} WINS!\n\n" +
-                       $"{username}: {player1Health} HP\n" +
-                       $"{opponent}: {player2Health} HP";
-            }
-
-            MessageBox.Show(result, "BATTLE FINISHED",
-                MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
-
-            BtnBack_Click(null, EventArgs.Empty);
         }
 
         private void ShowHitEffect(string message, Color color)
