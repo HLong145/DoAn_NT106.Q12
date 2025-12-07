@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
@@ -16,16 +16,16 @@ namespace DoAn_NT106.Client.BattleSystems
     }
 
     /// <summary>
-    /// Qu?n l� c�c hi?u ?ng visual: hit effects, dash effects, impacts
+    /// Quản lý các hiệu ứng visual: hit effects, dash effects, impacts
     /// </summary>
     public class EffectManager
     {
         private List<HitEffectInstance> activeHitEffects = new List<HitEffectInstance>();
         private Image hitEffectImage;
-        private Image dashEffectImage; // ? GIF effect for dash
+        private Image dashEffectImage; // GIF effect for dash
         private Image gmImpactEffect;
 
-        // ? DASH EFFECTS - TELEPORT STYLE
+        // DASH EFFECTS - TELEPORT STYLE
         public class DashEffectInstance
         {
             public int X { get; set; }
@@ -50,7 +50,8 @@ namespace DoAn_NT106.Client.BattleSystems
         public Timer Impact2Timer { get; set; }
 
         private const int HIT_EFFECT_DURATION_MS = 150;
-        private const int DASH_EFFECT_DURATION_MS = 150; // ? 0.15s duration
+        private const int DASH_EFFECT_DURATION_MS = 150; // 0.15s duration
+        private const int GM_IMPACT_DURATION_MS = 200;   
 
         public EffectManager()
         {
@@ -63,10 +64,10 @@ namespace DoAn_NT106.Client.BattleSystems
         {
             try
             {
-                // ? TRY TO LOAD DASH EFFECT GIF t? Resources
+                // TRY TO LOAD DASH EFFECT GIF từ Resources
                 try
                 {
-                    // Th? load t? Resources (n?u c� Dash_effect ho?c dash_effect)
+                    // Thử load từ Resources (nếu có Dash_effect hoặc dash_effect)
                     var dashResource = Properties.Resources.ResourceManager.GetObject("Dash_effect") 
                                     ?? Properties.Resources.ResourceManager.GetObject("dash_effect");
                     
@@ -76,29 +77,52 @@ namespace DoAn_NT106.Client.BattleSystems
                         if (dashEffectImage != null && ImageAnimator.CanAnimate(dashEffectImage))
                         {
                             ImageAnimator.Animate(dashEffectImage, (s, e) => { }); // Auto-animate
-                            Console.WriteLine("? Loaded dash effect GIF from Resources");
+                            Console.WriteLine("✓ Loaded dash effect GIF from Resources");
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"?? Could not load Dash_effect from Resources: {ex.Message}");
+                    Console.WriteLine($"⚠️ Could not load Dash_effect from Resources: {ex.Message}");
                 }
 
-                // ? FALLBACK: Create programmatic dash effect
+                // FALLBACK: Create programmatic dash effect
                 if (dashEffectImage == null)
                 {
-                    Console.WriteLine("?? Creating fallback dash effect");
+                    Console.WriteLine("⚠️ Creating fallback dash effect");
                     dashEffectImage = CreateDashEffectImage();
                 }
 
                 // Load other effects
-                hitEffectImage = CreateColoredImage(50, 50, Color.FromArgb(200, Color.Red));
-                gmImpactEffect = CreateColoredImage(100, 100, Color.OrangeRed);
+                hitEffectImage = CreateColoredImage(50, 50, Color.FromArgb(220, Color.Red));
+
+                // Try to load GM_impact from resources (gif as byte[])
+                try
+                {
+                    var gmRes = Properties.Resources.GM_impact; // byte[] expected
+                    gmImpactEffect = ResourceToImage(gmRes);
+                    if (gmImpactEffect != null && ImageAnimator.CanAnimate(gmImpactEffect))
+                    {
+                        // Pre-animate; we'll reset on each show
+                        ImageAnimator.Animate(gmImpactEffect, (s, e) => { });
+                        Console.WriteLine("✓ Loaded GM_impact GIF from Resources");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"⚠️ Could not load GM_impact from Resources: {ex.Message}");
+                }
+
+                // Fallback if resource not found
+                if (gmImpactEffect == null)
+                {
+                    gmImpactEffect = CreateColoredImage(160, 160, Color.FromArgb(255, 255, 80, 0));
+                    Console.WriteLine("⚠️ Using fallback GM_impact rectangle");
+                }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"? Error loading effect images: {ex.Message}");
+                Console.WriteLine($"❗ Error loading effect images: {ex.Message}");
             }
         }
 
@@ -107,7 +131,7 @@ namespace DoAn_NT106.Client.BattleSystems
         /// </summary>
         private Image CreateDashEffectImage()
         {
-            // ? Create a simple animated dash effect (3 frames)
+            // Create a simple animated dash effect (3 frames)
             var bmp = new Bitmap(80, 40);
             using (var g = Graphics.FromImage(bmp))
             {
@@ -210,7 +234,7 @@ namespace DoAn_NT106.Client.BattleSystems
         }
 
         /// <summary>
-        /// ? Show dash effect at position (for teleport dash)
+        /// Show dash effect at position (for teleport dash)
         /// </summary>
         public void ShowDashEffect(int playerNum, int x, int y, string facing, Action invalidateCallback)
         {
@@ -230,14 +254,14 @@ namespace DoAn_NT106.Client.BattleSystems
                 effect.IsActive = false;
                 activeDashEffects.Remove(effect);
                 invalidateCallback?.Invoke();
-                Console.WriteLine($"? Dash effect expired for player {playerNum}");
+                Console.WriteLine($"✓ Dash effect expired for player {playerNum}");
             };
 
             activeDashEffects.Add(effect);
             effect.Timer.Start();
             invalidateCallback?.Invoke();
             
-            Console.WriteLine($"?? Dash effect started at X={x}, Y={y}, Facing={facing}");
+            Console.WriteLine($"✓ Dash effect started at X={x}, Y={y}, Facing={facing}");
         }
 
         /// <summary>
@@ -245,6 +269,25 @@ namespace DoAn_NT106.Client.BattleSystems
         /// </summary>
         public void ShowImpactEffect(int playerNum, int x, int y, string facing, Action invalidateCallback)
         {
+            // Hard reset GM_impact animation to first frame by reloading from resources
+            try
+            {
+                var gmRes = Properties.Resources.GM_impact; // byte[] expected
+                var reloaded = ResourceToImage(gmRes);
+                if (reloaded != null)
+                {
+                    gmImpactEffect = reloaded; // replace instance to reset frame index
+                    if (ImageAnimator.CanAnimate(gmImpactEffect))
+                    {
+                        ImageAnimator.Animate(gmImpactEffect, (s, e) => { invalidateCallback?.Invoke(); });
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ GM_impact reload error: {ex.Message}");
+            }
+
             if (playerNum == 1)
             {
                 Impact1Active = true;
@@ -253,13 +296,10 @@ namespace DoAn_NT106.Client.BattleSystems
                 Impact1Facing = facing;
 
                 Impact1Timer.Stop();
-                Impact1Timer.Interval = 150;
-                Impact1Timer.Tick += (s, e) =>
-                {
-                    Impact1Timer.Stop();
-                    Impact1Active = false;
-                    invalidateCallback?.Invoke();
-                };
+                Impact1Timer.Interval = GM_IMPACT_DURATION_MS;
+                // Reassign handler to avoid multiple subscriptions
+                Impact1Timer.Tick -= Impact1Timer_Tick;
+                Impact1Timer.Tick += Impact1Timer_Tick;
                 Impact1Timer.Start();
             }
             else
@@ -270,25 +310,36 @@ namespace DoAn_NT106.Client.BattleSystems
                 Impact2Facing = facing;
 
                 Impact2Timer.Stop();
-                Impact2Timer.Interval = 150;
-                Impact2Timer.Tick += (s, e) =>
-                {
-                    Impact2Timer.Stop();
-                    Impact2Active = false;
-                    invalidateCallback?.Invoke();
-                };
+                Impact2Timer.Interval = GM_IMPACT_DURATION_MS;
+                // Reassign handler to avoid multiple subscriptions
+                Impact2Timer.Tick -= Impact2Timer_Tick;
+                Impact2Timer.Tick += Impact2Timer_Tick;
                 Impact2Timer.Start();
             }
 
             invalidateCallback?.Invoke();
         }
 
+        private void Impact1Timer_Tick(object sender, EventArgs e)
+        {
+            Impact1Timer.Stop();
+            Impact1Active = false;
+            Console.WriteLine("✓ GM_impact P1 ended");
+        }
+
+        private void Impact2Timer_Tick(object sender, EventArgs e)
+        {
+            Impact2Timer.Stop();
+            Impact2Active = false;
+            Console.WriteLine("✓ GM_impact P2 ended");
+        }
+
         /// <summary>
-        /// ? Draw dash effects (BEHIND characters) - WITH DIRECTION SUPPORT
+        /// Draw dash effects (BEHIND characters) - WITH DIRECTION SUPPORT
         /// </summary>
         public void DrawEffects(Graphics g, int viewportX, int playerWidth, int playerHeight)
         {
-            // ? DRAW DASH EFFECTS (Teleport style - at feet)
+            // DRAW DASH EFFECTS (Teleport style - at feet)
             foreach (var effect in activeDashEffects.ToArray())
             {
                 if (!effect.IsActive) continue;
@@ -300,20 +351,20 @@ namespace DoAn_NT106.Client.BattleSystems
                 
                 if (dashEffectImage != null)
                 {
-                    // ? FLIP IMAGE theo h??ng nh�n + OFFSET cho t? nhi�n
+                    // FLIP IMAGE theo hướng nhìn + OFFSET cho tự nhiên
                     if (effect.Facing == "left")
                     {
-                        // ?? FLIP HORIZONTALLY for left facing + OFFSET 20px sang ph?i
+                        // FLIP HORIZONTALLY for left facing + OFFSET 20px sang phải
                         g.DrawImage(
                             dashEffectImage,
-                            new Rectangle(screenX + 80 + 20, effectY, -80, 40), // ? +20px offset!
+                            new Rectangle(screenX + 80 + 20, effectY, -80, 40), // +20px offset
                             new Rectangle(0, 0, dashEffectImage.Width, dashEffectImage.Height),
                             GraphicsUnit.Pixel
                         );
                     }
                     else
                     {
-                        // ?? NORMAL cho right facing (kh�ng c?n offset)
+                        // NORMAL cho right facing
                         g.DrawImage(
                             dashEffectImage,
                             screenX, effectY, 80, 40
@@ -346,35 +397,45 @@ namespace DoAn_NT106.Client.BattleSystems
         /// </summary>
         public void DrawImpactEffects(Graphics g, int viewportX)
         {
+            // Ensure impact GIF advances frames
+            if (gmImpactEffect != null && ImageAnimator.CanAnimate(gmImpactEffect))
+            {
+                ImageAnimator.UpdateFrames(gmImpactEffect);
+            }
+
             if (Impact1Active && gmImpactEffect != null)
             {
                 int screenX = Impact1X - viewportX;
+                int drawW = 160, drawH = 160;
+                int drawY = Impact1Y - drawH / 2; // center vertically around impact point
                 if (Impact1Facing == "left")
                 {
                     g.DrawImage(gmImpactEffect,
-                        new Rectangle(screenX + 100, Impact1Y, -100, 100),
+                        new Rectangle(screenX + drawW, drawY, -drawW, drawH),
                         new Rectangle(0, 0, gmImpactEffect.Width, gmImpactEffect.Height),
                         GraphicsUnit.Pixel);
                 }
                 else
                 {
-                    g.DrawImage(gmImpactEffect, screenX, Impact1Y, 100, 100);
+                    g.DrawImage(gmImpactEffect, screenX, drawY, drawW, drawH);
                 }
             }
 
             if (Impact2Active && gmImpactEffect != null)
             {
                 int screenX = Impact2X - viewportX;
+                int drawW = 160, drawH = 160;
+                int drawY = Impact2Y - drawH / 2;
                 if (Impact2Facing == "left")
                 {
                     g.DrawImage(gmImpactEffect,
-                        new Rectangle(screenX + 100, Impact2Y, -100, 100),
+                        new Rectangle(screenX + drawW, drawY, -drawW, drawH),
                         new Rectangle(0, 0, gmImpactEffect.Width, gmImpactEffect.Height),
                         GraphicsUnit.Pixel);
                 }
                 else
                 {
-                    g.DrawImage(gmImpactEffect, screenX, Impact2Y, 100, 100);
+                    g.DrawImage(gmImpactEffect, screenX, drawY, drawW, drawH);
                 }
             }
         }

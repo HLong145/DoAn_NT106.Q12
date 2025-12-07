@@ -401,13 +401,20 @@ namespace DoAn_NT106.Client.BattleSystems
                 hitTimer.Stop();
                 hitTimer.Dispose();
 
+                // Compute attack hitbox and impact position at hit frame
                 Rectangle attackHitbox = getAttackHitboxCallback(attacker, "kick");
+                int impactXBase = attacker.Facing == "right" ? (attackHitbox.X + attackHitbox.Width) : (attackHitbox.X - 100);
+                int impactY = attackHitbox.Y + (attackHitbox.Height / 2) - 50;
+
+                // Visual offset per facing: left -> +90px, right -> -150px
+                int impactX = impactXBase + (attacker.Facing == "left" ? 90 : -150);
+
+                effectManager.ShowImpactEffect(playerNum, impactX, impactY, attacker.Facing, invalidateCallback);
+
+                // Collision and damage remain unchanged
                 Rectangle targetHurtbox = getPlayerHurtboxCallback(defender);
                 if (attackHitbox.IntersectsWith(targetHurtbox))
                 {
-                    int impactX = attacker.Facing == "right" ? attackHitbox.X + attackHitbox.Width : attackHitbox.X - 60;
-                    int impactY = attackHitbox.Y;
-                    effectManager.ShowImpactEffect(playerNum, impactX, impactY, attacker.Facing, invalidateCallback);
                     ApplyDamage(playerNum == 1 ? 2 : 1, 15, false);
                     int knockbackDir = attacker.Facing == "right" ? 1 : -1;
                     ApplyKnockback(defender, knockbackDir, knockbackDistance);
