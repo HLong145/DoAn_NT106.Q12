@@ -1,4 +1,5 @@
-﻿using System;
+﻿using DoAn_NT106.Services;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,12 +15,20 @@ namespace DoAn_NT106.Server
         // Room Code -> Lobby Data
         private ConcurrentDictionary<string, LobbyData> lobbies = new ConcurrentDictionary<string, LobbyData>();
 
+
         // ✅ THÊM MỚI: Reference đến RoomManager để gọi LeaveRoom
         private RoomManager roomManager;
+
+        private DatabaseService dbService;
 
         public event Action<string> OnLog;
 
         private void Log(string message) => OnLog?.Invoke($"[Lobby] {message}");
+
+        public LobbyManager(DatabaseService dbService = null)
+        {
+            this.dbService = dbService ?? new DatabaseService();
+        }
 
         // ✅ THÊM MỚI: Set RoomManager sau khi khởi tạo
         public void SetRoomManager(RoomManager manager)
@@ -236,6 +245,19 @@ namespace DoAn_NT106.Server
                     Message = message,
                     Timestamp = DateTime.Now
                 };
+
+                try
+                {
+                    var dbResult = dbService.SaveLobbyChatMessage(roomCode, username, message);
+                    if (!dbResult.Success)
+                    {
+                        Log($"⚠️ Failed to save to DB: {dbResult.Message}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log($"⚠️ DB save error: {ex.Message}");
+                }
 
                 lock (lobby.Lock)
                 {

@@ -322,7 +322,6 @@ namespace DoAn_NT106.Services
             Console.WriteLine("🔧 Diagnostics Complete");
         }
 
-        // ✅ CÁC PHƯƠNG THỨC KHÁC GIỮ NGUYÊN
         public string CreateSalt()
         {
             var bytes = new byte[16];
@@ -423,20 +422,7 @@ namespace DoAn_NT106.Services
             }
         }
 
-        public class RoomDbInfo
-        {
-            public int RoomId { get; set; }
-            public string RoomCode { get; set; }
-            public string RoomName { get; set; }
-            public string Password { get; set; }
-            public string Player1Username { get; set; }
-            public string Player2Username { get; set; }
-            public string Player1Character { get; set; }
-            public string Player2Character { get; set; }
-            public string Status { get; set; }
-            public DateTime CreatedAt { get; set; }
-            public DateTime LastActivity { get; set; }
-        }
+       
 
         #region ROOM MANAGEMENT
         /// <summary>
@@ -880,12 +866,203 @@ namespace DoAn_NT106.Services
 
         #endregion
 
-        // =============================================
-        // DATA CLASS CHO ROOM (thêm vào cuối file, ngoài class DatabaseService)
-        // =============================================
+        #region SAVECHAT
+
+        // <summary>
+        /// Lưu tin nhắn Global Chat vào database
+        /// </summary>
+        public (bool Success, string Message) SaveGlobalChatMessage(string username, string messageText)
+        {
+            try
+            {
+                using (var connection = new SqlConnection(connectionString))
+                using (var command = new SqlCommand("SP_SAVE_GLOBAL_CHAT_MESSAGE", connection))
+                {
+                    command.CommandType = CommandType.StoredProcedure;
+                    command.Parameters.AddWithValue("@Username", username);
+                    command.Parameters.AddWithValue("@MessageText", messageText);
+
+                    connection.Open();
+                    using (var reader = command.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            bool success = reader.GetInt32(0) == 1;
+                            string message = reader.GetString(1);
+                            return (success, message);
+                        }
+                    }
+                }
+                return (false, "No response from database");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Error saving global chat message: {ex.Message}");
+                return (false, $"Database error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Lấy lịch sử Global Chat từ database
+        /// </summary>
+        public List<ChatMessage> GetGlobalChatHistory(int limit = 50)
+        {
+            var messages = new List<ChatMessage>();
+
+            try
+            {
+                using (var connection = new SqlConnection(connectionString))
+                using (var command = new SqlCommand("SP_GET_GLOBAL_CHAT_HISTORY", connection))
+                {
+                    command.CommandType = CommandType.StoredProcedure;
+                    command.Parameters.AddWithValue("@Limit", limit);
+
+                    connection.Open();
+                    using (var reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            messages.Add(new ChatMessage
+                            {
+                                MessageId = reader.GetInt32(0),
+                                Username = reader.GetString(1),
+                                MessageText = reader.GetString(2),
+                                SentAt = reader.GetDateTime(3)
+                            });
+                        }
+                    }
+                }
+
+                // Đảo ngược để có thứ tự từ cũ đến mới
+                messages.Reverse();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Error getting global chat history: {ex.Message}");
+            }
+
+            return messages;
+        }
+
+        /// <summary>
+        /// Lưu tin nhắn Lobby Chat vào database
+        /// </summary>
+        public (bool Success, string Message) SaveLobbyChatMessage(string roomCode, string username, string messageText)
+        {
+            try
+            {
+                using (var connection = new SqlConnection(connectionString))
+                using (var command = new SqlCommand("SP_SAVE_LOBBY_CHAT_MESSAGE", connection))
+                {
+                    command.CommandType = CommandType.StoredProcedure;
+                    command.Parameters.AddWithValue("@RoomCode", roomCode);
+                    command.Parameters.AddWithValue("@Username", username);
+                    command.Parameters.AddWithValue("@MessageText", messageText);
+
+                    connection.Open();
+                    using (var reader = command.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            bool success = reader.GetInt32(0) == 1;
+                            string message = reader.GetString(1);
+                            return (success, message);
+                        }
+                    }
+                }
+                return (false, "No response from database");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Error saving lobby chat message: {ex.Message}");
+                return (false, $"Database error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Lấy lịch sử Lobby Chat từ database
+        /// </summary>
+        public List<LobbyChatMessage> GetLobbyChatHistory(string roomCode, int limit = 50)
+        {
+            var messages = new List<LobbyChatMessage>();
+
+            try
+            {
+                using (var connection = new SqlConnection(connectionString))
+                using (var command = new SqlCommand("SP_GET_LOBBY_CHAT_HISTORY", connection))
+                {
+                    command.CommandType = CommandType.StoredProcedure;
+                    command.Parameters.AddWithValue("@RoomCode", roomCode);
+                    command.Parameters.AddWithValue("@Limit", limit);
+
+                    connection.Open();
+                    using (var reader = command.ExecuteReader())
+                    {
+                        // Kiểm tra nếu có cột Success (nghĩa là room không tồn tại)
+                        if (reader.FieldCount == 2 && reader.GetName(0) == "Success")
+                        {
+                            // Room không tồn tại, trả về list rỗng
+                            return messages;
+                        }
+
+                        while (reader.Read())
+                        {
+                            messages.Add(new LobbyChatMessage
+                            {
+                                MessageId = reader.GetInt32(0),
+                                RoomCode = reader.GetString(1),
+                                Username = reader.GetString(2),
+                                MessageText = reader.GetString(3),
+                                SentAt = reader.GetDateTime(4)
+                            });
+                        }
+                    }
+                }
+
+                // Đảo ngược để có thứ tự từ cũ đến mới
+                messages.Reverse();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Error getting lobby chat history: {ex.Message}");
+            }
+
+            return messages;
+        }
+
+
+        #endregion
+
+        #region CLASSES
+        public class RoomDbInfo
+        {
+            public int RoomId { get; set; }
+            public string RoomCode { get; set; }
+            public string RoomName { get; set; }
+            public string Password { get; set; }
+            public string Player1Username { get; set; }
+            public string Player2Username { get; set; }
+            public string Player1Character { get; set; }
+            public string Player2Character { get; set; }
+            public string Status { get; set; }
+            public DateTime CreatedAt { get; set; }
+            public DateTime LastActivity { get; set; }
+        }
+        public class ChatMessage
+        {
+            public int MessageId { get; set; }
+            public string Username { get; set; }
+            public string MessageText { get; set; }
+            public DateTime SentAt { get; set; }
+        }
+
+        public class LobbyChatMessage : ChatMessage
+        {
+            public string RoomCode { get; set; }
+        }
+
+        #endregion
     }
 
-    /// <summary>
-    /// Thông tin room từ database
-    /// </summary>
+
 }

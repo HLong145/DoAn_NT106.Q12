@@ -84,7 +84,68 @@ PRINT '✅ Table ROOMS created with ROOM_CODE and LAST_ACTIVITY';
 GO
 
 -- =============================================
--- BẢNG 3: MATCHES (Lịch sử trận đấu)
+-- BẢNG 3: GLOBAL_CHAT_HISTORY
+-- Lưu lịch sử chat global (toàn server)
+-- =============================================
+IF EXISTS (SELECT * FROM sys.tables WHERE name = 'GLOBAL_CHAT_HISTORY')
+BEGIN
+    DROP TABLE GLOBAL_CHAT_HISTORY;
+    PRINT '🔄 Dropped old GLOBAL_CHAT_HISTORY table';
+END
+GO
+
+CREATE TABLE GLOBAL_CHAT_HISTORY
+(
+    MESSAGE_ID INT IDENTITY(1,1) PRIMARY KEY,
+    USERNAME NVARCHAR(50) NOT NULL,
+    MESSAGE_TEXT NVARCHAR(MAX) NOT NULL,
+    SENT_AT DATETIME DEFAULT GETDATE(),
+    
+    -- Foreign Key - NO ACTION để tránh xóa lịch sử khi user bị xóa
+    FOREIGN KEY (USERNAME) REFERENCES PLAYERS(USERNAME) ON DELETE NO ACTION
+);
+
+-- Index cho truy vấn nhanh
+CREATE INDEX IX_GLOBAL_CHAT_SENT_AT ON GLOBAL_CHAT_HISTORY(SENT_AT DESC);
+CREATE INDEX IX_GLOBAL_CHAT_USERNAME ON GLOBAL_CHAT_HISTORY(USERNAME);
+
+PRINT '✅ Table GLOBAL_CHAT_HISTORY created';
+GO
+
+-- =============================================
+-- BẢNG 4: LOBBY_CHAT_HISTORY
+-- Lưu lịch sử chat trong lobby của từng room
+-- =============================================
+IF EXISTS (SELECT * FROM sys.tables WHERE name = 'LOBBY_CHAT_HISTORY')
+BEGIN
+    DROP TABLE LOBBY_CHAT_HISTORY;
+    PRINT '🔄 Dropped old LOBBY_CHAT_HISTORY table';
+END
+GO
+
+CREATE TABLE LOBBY_CHAT_HISTORY
+(
+    MESSAGE_ID INT IDENTITY(1,1) PRIMARY KEY,
+    ROOM_CODE VARCHAR(6) NOT NULL,
+    USERNAME NVARCHAR(50) NOT NULL,
+    MESSAGE_TEXT NVARCHAR(MAX) NOT NULL,
+    SENT_AT DATETIME DEFAULT GETDATE(),
+    
+    -- Foreign Key - NO ACTION để KHÔNG XÓA lịch sử khi room bị xóa
+    FOREIGN KEY (ROOM_CODE) REFERENCES ROOMS(ROOM_CODE) ON DELETE NO ACTION,
+    FOREIGN KEY (USERNAME) REFERENCES PLAYERS(USERNAME) ON DELETE NO ACTION
+);
+
+-- Index cho truy vấn nhanh
+CREATE INDEX IX_LOBBY_CHAT_ROOM_CODE ON LOBBY_CHAT_HISTORY(ROOM_CODE);
+CREATE INDEX IX_LOBBY_CHAT_SENT_AT ON LOBBY_CHAT_HISTORY(SENT_AT DESC);
+CREATE INDEX IX_LOBBY_CHAT_USERNAME ON LOBBY_CHAT_HISTORY(USERNAME);
+
+PRINT '✅ Table LOBBY_CHAT_HISTORY created';
+GO
+
+-- =============================================
+-- BẢNG 5: MATCHES (Lịch sử trận đấu)
 -- =============================================
 CREATE TABLE MATCHES
 (
@@ -487,6 +548,178 @@ END
 GO
 
 PRINT '✅ SP_CLEANUP_INACTIVE_ROOMS created';
+GO
+
+-- =============================================
+-- STORED PROCEDURE: Lưu tin nhắn Global Chat
+-- =============================================
+IF EXISTS (SELECT * FROM sys.procedures WHERE name = 'SP_SAVE_GLOBAL_CHAT_MESSAGE')
+    DROP PROCEDURE SP_SAVE_GLOBAL_CHAT_MESSAGE;
+GO
+
+CREATE PROCEDURE SP_SAVE_GLOBAL_CHAT_MESSAGE
+    @Username NVARCHAR(50),
+    @MessageText NVARCHAR(MAX)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    -- Kiểm tra username tồn tại
+    IF NOT EXISTS (SELECT 1 FROM PLAYERS WHERE USERNAME = @Username)
+    BEGIN
+        SELECT 0 AS Success, N'Player not found' AS Message;
+        RETURN;
+    END
+    
+    -- Lưu tin nhắn
+    INSERT INTO GLOBAL_CHAT_HISTORY (USERNAME, MESSAGE_TEXT, SENT_AT)
+    VALUES (@Username, @MessageText, GETDATE());
+    
+    SELECT 1 AS Success, N'Message saved' AS Message, SCOPE_IDENTITY() AS MessageId;
+END
+GO
+
+PRINT '✅ SP_SAVE_GLOBAL_CHAT_MESSAGE created';
+GO
+
+-- =============================================
+-- STORED PROCEDURE: Lấy lịch sử Global Chat
+-- =============================================
+IF EXISTS (SELECT * FROM sys.procedures WHERE name = 'SP_GET_GLOBAL_CHAT_HISTORY')
+    DROP PROCEDURE SP_GET_GLOBAL_CHAT_HISTORY;
+GO
+
+CREATE PROCEDURE SP_GET_GLOBAL_CHAT_HISTORY
+    @Limit INT = 50  -- Lấy 50 tin nhắn gần nhất
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    SELECT TOP (@Limit)
+        MESSAGE_ID AS MessageId,
+        USERNAME AS Username,
+        MESSAGE_TEXT AS MessageText,
+        SENT_AT AS SentAt
+    FROM GLOBAL_CHAT_HISTORY
+    ORDER BY SENT_AT DESC;
+END
+GO
+
+PRINT '✅ SP_GET_GLOBAL_CHAT_HISTORY created';
+GO
+
+-- =============================================
+-- STORED PROCEDURE: Lưu tin nhắn Lobby Chat
+-- =============================================
+IF EXISTS (SELECT * FROM sys.procedures WHERE name = 'SP_SAVE_LOBBY_CHAT_MESSAGE')
+    DROP PROCEDURE SP_SAVE_LOBBY_CHAT_MESSAGE;
+GO
+
+CREATE PROCEDURE SP_SAVE_LOBBY_CHAT_MESSAGE
+    @RoomCode VARCHAR(6),
+    @Username NVARCHAR(50),
+    @MessageText NVARCHAR(MAX)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    -- Kiểm tra room tồn tại
+    IF NOT EXISTS (SELECT 1 FROM ROOMS WHERE ROOM_CODE = @RoomCode)
+    BEGIN
+        SELECT 0 AS Success, N'Room not found' AS Message;
+        RETURN;
+    END
+    
+    -- Kiểm tra username tồn tại
+    IF NOT EXISTS (SELECT 1 FROM PLAYERS WHERE USERNAME = @Username)
+    BEGIN
+        SELECT 0 AS Success, N'Player not found' AS Message;
+        RETURN;
+    END
+    
+    -- Lưu tin nhắn
+    INSERT INTO LOBBY_CHAT_HISTORY (ROOM_CODE, USERNAME, MESSAGE_TEXT, SENT_AT)
+    VALUES (@RoomCode, @Username, @MessageText, GETDATE());
+    
+    SELECT 1 AS Success, N'Message saved' AS Message, SCOPE_IDENTITY() AS MessageId;
+END
+GO
+
+PRINT '✅ SP_SAVE_LOBBY_CHAT_MESSAGE created';
+GO
+
+-- =============================================
+-- STORED PROCEDURE: Lấy lịch sử Lobby Chat
+-- =============================================
+IF EXISTS (SELECT * FROM sys.procedures WHERE name = 'SP_GET_LOBBY_CHAT_HISTORY')
+    DROP PROCEDURE SP_GET_LOBBY_CHAT_HISTORY;
+GO
+
+CREATE PROCEDURE SP_GET_LOBBY_CHAT_HISTORY
+    @RoomCode VARCHAR(6),
+    @Limit INT = 50  -- Lấy 50 tin nhắn gần nhất
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    -- Kiểm tra room tồn tại
+    IF NOT EXISTS (SELECT 1 FROM ROOMS WHERE ROOM_CODE = @RoomCode)
+    BEGIN
+        SELECT 0 AS Success, N'Room not found' AS Message;
+        RETURN;
+    END
+    
+    SELECT TOP (@Limit)
+        MESSAGE_ID AS MessageId,
+        ROOM_CODE AS RoomCode,
+        USERNAME AS Username,
+        MESSAGE_TEXT AS MessageText,
+        SENT_AT AS SentAt
+    FROM LOBBY_CHAT_HISTORY
+    WHERE ROOM_CODE = @RoomCode
+    ORDER BY SENT_AT DESC;
+END
+GO
+
+PRINT '✅ SP_GET_LOBBY_CHAT_HISTORY created';
+GO
+
+-- =============================================
+-- STORED PROCEDURE: Xóa lịch sử chat cũ (tùy chọn)
+-- Có thể chạy định kỳ để dọn dẹp dữ liệu cũ
+-- =============================================
+IF EXISTS (SELECT * FROM sys.procedures WHERE name = 'SP_CLEANUP_OLD_CHAT_HISTORY')
+    DROP PROCEDURE SP_CLEANUP_OLD_CHAT_HISTORY;
+GO
+
+CREATE PROCEDURE SP_CLEANUP_OLD_CHAT_HISTORY
+    @DaysToKeep INT = 90  -- Giữ lại 90 ngày
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    DECLARE @DeletedGlobal INT = 0;
+    DECLARE @DeletedLobby INT = 0;
+    DECLARE @CutoffDate DATETIME = DATEADD(DAY, -@DaysToKeep, GETDATE());
+    
+    -- Xóa global chat cũ
+    DELETE FROM GLOBAL_CHAT_HISTORY 
+    WHERE SENT_AT < @CutoffDate;
+    SET @DeletedGlobal = @@ROWCOUNT;
+    
+    -- Xóa lobby chat cũ
+    DELETE FROM LOBBY_CHAT_HISTORY 
+    WHERE SENT_AT < @CutoffDate;
+    SET @DeletedLobby = @@ROWCOUNT;
+    
+    SELECT 
+        @DeletedGlobal AS DeletedGlobalMessages,
+        @DeletedLobby AS DeletedLobbyMessages,
+        @CutoffDate AS CutoffDate;
+END
+GO
+
+PRINT '✅ SP_CLEANUP_OLD_CHAT_HISTORY created';
 GO
 
 -- =============================================

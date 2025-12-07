@@ -134,7 +134,9 @@ namespace DoAn_NT106.Services
             {
                 var request = new { Action = action, RequestId = requestId, Data = data ?? new Dictionary<string, object>() };
                 string json = JsonSerializer.Serialize(request);
-                byte[] bytes = Encoding.UTF8.GetBytes(json);
+
+                string encrypted = EncryptionService.Encrypt(json);
+                byte[] bytes = Encoding.UTF8.GetBytes(encrypted);
 
                 Console.WriteLine($"[TCP] Sending: {action} (ID: {requestId})");
 
@@ -201,18 +203,25 @@ namespace DoAn_NT106.Services
         private void ProcessMessages(StringBuilder buffer)
         {
             string content = buffer.ToString();
-            int braceCount = 0, startIndex = 0;
 
-            for (int i = 0; i < content.Length; i++)
+            int startIndex = 0;
+            int newlineIndex;
+
+            while ((newlineIndex = content.IndexOf('\n', startIndex)) != -1)
             {
-                if (content[i] == '{') braceCount++;
-                else if (content[i] == '}') braceCount--;
+                string encryptedMessage = content.Substring(startIndex, newlineIndex - startIndex);
+                startIndex = newlineIndex + 1;
 
-                if (braceCount == 0 && i > startIndex)
+                if (!string.IsNullOrWhiteSpace(encryptedMessage))
                 {
-                    string json = content.Substring(startIndex, i - startIndex + 1);
-                    startIndex = i + 1;
-                    try { ProcessSingleMessage(json); } catch { }
+                    try
+                    {
+                        ProcessSingleMessage(encryptedMessage);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[TCP] ProcessSingleMessage error: {ex.Message}");
+                    }
                 }
             }
 
@@ -220,9 +229,19 @@ namespace DoAn_NT106.Services
             if (startIndex < content.Length)
                 buffer.Append(content.Substring(startIndex));
         }
-
-        private void ProcessSingleMessage(string json)
+        private void ProcessSingleMessage(string encryptedJson)
         {
+            string json;
+            try
+            {
+                json = EncryptionService.Decrypt(encryptedJson);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[TCP] Decryption failed: {ex.Message}");
+                return;
+            }
+
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
 
@@ -345,8 +364,8 @@ namespace DoAn_NT106.Services
         public Task<ServerResponse> GlobalChatJoinAsync(string username, string token)
             => SendRequestAsync("GLOBAL_CHAT_JOIN", new Dictionary<string, object> { { "username", username }, { "token", token } });
 
-        public Task<ServerResponse> GlobalChatSendAsync(string username, string message)
-            => SendRequestAsync("GLOBAL_CHAT_SEND", new Dictionary<string, object> { { "username", username }, { "message", message } });
+        public Task<ServerResponse> GlobalChatSendAsync(string username, string message, string token)
+            => SendRequestAsync("GLOBAL_CHAT_SEND", new Dictionary<string, object> { { "username", username }, { "message", message }, { "token", token } });
 
         public Task<ServerResponse> GlobalChatLeaveAsync(string username)
             => SendRequestAsync("GLOBAL_CHAT_LEAVE", new Dictionary<string, object> { { "username", username } });

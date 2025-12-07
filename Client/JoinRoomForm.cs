@@ -425,7 +425,7 @@ namespace PixelGameLobby
                 // Nếu room có password, hiển thị dialog nhập password
                 if (room.IsLocked)
                 {
-                    using (var passForm = new PasswordForm(room.Name))
+                    using (var passForm = new PasswordToJoinRoom(room.Name))
                     {
                         if (passForm.ShowDialog() != DialogResult.OK)
                             return;
