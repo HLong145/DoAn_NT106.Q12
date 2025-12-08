@@ -24,7 +24,7 @@ namespace DoAn_NT106
                 ("girlknight", "punch") => SoundEffect.ButtonClick, // Don't play early sound
                 ("bringerofdeath", "punch") => SoundEffect.ButtonClick, // Delay 1s instead
                 ("warrior", "punch") => SoundEffect.ButtonClick, // ? Warrior punch sound played directly in ExecutePunchAttack (always 2x)
-                ("goatman", "punch") => SoundEffect.PunchKG, // Reuse for now
+                ("goatman", "punch") => SoundEffect.PunchGM, // ? Goatman punch plays at startup (1x regardless of hit)
 
                 // ? Kick attacks: Warrior kick plays KickWarrior sound at startup (not ButtonClick)
                 ("girlknight", "kick") => SoundEffect.ButtonClick, // Don't play early sound

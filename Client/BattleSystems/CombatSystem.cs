@@ -352,6 +352,7 @@ namespace DoAn_NT106.Client.BattleSystems
                         ApplyDamage(playerNum == 1 ? 2 : 1, 10);
                         attacker.RegenerateManaOnHitLand(); // ✅ THÊM: Hồi mana khi đánh trúng
                         showHitEffectCallback?.Invoke("Punch!", Color.Orange);
+                        // ✅ Sound is played at startup via PlayAttackSound, NOT on hit
                     }
                 };
                 hitTimer.Start();
