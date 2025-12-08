@@ -162,6 +162,7 @@ namespace DoAn_NT106.Client.BattleSystems
             animMgr.ResetAnimationToFirstFrame("parry");
             parryTimer.Stop();
             parryTimer.Start();
+            // ✅ SỬA: Không hồi mana khi bắt đầu parry, chỉ hồi khi parry thành công (dính attack)
             showHitEffectCallback?.Invoke("Parry!", Color.Cyan);
             invalidateCallback?.Invoke();
         }
@@ -253,6 +254,7 @@ namespace DoAn_NT106.Client.BattleSystems
                     {
                         Console.WriteLine($"[ExecutePunch] 💥 APPLYING DAMAGE 10 to Player {(playerNum == 1 ? 2 : 1)}");
                         ApplyDamage(playerNum == 1 ? 2 : 1, 10);
+                        attacker.RegenerateManaOnHitLand(); // ✅ THÊM: Hồi mana khi đánh trúng
                         showHitEffectCallback?.Invoke("Strike!", Color.Yellow);
                     }
                 };
@@ -276,6 +278,7 @@ namespace DoAn_NT106.Client.BattleSystems
                     {
                         Console.WriteLine($"[ExecutePunch] 💥 APPLYING DAMAGE 10 to Player {(playerNum == 1 ? 2 : 1)}");
                         ApplyDamage(playerNum == 1 ? 2 : 1, 10);
+                        attacker.RegenerateManaOnHitLand(); // ✅ THÊM: Hồi mana khi đánh trúng
                         showHitEffectCallback?.Invoke("Strike!", Color.Orange);
                     }
                 };
@@ -302,6 +305,7 @@ namespace DoAn_NT106.Client.BattleSystems
                     {
                         Console.WriteLine($"[ExecutePunch] 💥 Goatman DAMAGE 10");
                         ApplyDamage(playerNum == 1 ? 2 : 1, 10);
+                        attacker.RegenerateManaOnHitLand(); // ✅ THÊM: Hồi mana khi đánh trúng
                         showHitEffectCallback?.Invoke("Punch!", Color.Orange);
                     }
                 };
@@ -327,6 +331,7 @@ namespace DoAn_NT106.Client.BattleSystems
                     {
                         Console.WriteLine($"[ExecutePunch] 💥 GirlKnight DAMAGE 10");
                         ApplyDamage(playerNum == 1 ? 2 : 1, 10);
+                        attacker.RegenerateManaOnHitLand(); // ✅ THÊM: Hồi mana khi đánh trúng
                         showHitEffectCallback?.Invoke("Punch!", Color.Pink);
                     }
                 };
@@ -352,6 +357,7 @@ namespace DoAn_NT106.Client.BattleSystems
                     {
                         Console.WriteLine($"[ExecutePunch] 💥 Bringer DAMAGE 10");
                         ApplyDamage(playerNum == 1 ? 2 : 1, 10);
+                        attacker.RegenerateManaOnHitLand(); // ✅ THÊM: Hồi mana khi đánh trúng
                         showHitEffectCallback?.Invoke("Punch!", Color.Purple);
                     }
                 };
@@ -387,6 +393,7 @@ namespace DoAn_NT106.Client.BattleSystems
                     if (attackBox.IntersectsWith(hurtBox))
                     {
                         ApplyDamage(playerNum == 1 ? 2 : 1, 15);
+                        attacker.RegenerateManaOnHitLand(); // ✅ THÊM: Hồi mana khi đánh trúng
                         showHitEffectCallback?.Invoke("Kick!", Color.Orange);
                     }
                 };
@@ -423,6 +430,7 @@ namespace DoAn_NT106.Client.BattleSystems
                 if (attackHitbox.IntersectsWith(targetHurtbox))
                 {
                     ApplyDamage(playerNum == 1 ? 2 : 1, 15, false);
+                    attacker.RegenerateManaOnHitLand(); // ✅ THÊM: Hồi mana khi đánh trúng
                     int knockbackDir = attacker.Facing == "right" ? 1 : -1;
                     ApplyKnockback(defender, knockbackDir, knockbackDistance);
                     showHitEffectCallback?.Invoke("Heavy Impact!", Color.OrangeRed);
@@ -512,6 +520,7 @@ namespace DoAn_NT106.Client.BattleSystems
                         if (CheckAttackHit(attacker, defender, "kick") && !defender.IsParrying && !defender.IsDashing)
                         {
                             ApplyDamage(playerNum == 1 ? 2 : 1, 15);
+                            attacker.RegenerateManaOnHitLand(); // ✅ THÊM: Hồi mana khi đánh trúng
                             showHitEffectCallback?.Invoke("Kick!", Color.Pink);
                             hasDealtDamage = true; // only once
                         }
@@ -570,6 +579,7 @@ namespace DoAn_NT106.Client.BattleSystems
                 if (CheckAttackHit(attacker, defender, "kick"))
                 {
                     ApplyDamage(playerNum == 1 ? 2 : 1, 15);
+                    attacker.RegenerateManaOnHitLand(); // ✅ THÊM: Hồi mana khi đánh trúng
                     showHitEffectCallback?.Invoke("Warrior Kick!", Color.Gold);
                 }
             };
@@ -820,6 +830,7 @@ namespace DoAn_NT106.Client.BattleSystems
                         Console.WriteLine($"[SKILL] 🎯 Player {playerNum} dealing damage to Player {targetPlayer}!");
 
                         ApplyDamage(targetPlayer, 5, false);
+                        player.RegenerateManaOnHitLand(); // ✅ THÊM: Hồi mana khi đánh trúng bằng skill
                         showHitEffectCallback?.Invoke("Energy!", Color.Cyan);
                         damageCounter++;
                         lastDamageTime = 0;
@@ -963,6 +974,7 @@ namespace DoAn_NT106.Client.BattleSystems
             if (target.IsParrying)
             {
                 target.Stamina = Math.Min(100, target.Stamina + 8);
+                target.RegenerateManaOnParrySuccess(); // ✅ THÊM: Hồi mana khi parry thành công
                 showHitEffectCallback?.Invoke("Blocked!", Color.Cyan);
                 CancelAttack(targetPlayer == 1 ? 2 : 1);
                 invalidateCallback?.Invoke();
@@ -976,6 +988,7 @@ namespace DoAn_NT106.Client.BattleSystems
             bool wasCharging = target.IsCharging;
             
             target.TakeDamage(damage);
+            target.RegenerateManaOnHitMiss(); // ✅ THÊM: Hồi mana khi bị đánh (không parry kịp)
             showHitEffectCallback?.Invoke($"-{damage}", Color.Red);
             effectManager.ShowHitEffectAtPosition(target.CharacterType, target.X, target.Y, invalidateCallback);
             
