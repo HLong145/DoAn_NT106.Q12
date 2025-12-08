@@ -1271,6 +1271,25 @@ namespace DoAn_NT106.Client.BattleSystems
             player.IsAttacking = false;
             player.IsSkillActive = false;
             player.IsCharging = false;
+            
+            // ✅ THÊM: Hủy animation hiện tại nếu là attack
+            CharacterAnimationManager animMgr = playerNum == 1 ? player1AnimManager : player2AnimManager;
+            if (animMgr != null)
+            {
+                try
+                {
+                    var currentAnim = animMgr.GetAnimation(player.CurrentAnimation);
+                    if (currentAnim != null && ImageAnimator.CanAnimate(currentAnim))
+                    {
+                        ImageAnimator.StopAnimate(currentAnim, (s, e) => { });
+                    }
+                }
+                catch { }
+            }
+            
+            // ✅ THÊM: Chuyển về animation idle
+            if (!player.IsJumping && !player.IsParrying)
+                player.ResetToIdle();
         }
 
         private void ResetAttackAnimation(int delay, int playerNum)
