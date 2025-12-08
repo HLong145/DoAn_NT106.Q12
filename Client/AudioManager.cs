@@ -111,9 +111,9 @@ namespace DoAn_NT106.Client
                 { SoundEffect.DashWarrior, "dash_warrior.mp3" },
                 { SoundEffect.DashGM, "dash_gm.mp3" },
                 { SoundEffect.ParryWarrior, "parry_warrior.mp3" },
-                { SoundEffect.Round1, "round_1.mp3" },
-                { SoundEffect.Round2, "round_2.mp3" },
-                { SoundEffect.Round3, "round_3.mp3" },
+                { SoundEffect.Round1, "round-1.mp3" },
+                { SoundEffect.Round2, "round-2.mp3" },
+                { SoundEffect.Round3, "round-3.mp3" },
                 { SoundEffect.SkillWarrior, "skill_warrior.mp3" },
                 { SoundEffect.SkillBringer, "skill_bringer.mp3" }
             };
