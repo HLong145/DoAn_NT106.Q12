@@ -1,11 +1,11 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.Windows.Forms;
 
 namespace DoAn_NT106.Client.BattleSystems
 {
     /// <summary>
-    /// Qu?n l� tr?ng th�i c?a m?t player trong tr?n ??u
+    /// Quản lý trạng thái của một player trong trận đấu
     /// </summary>
     public class PlayerState
     {
@@ -37,7 +37,7 @@ namespace DoAn_NT106.Client.BattleSystems
         // Resources
         public int Health { get; set; } = 100;
         public int Stamina { get; set; } = 100;
-        public int Mana { get; set; } = 0; // ? Kh?i ??u v?i 0 (kh�ng ph?i 100)
+        public int Mana { get; set; } = 0; // ✅ Khởi đầu với 0 (không phải 100)
 
         // Dash state
         public int DashDirection { get; set; }
@@ -49,16 +49,16 @@ namespace DoAn_NT106.Client.BattleSystems
         public bool LeftKeyPressed { get; set; }
         public bool RightKeyPressed { get; set; }
 
-        // ? TH�M: H? th?ng h?i stamina/mana
-        private long lastStaminaUsedTime = 0; // Th?i ?i?m l?n cu?i d�ng stamina (ms)
-        private const long STAMINA_REGEN_DELAY_MS = 1000; // 1 gi�y tr??c khi b?t ??u h?i
+        // ✅ THÊM: Hệ thống hồi stamina/mana
+        private long lastStaminaUsedTime = 0; // Thời điểm lần cuối dùng stamina (ms)
+        private const long STAMINA_REGEN_DELAY_MS = 1000; // 1 giây trước khi bắt đầu hồi
         private const int STAMINA_REGEN_PER_SECOND = 20; // 20 stamina/s
-        private const int MANA_REGEN_PER_SECOND = 2; // ? THAY ??I: 1 mana/s -> 2 mana/s
-        private const int MANA_REGEN_ON_HIT_MISS = 5; // H?i 5 mana khi b? ?�nh tr�ng (kh�ng parry)
-        private const int MANA_REGEN_ON_HIT_LAND = 5; // H?i 5 mana khi ?�nh tr�ng
-        private const int MANA_REGEN_ON_PARRY = 10; // H?i 10 mana khi parry th�nh c�ng
-        private System.Windows.Forms.Timer manaRegenTimer; // ? FIX: D�ng fully qualified name
-        private System.Windows.Forms.Timer staminaRegenTimer; // ? FIX: D�ng fully qualified name
+        private const int MANA_REGEN_PER_SECOND = 2; // ✅ THAY ĐỔI: 1 mana/s -> 2 mana/s
+        private const int MANA_REGEN_ON_HIT_MISS = 5; // Hồi 5 mana khi bị đánh trúng (không parry)
+        private const int MANA_REGEN_ON_HIT_LAND = 5; // Hồi 5 mana khi đánh trúng
+        private const int MANA_REGEN_ON_PARRY = 10; // Hồi 10 mana khi parry thành công
+        private System.Windows.Forms.Timer manaRegenTimer; // ✅ FIX: Dùng fully qualified name
+        private System.Windows.Forms.Timer staminaRegenTimer; // ✅ FIX: Dùng fully qualified name
 
         public PlayerState(string playerName, string characterType, int playerNumber)
         {
@@ -69,22 +69,22 @@ namespace DoAn_NT106.Client.BattleSystems
         }
 
         /// <summary>
-        /// Kh?i t?o timers cho h? th?ng h?i mana v� stamina
+        /// Khởi tạo timers cho hệ thống hồi mana và stamina
         /// </summary>
         private void InitializeRegenTimers()
         {
-            // Timer h?i mana m?i 1 gi�y
+            // Timer hồi mana mỗi 1 giây
             manaRegenTimer = new System.Windows.Forms.Timer();
-            manaRegenTimer.Interval = 1000; // 1 gi�y
+            manaRegenTimer.Interval = 1000; // 1 giây
             manaRegenTimer.Tick += (s, e) =>
             {
                 RegenerateMana(MANA_REGEN_PER_SECOND);
             };
             manaRegenTimer.Start();
 
-            // Timer h?i stamina (s? ???c start sau 1 gi�y kh�ng d�ng)
+            // Timer hồi stamina (sẽ được start sau 1 giây không dùng)
             staminaRegenTimer = new System.Windows.Forms.Timer();
-            staminaRegenTimer.Interval = 1000; // 1 gi�y (check m?i 1 gi�y h?i 20 stamina)
+            staminaRegenTimer.Interval = 1000; // 1 giây (check mỗi 1 giây hồi 20 stamina)
             staminaRegenTimer.Tick += (s, e) =>
             {
                 RegenerateStamina(STAMINA_REGEN_PER_SECOND);
@@ -92,7 +92,7 @@ namespace DoAn_NT106.Client.BattleSystems
         }
 
         /// <summary>
-        /// Reset v? tr?ng th�i idle
+        /// Reset về trạng thái idle
         /// </summary>
         public void ResetToIdle()
         {
@@ -118,7 +118,7 @@ namespace DoAn_NT106.Client.BattleSystems
             if (Stamina < amount) return false;
             Stamina -= amount;
             
-            // ? TH�M: Reset timer h?i stamina khi d�ng
+            // ✅ THÊM: Reset timer hồi stamina khi dùng
             lastStaminaUsedTime = Environment.TickCount;
             if (staminaRegenTimer.Enabled)
             {
@@ -139,7 +139,7 @@ namespace DoAn_NT106.Client.BattleSystems
         }
 
         /// <summary>
-        /// ? TH�M: H?i mana
+        /// ✅ THÊM: Hồi mana
         /// </summary>
         public void RegenerateMana(int amount)
         {
@@ -150,7 +150,7 @@ namespace DoAn_NT106.Client.BattleSystems
         }
 
         /// <summary>
-        /// ? TH�M: H?i stamina
+        /// ✅ THÊM: Hồi stamina
         /// </summary>
         public void RegenerateStamina(int amount)
         {
@@ -161,7 +161,7 @@ namespace DoAn_NT106.Client.BattleSystems
         }
 
         /// <summary>
-        /// ? TH�M: H?i mana khi b? ?�nh (kh�ng parry k?p)
+        /// ✅ THÊM: Hồi mana khi bị đánh (không parry kịp)
         /// </summary>
         public void RegenerateManaOnHitMiss()
         {
@@ -169,7 +169,7 @@ namespace DoAn_NT106.Client.BattleSystems
         }
 
         /// <summary>
-        /// ? TH�M: H?i mana khi ?�nh tr�ng
+        /// ✅ THÊM: Hồi mana khi đánh trúng
         /// </summary>
         public void RegenerateManaOnHitLand()
         {
@@ -177,7 +177,7 @@ namespace DoAn_NT106.Client.BattleSystems
         }
 
         /// <summary>
-        /// ? TH�M: H?i mana khi parry th�nh c�ng
+        /// ✅ THÊM: Hồi mana khi parry thành công
         /// </summary>
         public void RegenerateManaOnParrySuccess()
         {
@@ -185,7 +185,7 @@ namespace DoAn_NT106.Client.BattleSystems
         }
 
         /// <summary>
-        /// ? TH�M: Ki?m tra v� kh?i ??ng h?i stamina n?u ?� ?? 1 gi�y kh�ng d�ng
+        /// ✅ THÊM: Kiểm tra và khởi động hồi stamina nếu đã đủ 1 giây không dùng
         /// </summary>
         public void UpdateStaminaRegenDelay()
         {
@@ -194,12 +194,12 @@ namespace DoAn_NT106.Client.BattleSystems
 
             if (timeSinceLastUse >= STAMINA_REGEN_DELAY_MS && !staminaRegenTimer.Enabled)
             {
-                // ?� ?? 1 gi�y kh�ng d�ng, b?t ??u h?i
+                // Đã đủ 1 giây không dùng, bắt đầu hồi
                 staminaRegenTimer.Start();
             }
             else if (timeSinceLastUse < STAMINA_REGEN_DELAY_MS && staminaRegenTimer.Enabled)
             {
-                // N?u l?i d�ng stamina trong kho?ng, d?ng timer h?i
+                // Nếu lại dùng stamina trong khoảng, dừng timer hồi
                 staminaRegenTimer.Stop();
             }
         }
@@ -209,7 +209,7 @@ namespace DoAn_NT106.Client.BattleSystems
         /// </summary>
         public void RegenerateResources()
         {
-            // Ki?m tra xem c� n�n b?t ??u h?i stamina kh�ng
+            // Kiểm tra xem có nên bắt đầu hồi stamina không
             UpdateStaminaRegenDelay();
         }
 
@@ -221,7 +221,7 @@ namespace DoAn_NT106.Client.BattleSystems
         /// <summary>
         /// Check if player can move
         /// </summary>
-        public bool CanMove => !IsStunned && !IsCharging && !IsDashing && !IsAttacking && !IsParrying; // ? TH�M: !IsParrying
+        public bool CanMove => !IsStunned && !IsCharging && !IsDashing && !IsAttacking && !IsParrying; // ✅ THÊM: !IsParrying
 
         /// <summary>
         /// Check if player can attack
@@ -239,7 +239,7 @@ namespace DoAn_NT106.Client.BattleSystems
         public bool CanParry => !IsStunned && !IsCharging && !IsDashing && !IsParryOnCooldown;
 
         /// <summary>
-        /// ? TH�M: Cleanup timers khi form ?�ng
+        /// ✅ THÊM: Cleanup timers khi form đóng
         /// </summary>
         public void Cleanup()
         {
