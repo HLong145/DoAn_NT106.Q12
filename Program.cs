@@ -12,6 +12,11 @@ namespace DoAn_NT106
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
+            // ✅ Initialize Sound Manager and UI Audio Wiring at startup
+            SoundManager.Initialize();
+            UIAudioWiring.Start();
+            Console.WriteLine("🎵 UIAudioWiring started - all buttons will play sound");
+
             if (args.Length > 0 && args[0].Equals("--login", StringComparison.OrdinalIgnoreCase))
             {
                 // Process này chỉ dùng cho client login/register

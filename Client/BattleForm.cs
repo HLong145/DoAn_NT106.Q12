@@ -590,7 +590,7 @@ namespace DoAn_NT106
                 physicsSystem.ResetToGround(player2State);
             }
 
-            // ✅ Play battle music when form loads
+            // ✅ ENABLE: Play battle music when form loads
             SoundManager.PlayMusic(BackgroundMusic.BattleMusic, loop: true);
             Console.WriteLine("🎵 Battle music started");
 
@@ -1616,8 +1616,9 @@ namespace DoAn_NT106
             try { projectileManager?.Cleanup(); } catch { }
             // =========================================
 
-            // ✅ Ensure theme music resumes on returning to main menu
+            // ✅ RESUME: Theme music when returning to MainForm
             try { SoundManager.PlayMusic(DoAn_NT106.Client.BackgroundMusic.ThemeMusic, loop: true); } catch { }
+            Console.WriteLine("🎵 Theme music resumed");
 
             // Dispose animation managers
             player1AnimationManager?.Dispose();
