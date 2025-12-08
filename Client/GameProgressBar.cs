@@ -1,22 +1,24 @@
-﻿using System;
+using System;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 
 namespace DoAn_NT106
 { 
     public class GameProgressBar : ProgressBar
     {
-        public Color BorderColor { get; set; } = Color.Gray;
-        public int BorderWidth { get; set; } = 2;
-        public Color CustomForeColor { get; set; }
+        public Color CustomForeColor { get; set; } = Color.FromArgb(50, 220, 50);  // Default green
+        public Color BorderColor { get; set; } = Color.Black;
+        public int BorderWidth { get; set; } = 3;
 
         public GameProgressBar()
         {
-            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint, true);
-            Height = 20;
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+            Height = 24;
+            DoubleBuffered = true;
         }
 
-        // ✅ THÊM: Override Value để tự động Invalidate
+        // ? Override Value ?? t? ??ng Invalidate
         private int _value;
         public new int Value
         {
@@ -26,45 +28,104 @@ namespace DoAn_NT106
                 if (_value != value)
                 {
                     _value = Math.Max(Minimum, Math.Min(Maximum, value));
-                    base.Value = _value; // Cập nhật base value
-                    this.Invalidate(); // ✅ QUAN TRỌNG: Vẽ lại thanh bar
+                    base.Value = _value;
+                    this.Invalidate();
                 }
             }
         }
 
         protected override void OnPaint(PaintEventArgs e)
         {
+            e.Graphics.SmoothingMode = SmoothingMode.None;
             Rectangle rect = ClientRectangle;
             Graphics g = e.Graphics;
 
-            // Vẽ background
-            using (SolidBrush bgBrush = new SolidBrush(BackColor))
-                g.FillRectangle(bgBrush, rect);
-
-            // Vẽ thanh tiến trình
-            if (Value > 0)
+            // ? V? background gradient (gi?ng Btn_Pixel - n?n g?)
+            using (var bgBrush = new LinearGradientBrush(
+                rect,
+                Color.FromArgb(100, 80, 60),
+                Color.FromArgb(70, 50, 30),
+                LinearGradientMode.Vertical))
             {
-                Rectangle progressRect = new Rectangle(
-                    rect.X, rect.Y,
-                    (int)(rect.Width * ((double)Value / Maximum)),
-                    rect.Height
-                );
-
-                using (SolidBrush progressBrush = new SolidBrush(CustomForeColor))
-                    g.FillRectangle(progressBrush, progressRect);
+                g.FillRectangle(bgBrush, rect);
             }
 
-            // Vẽ border
-            using (Pen borderPen = new Pen(BorderColor, BorderWidth))
-                g.DrawRectangle(borderPen,
-                    rect.X, rect.Y,
-                    rect.Width - BorderWidth,
-                    rect.Height - BorderWidth);
+            // ? V? thanh ti?n tr�nh v?i gradient
+            if (Value > 0)
+            {
+                int progressWidth = (int)(rect.Width * ((double)Value / Maximum));
+                Rectangle progressRect = new Rectangle(
+                    rect.X + 3, 
+                    rect.Y + 3,
+                    Math.Max(0, progressWidth - 6),
+                    rect.Height - 6
+                );
 
-            // Vẽ text (giá trị %)
+                if (progressRect.Width > 0)
+                {
+                    // Gradient m�u thanh ti?n tr�nh
+                    Color topColor = ControlPaint.Light(CustomForeColor, 0.3f);
+                    Color bottomColor = ControlPaint.Dark(CustomForeColor, 0.2f);
+                    
+                    using (var progressBrush = new LinearGradientBrush(
+                        progressRect,
+                        topColor,
+                        bottomColor,
+                        LinearGradientMode.Vertical))
+                    {
+                        g.FillRectangle(progressBrush, progressRect);
+                    }
+
+                    // ? Vi?n s�ng b�n trong thanh
+                    using (var penInner = new Pen(Color.FromArgb(150, 255, 255, 255), 1))
+                    {
+                        g.DrawRectangle(penInner, progressRect);
+                    }
+                }
+            }
+
+            // ? Vi?n ?en b�n ngo�i (gi?ng Btn_Pixel pixel style)
+            using (var penOuter = new Pen(BorderColor, BorderWidth))
+            {
+                g.DrawRectangle(penOuter, 
+                    1, 1,
+                    rect.Width - BorderWidth - 1, 
+                    rect.Height - BorderWidth - 1);
+            }
+
+            // ? Vi?n s�ng b�n trong
+            using (var penInner = new Pen(Color.FromArgb(100, 255, 255, 255), 1))
+            {
+                g.DrawRectangle(penInner, 
+                    BorderWidth - 1, 
+                    BorderWidth - 1,
+                    rect.Width - (BorderWidth * 2) + 1, 
+                    rect.Height - (BorderWidth * 2) + 1);
+            }
+
+            // ? V? text (gi� tr? %) - tr?ng, ??m
             string text = $"{Value}/{Maximum}";
-            TextFormatFlags flags = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter;
-            TextRenderer.DrawText(g, text, Font, rect, ForeColor, flags);
+            using (var brush = new SolidBrush(Color.White))
+            using (var sf = new StringFormat 
+            { 
+                Alignment = StringAlignment.Center, 
+                LineAlignment = StringAlignment.Center 
+            })
+            {
+                g.DrawString(text, new Font(Font.FontFamily, Font.Size, FontStyle.Bold), brush, rect, sf);
+            }
+        }
+
+        protected override void OnMouseEnter(EventArgs e)
+        {
+            base.OnMouseEnter(e);
+            Invalidate();
+        }
+
+        protected override void OnMouseLeave(EventArgs e)
+        {
+            base.OnMouseLeave(e);
+            Invalidate();
         }
     }
 }
