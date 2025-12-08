@@ -350,7 +350,7 @@ namespace DoAn_NT106.Client.BattleSystems
                     {
                         Console.WriteLine($"[ExecutePunch] 💥 Goatman DAMAGE 10");
                         ApplyDamage(playerNum == 1 ? 2 : 1, 10);
-                        attacker.RegenerateManaOnHitLand(); // ✅ TH ÊM: Hồi mana khi đánh trúng
+                        attacker.RegenerateManaOnHitLand(); // ✅ THÊM: Hồi mana khi đánh trúng
                         showHitEffectCallback?.Invoke("Punch!", Color.Orange);
                     }
                 };
@@ -406,20 +406,8 @@ namespace DoAn_NT106.Client.BattleSystems
                         ApplyDamage(playerNum == 1 ? 2 : 1, 20); // ✅ SỬA: 10 -> 20
                         attacker.RegenerateManaOnHitLand();
                         showHitEffectCallback?.Invoke("Punch!", Color.Purple);
-                        // ✅ Play punch sound immediately on hit
+                        // ✅ Play punch sound on hit (khớp animation)
                         try { DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.PunchBringer); } catch { }
-                        // ✅ Delay punch sound 1s để có effect double
-                        try
-                        {
-                            var sndTimer = new Timer { Interval = 1000 };
-                            sndTimer.Tick += (ss, ee) =>
-                            {
-                                try { sndTimer.Stop(); sndTimer.Dispose(); } catch { }
-                                try { DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.PunchBringer); } catch { }
-                            };
-                            sndTimer.Start();
-                        }
-                        catch { }
                     }
                 };
                 hitTimer.Start();
@@ -722,46 +710,7 @@ namespace DoAn_NT106.Client.BattleSystems
             attacker.CurrentAnimation = "fireball";
             animMgr.ResetAnimationToFirstFrame("fireball");
 
-
-                   if (charType == "bringerofdeath")
-            {
-                var castTimer = new Timer { Interval = 300 };
-                castTimer.Tick += (s, e) =>
-                {
-                    castTimer.Stop();
-                    castTimer.Dispose();
-
-                    int targetPlayer = playerNum == 1 ? 2 : 1;
-                    projectileManager.SpawnSpell(
-                        targetPlayer,
-                        playerNum,
-                        (pn) => getPlayerHurtboxCallback(pn == 1 ? player1 : player2),
-                        ApplyDamage,
-                        showHitEffectCallback
-                    );
-                };
-                castTimer.Start();
-            }
-            else if (charType == "warrior")
-
-            {
-                int castDelay = GetFrameTiming("warrior", "special", 3);
-                var castTimer = new Timer { Interval = castDelay };
-                castTimer.Tick += (s, e) =>
-                {
-                    castTimer.Stop();
-                    castTimer.Dispose();
-                    Rectangle hurtbox = getPlayerHurtboxCallback(attacker);
-                    int direction = attacker.Facing == "right" ? 1 : -1;
-                    int startX = direction > 0 ? (hurtbox.X + hurtbox.Width) : (hurtbox.X - 160);
-                    int startY = hurtbox.Y + (hurtbox.Height / 2) - (160 / 2);
-                    projectileManager.SpawnWarriorProjectile(startX, startY, direction, playerNum);
-                    // Warrior skill: play skill_warrior sound
-                    try { DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.SkillWarrior); } catch { }
-                };
-                castTimer.Start();
-            }
-            else if (charType == "bringerofdeath")
+            if (charType == "bringerofdeath")
             {
                 // ✅ Bringer skill: play skill_bringer sound at cast moment
                 var castTimer = new Timer { Interval = 300 };
@@ -778,6 +727,24 @@ namespace DoAn_NT106.Client.BattleSystems
                         ApplyDamage,
                         showHitEffectCallback
                     );
+                };
+                castTimer.Start();
+            }
+            else if (charType == "warrior")
+            {
+                int castDelay = GetFrameTiming("warrior", "special", 3);
+                var castTimer = new Timer { Interval = castDelay };
+                castTimer.Tick += (s, e) =>
+                {
+                    castTimer.Stop();
+                    castTimer.Dispose();
+                    Rectangle hurtbox = getPlayerHurtboxCallback(attacker);
+                    int direction = attacker.Facing == "right" ? 1 : -1;
+                    int startX = direction > 0 ? (hurtbox.X + hurtbox.Width) : (hurtbox.X - 160);
+                    int startY = hurtbox.Y + (hurtbox.Height / 2) - (160 / 2);
+                    projectileManager.SpawnWarriorProjectile(startX, startY, direction, playerNum);
+                    // Warrior skill: play skill_warrior sound
+                    try { DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.SkillWarrior); } catch { }
                 };
                 castTimer.Start();
             }
