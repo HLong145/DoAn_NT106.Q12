@@ -75,6 +75,12 @@ namespace DoAn_NT106.Client.BattleSystems
         /// </summary>
         public void Jump(PlayerState player)
         {
+            // ✅ Chặn nhảy khi skill đang active
+            if (player.IsSkillActive)
+            {
+                return;
+            }
+
             if (!player.IsJumping && player.Y >= groundLevel - playerHeight && player.CanMove)
             {
                 player.IsJumping = true;

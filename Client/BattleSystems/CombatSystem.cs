@@ -172,6 +172,13 @@ namespace DoAn_NT106.Client.BattleSystems
             PlayerState defender = playerNum == 1 ? player2 : player1;
             CharacterAnimationManager animMgr = playerNum == 1 ? player1AnimManager : player2AnimManager;
 
+            // ✅ Chặn tấn công khi skill đang active
+            if (attacker.IsSkillActive)
+            {
+                showHitEffectCallback?.Invoke("Skill Active!", Color.Cyan);
+                return;
+            }
+
             if (!attacker.CanAttack || attacker.IsDashing || attacker.IsAttacking)
             {
                 Console.WriteLine($"⚠️ Player{playerNum} không thể attack!");
@@ -632,9 +639,16 @@ namespace DoAn_NT106.Client.BattleSystems
             PlayerState player = playerNum == 1 ? player1 : player2;
             CharacterAnimationManager animMgr = playerNum == 1 ? player1AnimManager : player2AnimManager;
 
+            // ✅ Chặn dash khi skill đang active
+            if (player.IsSkillActive)
+            {
+                showHitEffectCallback?.Invoke("Skill Active!", Color.Cyan);
+                return;
+            }
+
             if (player.IsAttacking || player.IsDashing || !player.CanDash)
             {
-                Console.WriteLine($"?? Player{playerNum} không th? dash!");
+                Console.WriteLine($"⚠️ Player{playerNum} không thể dash!");
                 return;
             }
 
@@ -879,14 +893,36 @@ namespace DoAn_NT106.Client.BattleSystems
                 player.X += desiredMove;
                 ClampPlayerToMap(player);  // Soft clamp
 
-                Rectangle chargeHitbox = GetPlayerHurtbox(player);
+                // ✅ Hitbox = Goatman's HURTBOX + extend forward toward facing
+                Rectangle baseHurtbox = GetPlayerHurtbox(player);
+                Rectangle chargeHitbox;
+                
+                if (player.Facing == "right")
+                {
+                    // Lao sang phải: mở rộng 40px từ cạnh phải của hurtbox sang phải
+                    chargeHitbox = new Rectangle(
+                        baseHurtbox.X, 
+                        baseHurtbox.Y, 
+                        baseHurtbox.Width + 40, 
+                        baseHurtbox.Height
+                    );
+                }
+                else
+                {
+                    // Lao sang trái: mở rộng 200px từ cạnh trái của hurtbox sang trái
+                    chargeHitbox = new Rectangle(
+                        baseHurtbox.X - 200, 
+                        baseHurtbox.Y, 
+                        baseHurtbox.Width + 200, 
+                        baseHurtbox.Height
+                    );
+                }
+                
                 Rectangle targetHurtbox = GetPlayerHurtbox(opponent);
 
                 if (chargeHitbox.IntersectsWith(targetHurtbox))
                 {
-                    int impactX = player.Facing == "right" ? chargeHitbox.X + chargeHitbox.Width : chargeHitbox.X - 60;
-                    int impactY = chargeHitbox.Y;
-                    effectManager.ShowImpactEffect(playerNum, impactX, impactY, player.Facing, invalidateCallback);
+                    // ❌ No GM_impact effect on charge collision (impact only for kick)
                     ApplyDamage(playerNum == 1 ? 2 : 1, 25, false);
                     showHitEffectCallback?.Invoke("Charged!", Color.Gold);
 
