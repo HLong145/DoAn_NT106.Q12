@@ -504,7 +504,7 @@ namespace DoAn_NT106
             // ✅ OPPONENT MẶC ĐỊNH là girlknight (sau này lấy từ server)
             string opponentCharacter = "girlknight";
 
-            // ✅ TRUYỀN ĐẦY ĐỦ 5 THAM SỐ với character đã chọn
+            // ✅ TRUYỀN ĐẦY ĐỦ 5 THAM SÓ với character đã chọn
             var battleForm = new BattleForm(
                 username,              // Player 1 username
                 token,                 // Token
@@ -547,4 +547,4 @@ namespace DoAn_NT106
         }
     }
 
-} 
+}

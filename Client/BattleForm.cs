@@ -626,6 +626,9 @@ namespace DoAn_NT106
                     Facing = "right",
                     CurrentAnimation = "stand"
                 };
+                
+                // ✅ SỬA: Set HP theo character type
+                SetPlayerHealth(player1State, player1CharacterType);
 
                 player2State = new PlayerState(opponent, player2CharacterType, 2)
                 {
@@ -634,6 +637,9 @@ namespace DoAn_NT106
                     Facing = "left",
                     CurrentAnimation = "stand"
                 };
+                
+                // ✅ SỬA: Set HP theo character type
+                SetPlayerHealth(player2State, player2CharacterType);
 
                 // 2. Initialize ResourceSystem (only once)
                 if (resourceSystem == null)
@@ -2311,5 +2317,29 @@ namespace DoAn_NT106
             player1CurrentAnimation = player1State.CurrentAnimation;
             player2CurrentAnimation = player2State.CurrentAnimation;
         }
+
+        private void SetPlayerHealth(PlayerState playerState, string characterType)
+{
+    int baseHealth = 100; // Giá trị mặc định
+
+    // Đặt HP tối đa theo từng nhân vật
+    switch (characterType)
+    {
+        case "goatman":
+            baseHealth = 130;
+            break;
+        case "bringerofdeath":
+            baseHealth = 90;
+            break;
+        case "warrior":
+            baseHealth = 80;
+            break;
+        case "girlknight":
+            baseHealth = 100;
+            break;
+    }
+
+    playerState.Health = baseHealth;
+}
     }
 }

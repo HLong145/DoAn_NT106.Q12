@@ -1,9 +1,9 @@
-using System.Drawing;
+﻿using System.Drawing;
 
 namespace DoAn_NT106.Client.BattleSystems
 {
     /// <summary>
-    /// Qu?n l� resources (health, stamina, mana) c?a players
+    /// Qu?n lý resources (health, stamina, mana) c?a players
     /// </summary>
     public class ResourceSystem
     {
@@ -38,9 +38,13 @@ namespace DoAn_NT106.Client.BattleSystems
             int spacing = 5;
             int startY = 10;
             
-            // ? Setup portraits (next to bars)
+            // ✅ SỬA: Lấy max HP theo character type
+            int maxHP1 = GetMaxHealth(player1.CharacterType);
+            int maxHP2 = GetMaxHealth(player2.CharacterType);
+            
+            // ✅ PORTRAIT SETUP
             int portraitSize = 80;
-            // ? Portrait1 (Player 1 - b�n tr�i)
+            // ✅ Portrait1 (Player 1 - bên trái)
             Portrait1 = new PictureBox
             {
                 Location = new Point(20, startY + 3 * (barHeight + spacing) + 5),
@@ -51,7 +55,7 @@ namespace DoAn_NT106.Client.BattleSystems
                 Image = FlipPortraitHorizontally(GetPortraitImage(player1.CharacterType))
             };
 
-            // ? Portrait2 (Player 2 - b�n ph?i)
+            // ✅ Portrait2 (Player 2 - bên phải)
             Portrait2 = new PictureBox
             {
                 Location = new Point(screenWidth - portraitSize - 20, startY + 3 * (barHeight + spacing) + 5),
@@ -67,7 +71,7 @@ namespace DoAn_NT106.Client.BattleSystems
             {
                 Location = new Point(20, startY),
                 Size = new Size(barWidth, barHeight),
-                Maximum = 100,
+                Maximum = maxHP1,  // ✅ SỬA: Sử dụng max HP từ character type
                 Value = player1.Health,
                 CustomForeColor = Color.FromArgb(220, 50, 50),
                 BackColor = Color.FromArgb(50, 50, 50),
@@ -101,7 +105,7 @@ namespace DoAn_NT106.Client.BattleSystems
             {
                 Location = new Point(screenWidth - barWidth - 20, startY),
                 Size = new Size(barWidth, barHeight),
-                Maximum = 100,
+                Maximum = maxHP2,  // ✅ SỬA: Sử dụng max HP từ character type
                 Value = player2.Health,
                 CustomForeColor = Color.FromArgb(220, 50, 50),
                 BackColor = Color.FromArgb(50, 50, 50),
@@ -131,18 +135,34 @@ namespace DoAn_NT106.Client.BattleSystems
             };
         }
 
+        // ✅ THÊM: Hàm lấy max HP theo character type
+        private int GetMaxHealth(string characterType)
+        {
+            return characterType?.ToLower() switch
+            {
+                "goatman" => 130,
+                "bringerofdeath" => 90,
+                "warrior" => 80,
+                "girlknight" => 100,
+                "knightgirl" => 100,
+                _ => 100  // Default
+            };
+        }
+
         /// <summary>
         /// Update all progress bars
         /// </summary>
         public void UpdateBars()
         {
-            HealthBar1.Value = Math.Max(0, Math.Min(100, player1.Health));
-            StaminaBar1.Value = Math.Max(0, Math.Min(100, player1.Stamina));
-            ManaBar1.Value = Math.Max(0, Math.Min(100, player1.Mana));
+            // ✅ SỬA: KHÔNG clamp value ở 100 nữa - để nó là giá trị thực tế
+            // Vì Maximum đã được set theo max HP của character
+            HealthBar1.Value = Math.Max(0, player1.Health);  // ✅ Không Math.Min(100, ...)
+            StaminaBar1.Value = Math.Max(0, Math.Min(100, player1.Stamina));  // Stamina vẫn max 100
+            ManaBar1.Value = Math.Max(0, Math.Min(100, player1.Mana));  // Mana vẫn max 100
             
-            HealthBar2.Value = Math.Max(0, Math.Min(100, player2.Health));
-            StaminaBar2.Value = Math.Max(0, Math.Min(100, player2.Stamina));
-            ManaBar2.Value = Math.Max(0, Math.Min(100, player2.Mana));
+            HealthBar2.Value = Math.Max(0, player2.Health);  // ✅ Không Math.Min(100, ...)
+            StaminaBar2.Value = Math.Max(0, Math.Min(100, player2.Stamina));  // Stamina vẫn max 100
+            ManaBar2.Value = Math.Max(0, Math.Min(100, player2.Mana));  // Mana vẫn max 100
         }
 
         /// <summary>
