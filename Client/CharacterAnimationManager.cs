@@ -76,7 +76,7 @@ namespace DoAn_NT106
             ["warrior"] = new Dictionary<string, int>
             {
                 ["punch"] = 6,     // ✅ Frame 6: 12fps, 12 frames → 6/12 * 1000ms = 500ms (first hit)
-                ["kick"] = 4,      // ✅ Frame 4: 10fps, 10 frames → 4/10 * 1000ms = 400ms
+                ["kick"] = 2,      // ✅ SỬA: Frame 4 → Frame 2 (sớm hơn 2 frame): 2/10 * 1000ms = 200ms
                 ["special"] = 3    // ✅ Frame 3: 7fps, 5 frames → 3/5 * 714ms = 428ms
             }
         };

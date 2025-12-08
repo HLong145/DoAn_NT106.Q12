@@ -24,6 +24,10 @@ namespace DoAn_NT106
         private int _roundStartCountdownMs = 0;
         private Label _lblRoundStart; // Large "ROUND X" label
 
+        // ✅ THÊM: Lưu mana giữa các hiệp
+        private int _player1ManaCarryover = 0;
+        private int _player2ManaCarryover = 0;
+
         /// <summary>Gets formatted round info text with round number, timer, and scores</summary>
         private string GetRoundCenterText()
         {
@@ -278,6 +282,10 @@ namespace DoAn_NT106
             _roundInProgress = false;
             _roundTimer?.Stop();
 
+            // ✅ THÊM: Lưu mana hiện tại trước khi qua hiệp
+            _player1ManaCarryover = player1State.Mana;
+            _player2ManaCarryover = player2State.Mana;
+
             // Determine winner by HP
             if (player1State.Health < player2State.Health)
                 _player2Wins++;
@@ -302,6 +310,10 @@ namespace DoAn_NT106
         {
             _roundInProgress = false;
             _roundTimer?.Stop();
+
+            // ✅ THÊM: Lưu mana hiện tại trước khi qua hiệp
+            _player1ManaCarryover = player1State.Mana;
+            _player2ManaCarryover = player2State.Mana;
 
             // Award win to survivor
             if (player1State.IsDead && !player2State.IsDead)
@@ -332,11 +344,13 @@ namespace DoAn_NT106
             // Reset resources to full
             player1State.Health = 100;
             player1State.Stamina = 100;
-            player1State.Mana = 100;
+            // ✅ SỬA: Sử dụng mana từ hiệp trước (carryover)
+            player1State.Mana = _player1ManaCarryover;
 
             player2State.Health = 100;
             player2State.Stamina = 100;
-            player2State.Mana = 100;
+            // ✅ SỬA: Sử dụng mana từ hiệp trước (carryover)
+            player2State.Mana = _player2ManaCarryover;
 
             resourceSystem?.UpdateBars();
 
@@ -357,9 +371,13 @@ namespace DoAn_NT106
             player1State.ResetToIdle();
             player2State.ResetToIdle();
 
-            // Reset positions
-            player1State.X = 300;
-            player2State.X = 600;
+            // Reset positions - ✅ SỬA: X = 150 và 900, force reset Y position
+            player1State.X = 150;
+            player1State.Y = groundLevel - PLAYER_HEIGHT;
+            
+            player2State.X = 900;
+            player2State.Y = groundLevel - PLAYER_HEIGHT;
+            
             physicsSystem?.ResetToGround(player1State);
             physicsSystem?.ResetToGround(player2State);
 

@@ -621,16 +621,16 @@ namespace DoAn_NT106
                 // 1. Initialize PlayerState instances - SỬA Y position
                 player1State = new PlayerState(username, player1CharacterType, 1)
                 {
-                    X = 300,
-                    Y = groundLevel - PLAYER_HEIGHT, // ✅ DÙNG groundLevel đã tính
+                    X = 150, // ✅ SỬA: từ 300 → 150
+                    Y = groundLevel - PLAYER_HEIGHT,
                     Facing = "right",
                     CurrentAnimation = "stand"
                 };
 
                 player2State = new PlayerState(opponent, player2CharacterType, 2)
                 {
-                    X = 600,
-                    Y = groundLevel - PLAYER_HEIGHT, // ✅ DÙNG groundLevel đã tính
+                    X = 700, // ✅ SỬA: từ 600 → 900
+                    Y = groundLevel - PLAYER_HEIGHT,
                     Facing = "left",
                     CurrentAnimation = "stand"
                 };
@@ -1608,7 +1608,10 @@ namespace DoAn_NT106
             activeHitEffects.Clear();
 
             // ===== ✅ MIGRATED: Cleanup new systems =====
-            // try { combatSystem?.Cleanup(); } catch { }
+            // ✅ THÊM: Cleanup PlayerState timers
+            try { player1State?.Cleanup(); } catch { }
+            try { player2State?.Cleanup(); } catch { }
+            try { combatSystem?.Cleanup(); } catch { }
             try { effectManager?.Cleanup(); } catch { }
             try { projectileManager?.Cleanup(); } catch { }
             // =========================================
@@ -1899,7 +1902,7 @@ namespace DoAn_NT106
                         }
                     };
                     timer.Start();
-                    return;
+ return;
                 }
 
                 Image originalBg = null;

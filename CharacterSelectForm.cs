@@ -77,12 +77,13 @@ namespace DoAn_NT106
                 Name = "girlknight",
                 DisplayName = "Girl Knight",
                 HP = 100,
-                Damage = 105,
-                Speed = 95,
+                Damage = 100,
+                Speed = 100,
                 Stamina = 100,
                 Mana = 100,
-                SkillDescription = "⚡ Energy Shield - Continuous AoE damage (30 mana/s)\n" +
-                                   "Deals 5 damage at 0.5s and 1.0s intervals",
+                SkillDescription = "⚡Sword Spinning - Continuous AoE damage\n" +
+                                   "Cost: 25 mana/s | Damage: 10 per hit (2x per second)\n" +
+                                   "Stamina cost: 15/s",
                 PreviewImage = SafeLoadImage(Properties.Resources.Knightgirl_Idle)
             });
 
@@ -91,13 +92,14 @@ namespace DoAn_NT106
             {
                 Name = "bringerofdeath",
                 DisplayName = "Bringer of Death",
-                HP = 110,
-                Damage = 115,
-                Speed = 85,
-                Stamina = 90,
-                Mana = 110,
-                SkillDescription = "💀 Dark Spell - Summons spell at enemy position (30 mana)\n" +
-                                   "Deals 25 damage after 0.2s delay if target doesn't dodge",
+                HP = 90,
+                Damage = 120,
+                Speed = 90,
+                Stamina = 100,
+                Mana = 100,
+                SkillDescription = "💀 Dark Spell - Summons spell at enemy position\n" +
+                                   "Cost: 35 mana | Damage: 25\n" +
+                                   "Punch: 20 dmg (20 sta) | Kick: 10 dmg (30 sta, stun 0.5s)",
                 PreviewImage = SafeLoadImage(Properties.Resources.BringerofDeath_Idle)
             });
 
@@ -106,14 +108,14 @@ namespace DoAn_NT106
             {
                 Name = "goatman",
                 DisplayName = "Goatman Berserker",
-                HP = 120,
-                Damage = 110,
-                Speed = 100,
-                Stamina = 110,
-                Mana = 80,
-                SkillDescription = "🐐 Wild Charge - Rush forward for 3s (30 mana)\n" +
-                                   "Accelerates to max speed at 1.5s, stuns on impact\n" +
-                                   "Attack2: Heavy knockback with impact effect (80px)",
+                HP = 130,
+                Damage = 100,
+                Speed = 80,
+                Stamina = 100,
+                Mana = 100,
+                SkillDescription = "🐐 Wild Charge - Rush forward for 3s\n" +
+                                   "Cost: 35 mana, 25 stamina | Damage: 25\n" +
+                                   "Punch: 10 dmg (15 sta) | Kick: 15 dmg (15 sta)",
                 PreviewImage = SafeLoadImage(Properties.Resources.GM_Idle)
             });
 
@@ -122,15 +124,15 @@ namespace DoAn_NT106
             {
                 Name = "warrior",
                 DisplayName = "Elite Warrior",
-                HP = 115,
-                Damage = 120,
-                Speed = 90,
-                Stamina = 95,
-                Mana = 90,
-                SkillDescription = "⚔️ Energy Wave - Launches projectile (30 mana)\n" +
-                                   "Deals 20 damage, travels for 3s\n" +
-                                   "Attack1: Double hit combo\n" +
-                                   "Attack2: Slide 40px before striking",
+                HP = 80,
+                Damage = 105,
+                Speed = 120,
+                Stamina = 100,
+                Mana = 100,
+                SkillDescription = "⚔️ Energy Wave - Launches projectile\n" +
+                                   "Cost: 30 mana, 15 stamina | Damage: 18\n" +
+                                   "Attack1: Double hit (14 dmg total, 15 sta)\n" +
+                                   "Attack2: Kick 10 dmg (20 sta)",
                 PreviewImage = SafeLoadImage(Properties.Resources.Warrior_Idle)
             });
         }
@@ -545,4 +547,4 @@ namespace DoAn_NT106
         }
     }
 
-}
+} 

@@ -75,6 +75,12 @@ namespace DoAn_NT106.Client.BattleSystems
         /// </summary>
         public void Jump(PlayerState player)
         {
+            // ✅ Chặn nhảy khi skill đang active
+            if (player.IsSkillActive)
+            {
+                return;
+            }
+
             if (!player.IsJumping && player.Y >= groundLevel - playerHeight && player.CanMove)
             {
                 player.IsJumping = true;
@@ -116,7 +122,23 @@ namespace DoAn_NT106.Client.BattleSystems
         {
             if (!player.CanMove) return;
 
-            player.X += playerSpeed * direction;
+            // ✅ THÊM: Character-specific movement speeds
+            int moveSpeed = playerSpeed;
+            if (player.CharacterType == "bringerofdeath")
+            {
+                moveSpeed = (int)(playerSpeed * 0.9f); // 0.9x speed
+            }
+            else
+            if (player.CharacterType == "goatman")
+            {
+                moveSpeed = (int)(playerSpeed * 0.8f); // 0.8x speed
+            }
+            else if (player.CharacterType == "warrior")
+            {
+                moveSpeed = (int)(playerSpeed * 1.2f); // ✅ SỬA: Warrior 1.2x speed
+            }
+
+            player.X += moveSpeed * direction;
             var boundary = GetBoundaryFromHurtbox(player);
             player.X = Math.Max(boundary.minX, Math.Min(boundary.maxX, player.X));
 
