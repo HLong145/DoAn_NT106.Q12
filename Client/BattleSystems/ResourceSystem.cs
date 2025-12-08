@@ -18,6 +18,10 @@ namespace DoAn_NT106.Client.BattleSystems
         public GameProgressBar StaminaBar2 { get; private set; }
         public GameProgressBar ManaBar2 { get; private set; }
 
+        // ? Portrait PictureBoxes
+        public PictureBox Portrait1 { get; private set; }
+        public PictureBox Portrait2 { get; private set; }
+
         public ResourceSystem(PlayerState p1, PlayerState p2)
         {
             player1 = p1;
@@ -33,6 +37,30 @@ namespace DoAn_NT106.Client.BattleSystems
             int barHeight = 20;
             int spacing = 5;
             int startY = 10;
+            
+            // ? Setup portraits (next to bars)
+            int portraitSize = 80;
+            // ? Portrait1 (Player 1 - bên trái)
+            Portrait1 = new PictureBox
+            {
+                Location = new Point(20, startY + 3 * (barHeight + spacing) + 5),
+                Size = new Size(portraitSize, portraitSize),
+                SizeMode = PictureBoxSizeMode.StretchImage,
+                BackColor = Color.FromArgb(50, 50, 50),
+                BorderStyle = BorderStyle.Fixed3D,
+                Image = FlipPortraitHorizontally(GetPortraitImage(player1.CharacterType))
+            };
+
+            // ? Portrait2 (Player 2 - bên ph?i)
+            Portrait2 = new PictureBox
+            {
+                Location = new Point(screenWidth - portraitSize - 20, startY + 3 * (barHeight + spacing) + 5),
+                Size = new Size(portraitSize, portraitSize),
+                SizeMode = PictureBoxSizeMode.StretchImage,
+                BackColor = Color.FromArgb(50, 50, 50),
+                BorderStyle = BorderStyle.Fixed3D,
+                Image = GetPortraitImage(player2.CharacterType)
+            };
 
             // Player 1 bars
             HealthBar1 = new GameProgressBar
@@ -104,11 +132,10 @@ namespace DoAn_NT106.Client.BattleSystems
         }
 
         /// <summary>
-        /// Update all progress bars - ? ?Ã S?A: Thêm debug log
+        /// Update all progress bars
         /// </summary>
         public void UpdateBars()
         {
-            // ? C?P NH?T VÀ INVALIDATE
             HealthBar1.Value = Math.Max(0, Math.Min(100, player1.Health));
             StaminaBar1.Value = Math.Max(0, Math.Min(100, player1.Stamina));
             ManaBar1.Value = Math.Max(0, Math.Min(100, player1.Mana));
@@ -116,10 +143,6 @@ namespace DoAn_NT106.Client.BattleSystems
             HealthBar2.Value = Math.Max(0, Math.Min(100, player2.Health));
             StaminaBar2.Value = Math.Max(0, Math.Min(100, player2.Stamina));
             ManaBar2.Value = Math.Max(0, Math.Min(100, player2.Mana));
-
-            // ? DEBUG LOG - xóa sau khi test xong
-            // System.Console.WriteLine($"[UpdateBars] P1: HP={player1.Health}, Sta={player1.Stamina}, Mana={player1.Mana}");
-            // System.Console.WriteLine($"[UpdateBars] P2: HP={player2.Health}, Sta={player2.Stamina}, Mana={player2.Mana}");
         }
 
         /// <summary>
@@ -148,6 +171,84 @@ namespace DoAn_NT106.Client.BattleSystems
             StaminaBar2.Size = new Size(barWidth, 20);
             ManaBar2.Location = new Point(screenWidth - barWidth - 20, 60);
             ManaBar2.Size = new Size(barWidth, 20);
+            
+            // ? Resize portraits
+            int portraitSize = 80;
+            Portrait1.Location = new Point(20, 10 + 3 * (20 + 5) + 5);
+            Portrait1.Size = new Size(portraitSize, portraitSize);
+            
+            Portrait2.Location = new Point(screenWidth - portraitSize - 20, 10 + 3 * (20 + 5) + 5);
+            Portrait2.Size = new Size(portraitSize, portraitSize);
+        }
+
+        /// <summary>
+        /// Get portrait image based on character type
+        /// </summary>
+        private Image GetPortraitImage(string characterType)
+        {
+            try
+            {
+                return characterType?.ToLower() switch
+                {
+                    "warrior" => Properties.Resources.portrait_warrior,
+                    "knightgirl" => TryLoadPortrait(Properties.Resources.portrait_knightgirl),
+                    "girlknight" => TryLoadPortrait(Properties.Resources.portrait_knightgirl),
+                    "bringerofdeath" => Properties.Resources.portrait_Bringer,
+                    "goatman" => Properties.Resources.portrait_goatman,
+                    _ => null
+                };
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Safely load portrait resource
+        /// </summary>
+        private Image TryLoadPortrait(object resource)
+        {
+            try
+            {
+                if (resource is Image img)
+                {
+                    return new Bitmap(img);
+                }
+                if (resource is byte[] bytes && bytes.Length > 0)
+                {
+                    using (var ms = new System.IO.MemoryStream(bytes))
+                    {
+                        var image = Image.FromStream(ms);
+                        return new Bitmap(image);
+                    }
+                }
+                return resource as Image;
+            }
+            catch (Exception ex)
+            {
+                System.Console.WriteLine($"? Error loading portrait: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Flip portrait image horizontally for player 1
+        /// </summary>
+        private Image FlipPortraitHorizontally(Image original)
+        {
+            if (original == null) return null;
+            
+            try
+            {
+                Bitmap flipped = new Bitmap(original);
+                flipped.RotateFlip(RotateFlipType.RotateNoneFlipX);
+                return flipped;
+            }
+            catch
+            {
+                return original;
+            }
         }
     }
 }

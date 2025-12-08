@@ -849,6 +849,10 @@ namespace DoAn_NT106
                 if (!this.Controls.Contains(resourceSystem.HealthBar2)) this.Controls.Add(resourceSystem.HealthBar2);
                 if (!this.Controls.Contains(resourceSystem.StaminaBar2)) this.Controls.Add(resourceSystem.StaminaBar2);
                 if (!this.Controls.Contains(resourceSystem.ManaBar2)) this.Controls.Add(resourceSystem.ManaBar2);
+                
+                // ✅ Add portraits
+                if (!this.Controls.Contains(resourceSystem.Portrait1)) this.Controls.Add(resourceSystem.Portrait1);
+                if (!this.Controls.Contains(resourceSystem.Portrait2)) this.Controls.Add(resourceSystem.Portrait2);
             }
 
             // Add player name labels (keep existing style)
@@ -863,10 +867,10 @@ namespace DoAn_NT106
                 lblPlayer1Name = new Label
                 {
                     Text = username,
-                    Location = new Point(20, startY + 3 * (barHeight + spacing)),
-                    Size = new Size(barWidth, 20),
+                    Location = new Point(20, startY + 3 * (barHeight + spacing) + 90),  // ✅ Dịch xuống dưới portrait (nhỏ)
+                    Size = new Size(barWidth, 25),  // ✅ Tăng chiều cao từ 20 → 25
                     ForeColor = Color.Cyan,
-                    Font = new Font("Arial", 10, FontStyle.Bold),
+                    Font = new Font("Arial", 12, FontStyle.Bold),  // ✅ Tăng size từ 10 → 12
                     BackColor = Color.Transparent
                 };
                 this.Controls.Add(lblPlayer1Name);
@@ -877,10 +881,10 @@ namespace DoAn_NT106
                 lblPlayer2Name = new Label
                 {
                     Text = opponent,
-                    Location = new Point(screenWidth - barWidth - 20, startY + 3 * (barHeight + spacing)),
-                    Size = new Size(barWidth, 20),
+                    Location = new Point(screenWidth - barWidth - 20, startY + 3 * (barHeight + spacing) + 90),  // ✅ Dịch xuống dưới portrait (nhỏ)
+                    Size = new Size(barWidth, 25),  // ✅ Tăng chiều cao từ 20 → 25
                     ForeColor = Color.Orange,
-                    Font = new Font("Arial", 10, FontStyle.Bold),
+                    Font = new Font("Arial", 12, FontStyle.Bold),  // ✅ Tăng size từ 10 → 12
                     TextAlign = ContentAlignment.TopRight,
                     BackColor = Color.Transparent
                 };
@@ -1395,14 +1399,16 @@ namespace DoAn_NT106
 
                 // Update player name labels
                 int barWidth = screenWidth / 4;
+                int nameY = 10 + 3 * (20 + 5) + 90;  // ✅ Cùng vị trí với lblPlayer1Name (dưới portrait)
                 if (lblPlayer1Name != null)
                 {
-                    lblPlayer1Name.Size = new Size(barWidth, 20);
+                    lblPlayer1Name.Location = new Point(20, nameY);
+                    lblPlayer1Name.Size = new Size(barWidth, 25);
                 }
                 if (lblPlayer2Name != null)
                 {
-                    lblPlayer2Name.Location = new Point(screenWidth - barWidth - 20, 85);
-                    lblPlayer2Name.Size = new Size(barWidth, 20);
+                    lblPlayer2Name.Location = new Point(screenWidth - barWidth - 20, nameY);  // ✅ Cùng Y như Player 1
+                    lblPlayer2Name.Size = new Size(barWidth, 25);
                 }
 
                 // ===== ✅ MIGRATED: Update ground level in PhysicsSystem =====
