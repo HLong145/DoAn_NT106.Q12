@@ -44,7 +44,7 @@ namespace DoAn_NT106
             ["warrior"] = new Dictionary<string, int>
             {
                 ["punch"] = 1000,   // ✅ 12 frames ÷ 12 fps = 1000ms
-                ["kick"] = 1000,    // ✅ 10 frames ÷ 10 fps = 1000ms
+                ["kick"] = 800,    // ✅ 10 frames ÷ 10 fps = 1000ms
                 ["special"] = 714,  // ✅ 5 frames ÷ 7 fps = 714ms
                 ["slide"] = 200     // dash: 0.2s
             }
