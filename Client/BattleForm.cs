@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
 using DoAn_NT106.Client.BattleSystems; // ✅ THÊM NAMESPACE MỚI
+using DoAn_NT106.Client; // ✅ THÊM CHO SOUNDMANAGER
 
 namespace DoAn_NT106
 {
@@ -545,6 +546,9 @@ namespace DoAn_NT106
             player2Y = 0;
             this.Load += BattleForm_Load;
 
+            // ✅ Initialize Sound Manager
+            SoundManager.Initialize();
+
             // ✅ Initialize once here
             SetupGame();
             SetupEventHandlers();
@@ -585,6 +589,10 @@ namespace DoAn_NT106
                 physicsSystem.ResetToGround(player1State);
                 physicsSystem.ResetToGround(player2State);
             }
+
+            // ✅ Play battle music when form loads
+            SoundManager.PlayMusic(BackgroundMusic.BattleMusic, loop: true);
+            Console.WriteLine("🎵 Battle music started");
 
             // ❌ Avoid re-running full setup; only force redraw
             this.Invalidate();
@@ -1604,6 +1612,9 @@ namespace DoAn_NT106
             try { effectManager?.Cleanup(); } catch { }
             try { projectileManager?.Cleanup(); } catch { }
             // =========================================
+
+            // ✅ Ensure theme music resumes on returning to main menu
+            try { SoundManager.PlayMusic(DoAn_NT106.Client.BackgroundMusic.ThemeMusic, loop: true); } catch { }
 
             // Dispose animation managers
             player1AnimationManager?.Dispose();

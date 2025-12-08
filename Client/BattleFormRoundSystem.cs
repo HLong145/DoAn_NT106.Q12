@@ -188,6 +188,30 @@ namespace DoAn_NT106
             
             _roundStartCountdownMs = 1000; // 1 seconds
             _lblRoundStart.Text = $"ROUND {_roundNumber}";
+            // ✅ Play round announcement sound (Stop only sound effects, NOT music)
+            try
+            {
+                // ✅ IMPORTANT: Stop only sound effects, NOT background music!
+                // This allows round announcement to play over the current music
+                Console.WriteLine($"[RoundSystem] About to play Round {_roundNumber} sound");
+                
+                // Play generic sound for round announcement or use ButtonClick as fallback
+                try
+                {
+                    if (_roundNumber == 1) DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.Round1);
+                    else if (_roundNumber == 2) DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.Round2);
+                    else if (_roundNumber == 3) DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.Round3);
+                    
+                    Console.WriteLine($"[RoundSystem] ✅ Round {_roundNumber} sound initiated successfully");
+                }
+                catch (Exception roundSoundEx)
+                {
+                    // ✅ Fallback: Use ButtonClick sound if Round-specific sounds don't exist
+                    Console.WriteLine($"[RoundSystem] Round sound failed, trying fallback ButtonClick: {roundSoundEx.Message}");
+                    try { DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.ButtonClick); } catch { }
+                }
+            }
+            catch (Exception ex) { Console.WriteLine($"[RoundSystem] Error playing round sound: {ex.Message}"); }
             
             // ✅ Đo kích thước thực tế của label
             using (var g = _lblRoundStart.CreateGraphics())
@@ -368,6 +392,8 @@ namespace DoAn_NT106
             );
 
             BtnBack_Click(null, EventArgs.Empty);
+            // ✅ Resume theme music when returning to MainForm
+            try { DoAn_NT106.SoundManager.PlayMusic(DoAn_NT106.Client.BackgroundMusic.ThemeMusic, loop: true); } catch { }
         }
     }
 }

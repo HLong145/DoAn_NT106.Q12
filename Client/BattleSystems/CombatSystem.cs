@@ -160,6 +160,13 @@ namespace DoAn_NT106.Client.BattleSystems
             player.IsParrying = true;
             player.CurrentAnimation = "parry";
             animMgr.ResetAnimationToFirstFrame("parry");
+            // ✅ Play warrior parry sound
+            try
+            {
+                if (player.CharacterType == "warrior")
+                    DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.ParryWarrior);
+            }
+            catch { }
             parryTimer.Stop();
             parryTimer.Start();
             showHitEffectCallback?.Invoke("Parry!", Color.Cyan);
@@ -187,6 +194,9 @@ namespace DoAn_NT106.Client.BattleSystems
             }
 
             Console.WriteLine($"✅ Player{playerNum} consumed {staminaCost} stamina, remaining: {attacker.Stamina}");
+
+            // ✅ Play attack sound
+            CombatSoundExtensions.PlayAttackSound(attacker.CharacterType, attackType);
 
             attacker.IsAttacking = true;
             attacker.IsWalking = false;
@@ -219,6 +229,12 @@ namespace DoAn_NT106.Client.BattleSystems
 
             if (charType == "warrior")
             {
+                // ✅ Play warrior punch sound twice at the start (regardless of hit)
+                // First sound immediately
+                try { DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.PunchWarrior); } catch { }
+                // Second sound with 500ms delay (0.5 seconds) to match animation spacing
+                try { DoAn_NT106.SoundManager.PlaySoundWithDelay(DoAn_NT106.Client.SoundEffect.PunchWarrior, 500); } catch { }
+
                 int hitFrame6 = GetFrameTiming("warrior", "punch", 6);
                 int hitFrame10 = GetFrameTiming("warrior", "punch", 10);
 
@@ -321,6 +337,8 @@ namespace DoAn_NT106.Client.BattleSystems
                         Console.WriteLine($"[ExecutePunch] 💥 GirlKnight DAMAGE 10");
                         ApplyDamage(playerNum == 1 ? 2 : 1, 10);
                         showHitEffectCallback?.Invoke("Punch!", Color.Pink);
+                        // KG punch: only play later sound (no early sound elsewhere)
+                        try { DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.PunchKG); } catch { }
                     }
                 };
                 hitTimer.Start();
@@ -346,6 +364,20 @@ namespace DoAn_NT106.Client.BattleSystems
                         Console.WriteLine($"[ExecutePunch] 💥 Bringer DAMAGE 10");
                         ApplyDamage(playerNum == 1 ? 2 : 1, 10);
                         showHitEffectCallback?.Invoke("Punch!", Color.Purple);
+                        // ✅ Play punch sound immediately on hit
+                        try { DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.PunchBringer); } catch { }
+                        // ✅ Delay punch sound 1s để có effect double
+                        try
+                        {
+                            var sndTimer = new Timer { Interval = 1000 };
+                            sndTimer.Tick += (ss, ee) =>
+                            {
+                                try { sndTimer.Stop(); sndTimer.Dispose(); } catch { }
+                                try { DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.PunchBringer); } catch { }
+                            };
+                            sndTimer.Start();
+                        }
+                        catch { }
                     }
                 };
                 hitTimer.Start();
@@ -419,6 +451,14 @@ namespace DoAn_NT106.Client.BattleSystems
                     int knockbackDir = attacker.Facing == "right" ? 1 : -1;
                     ApplyKnockback(defender, knockbackDir, knockbackDistance);
                     showHitEffectCallback?.Invoke("Heavy Impact!", Color.OrangeRed);
+                    // ✅ Delay kick sound 500ms to match requested timing
+                    var sndTimer = new Timer { Interval = 500 };
+                    sndTimer.Tick += (s2, e2) =>
+                    {
+                        try { sndTimer.Stop(); sndTimer.Dispose(); } catch { }
+                        try { DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.KickGM); } catch { }
+                    };
+                    sndTimer.Start();
                 }
             };
             hitTimer.Start();
@@ -478,6 +518,7 @@ namespace DoAn_NT106.Client.BattleSystems
             hitStartTime = Math.Max(0, hitStartTime - (int)(2 * msPerFrame));
 
             bool hasDealtDamage = false;
+            bool soundPlayed = false;
 
             var startCheckTimer = new Timer { Interval = hitStartTime };
             startCheckTimer.Tick += (s, e) =>
@@ -507,12 +548,27 @@ namespace DoAn_NT106.Client.BattleSystems
                             ApplyDamage(playerNum == 1 ? 2 : 1, 15);
                             showHitEffectCallback?.Invoke("Kick!", Color.Pink);
                             hasDealtDamage = true; // only once
+                            // KG: do not play early sound; only fallback late sound will play
                         }
                     }
                 };
                 continuousCheckTimer.Start();
             };
             startCheckTimer.Start();
+
+            // ✅ Fallback: if no hit, play sound near end of animation
+            int fallbackDelay = Math.Max(0, duration - hitStartTime - 10);
+            var fallbackTimer = new Timer { Interval = fallbackDelay };
+            fallbackTimer.Tick += (s3, e3) =>
+            {
+                try { fallbackTimer.Stop(); fallbackTimer.Dispose(); } catch { }
+                if (!soundPlayed && attacker.CurrentAnimation == "kick")
+                {
+                    try { DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.KickKG); } catch { }
+                    soundPlayed = true;
+                }
+            };
+            fallbackTimer.Start();
         }
         private void ExecuteWarriorKick(int playerNum, PlayerState attacker, PlayerState defender, CharacterAnimationManager animMgr)
         {
@@ -564,6 +620,7 @@ namespace DoAn_NT106.Client.BattleSystems
                 {
                     ApplyDamage(playerNum == 1 ? 2 : 1, 15);
                     showHitEffectCallback?.Invoke("Warrior Kick!", Color.Gold);
+                    // ✅ Warrior kick: Chỉ phát ButtonClick ở startup (từ PlayAttackSound)
                 }
             };
             hitTimer.Start();
@@ -581,26 +638,7 @@ namespace DoAn_NT106.Client.BattleSystems
 
             string charType = attacker.CharacterType;
 
-            if (charType == "bringerofdeath")
-            {
-                var castTimer = new Timer { Interval = 300 };
-                castTimer.Tick += (s, e) =>
-                {
-                    castTimer.Stop();
-                    castTimer.Dispose();
-
-                    int targetPlayer = playerNum == 1 ? 2 : 1;
-                    projectileManager.SpawnSpell(
-                        targetPlayer,
-                        playerNum,
-                        (pn) => getPlayerHurtboxCallback(pn == 1 ? player1 : player2),
-                        ApplyDamage,
-                        showHitEffectCallback
-                    );
-                };
-                castTimer.Start();
-            }
-            else if (charType == "warrior")
+            if (charType == "warrior")
             {
                 int castDelay = GetFrameTiming("warrior", "special", 3);
                 var castTimer = new Timer { Interval = castDelay };
@@ -613,6 +651,28 @@ namespace DoAn_NT106.Client.BattleSystems
                     int startX = direction > 0 ? (hurtbox.X + hurtbox.Width) : (hurtbox.X - 160);
                     int startY = hurtbox.Y + (hurtbox.Height / 2) - (160 / 2);
                     projectileManager.SpawnWarriorProjectile(startX, startY, direction, playerNum);
+                    // Warrior skill: play skill_warrior sound
+                    try { DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.SkillWarrior); } catch { }
+                };
+                castTimer.Start();
+            }
+            else if (charType == "bringerofdeath")
+            {
+                // ✅ Bringer skill: play skill_bringer sound at cast moment
+                var castTimer = new Timer { Interval = 300 };
+                castTimer.Tick += (s, e) =>
+                {
+                    castTimer.Stop();
+                    castTimer.Dispose();
+                    try { DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.SkillBringer); } catch { }
+                    int targetPlayer = playerNum == 1 ? 2 : 1;
+                    projectileManager.SpawnSpell(
+                        targetPlayer,
+                        playerNum,
+                        (pn) => getPlayerHurtboxCallback(pn == 1 ? player1 : player2),
+                        ApplyDamage,
+                        showHitEffectCallback
+                    );
                 };
                 castTimer.Start();
             }
@@ -634,7 +694,7 @@ namespace DoAn_NT106.Client.BattleSystems
 
             if (player.IsAttacking || player.IsDashing || !player.CanDash)
             {
-                Console.WriteLine($"?? Player{playerNum} không th? dash!");
+                Console.WriteLine($"❌ Player{playerNum} không thể dash!");
                 return;
             }
 
@@ -643,6 +703,9 @@ namespace DoAn_NT106.Client.BattleSystems
                 showHitEffectCallback?.Invoke("No Stamina!", Color.Gray);
                 return;
             }
+
+            // ✅ Play dash sound
+            CombatSoundExtensions.PlayAttackSound(player.CharacterType, "dash");
 
             string oldAnim = player.CurrentAnimation;
             if (!string.IsNullOrEmpty(oldAnim))
@@ -809,6 +872,8 @@ namespace DoAn_NT106.Client.BattleSystems
                         showHitEffectCallback?.Invoke("Energy!", Color.Cyan);
                         damageCounter++;
                         lastDamageTime = 0;
+                        // ✅ Play punch sound on skill hit (KG uses punch sound)
+                        try { DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.PunchKG); } catch { }
 
                         Console.WriteLine($"[SKILL] ✅ Damage #{damageCounter} dealt!");
                     }
@@ -889,6 +954,8 @@ namespace DoAn_NT106.Client.BattleSystems
                     effectManager.ShowImpactEffect(playerNum, impactX, impactY, player.Facing, invalidateCallback);
                     ApplyDamage(playerNum == 1 ? 2 : 1, 25, false);
                     showHitEffectCallback?.Invoke("Charged!", Color.Gold);
+                    // ✅ Goatman charge uses kick sound on hit
+                    try { DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.KickGM); } catch { }
 
                     player.IsCharging = false;
                     player.ChargeSpeed = 0;

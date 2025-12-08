@@ -331,4 +331,58 @@
   <data name="Knightgirl" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\Knightgirl.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
+  <data name="button" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\button.mp3;System.IO.MemoryStream, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="dash_Bringer" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\dash_Bringer.mp3;System.IO.MemoryStream, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="dash_gm" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\dash_gm.mp3;System.IO.MemoryStream, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="dash_KG" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\dash_KG.mp3;System.IO.MemoryStream, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="dash_warrior" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\dash_warrior.mp3;System.IO.MemoryStream, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="goatman_kick" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\goatman_kick.mp3;System.IO.MemoryStream, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="goatman_punch" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\goatman_punch.mp3;System.IO.MemoryStream, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="kick_Bringer" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\kick_Bringer.mp3;System.IO.MemoryStream, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="kick_kg_warrior" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\kick_kg_warrior.mp3;System.IO.MemoryStream, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="music_battle" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\music_battle.mp3;System.IO.MemoryStream, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="music_theme" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\music_theme.mp3;System.IO.MemoryStream, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="punch_KG_warrior_Bringer" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\punch_KG_warrior_Bringer.mp3;System.IO.MemoryStream, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="round_1" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\round-1.mp3;System.IO.MemoryStream, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="round_2" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\round-2.mp3;System.IO.MemoryStream, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="round_3" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\round-3.mp3;System.IO.MemoryStream, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="parry_warrior" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\parry_warrior.mp3;System.IO.MemoryStream, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="skill_warrior" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\skill_warrior.mp3;System.IO.MemoryStream, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="skill_Bringer" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\skill_Bringer.mp3;System.IO.MemoryStream, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
 </root>
