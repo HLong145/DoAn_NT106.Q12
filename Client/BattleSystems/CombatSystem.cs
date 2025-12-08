@@ -186,15 +186,44 @@ namespace DoAn_NT106.Client.BattleSystems
                 return;
             }
 
-            int staminaCost = attackType == "kick" ? 15 : (attackType == "special" ? 30 : 10);
-            if (!attacker.ConsumeStamina(staminaCost))
+            // ✅ SỬA: Special attack không tiêu tốn stamina ở đây, sẽ quản lý riêng trong ExecuteSpecialAttack
+            int staminaCost = 0;
+            if (attackType != "special")
             {
-                showHitEffectCallback?.Invoke("No Stamina!", Color.Gray);
-                Console.WriteLine($"❌ Player{playerNum} không đủ stamina! Need {staminaCost}, have {attacker.Stamina}");
-                return;
-            }
+                staminaCost = attackType == "kick" ? 15 : (attackType == "punch" ? 15 : 0);
+                
+                // ✅ SỬA: Warrior punch tốn 15 stamina, kick tốn 20 stamina
+                if (attacker.CharacterType == "warrior" && attackType == "punch")
+                {
+                    staminaCost = 15;
+                }
+                
+                if (attacker.CharacterType == "warrior" && attackType == "kick")
+                {
+                    staminaCost = 20;
+                }
+                
+                // ✅ SỬA: Bringer of Death punch tốn 20 stamina
+                if (attacker.CharacterType == "bringerofdeath" && attackType == "punch")
+                {
+                    staminaCost = 20;
+                }
+                
+                // ✅ SỬA: Bringer of Death kick tốn 30 stamina
+                if (attacker.CharacterType == "bringerofdeath" && attackType == "kick")
+                {
+                    staminaCost = 30;
+                }
+                
+                if (!attacker.ConsumeStamina(staminaCost))
+                {
+                    showHitEffectCallback?.Invoke("No Stamina!", Color.Gray);
+                    Console.WriteLine($"❌ Player{playerNum} không đủ stamina! Need {staminaCost}, have {attacker.Stamina}");
+                    return;
+                }
 
-            Console.WriteLine($"✅ Player{playerNum} consumed {staminaCost} stamina, remaining: {attacker.Stamina}");
+                Console.WriteLine($"✅ Player{playerNum} consumed {staminaCost} stamina, remaining: {attacker.Stamina}");
+            }
 
             attacker.IsAttacking = true;
             attacker.IsWalking = false;
@@ -252,8 +281,8 @@ namespace DoAn_NT106.Client.BattleSystems
 
                     if (hit)
                     {
-                        Console.WriteLine($"[ExecutePunch] 💥 APPLYING DAMAGE 10 to Player {(playerNum == 1 ? 2 : 1)}");
-                        ApplyDamage(playerNum == 1 ? 2 : 1, 10);
+                        Console.WriteLine($"[ExecutePunch] 💥 APPLYING DAMAGE 7 to Player {(playerNum == 1 ? 2 : 1)}");
+                        ApplyDamage(playerNum == 1 ? 2 : 1, 7); // ✅ SỬA: 10 -> 7
                         attacker.RegenerateManaOnHitLand(); // ✅ THÊM: Hồi mana khi đánh trúng
                         showHitEffectCallback?.Invoke("Strike!", Color.Yellow);
                     }
@@ -276,8 +305,8 @@ namespace DoAn_NT106.Client.BattleSystems
                     bool hit = attackBox.IntersectsWith(hurtBox);
                     if (hit)
                     {
-                        Console.WriteLine($"[ExecutePunch] 💥 APPLYING DAMAGE 10 to Player {(playerNum == 1 ? 2 : 1)}");
-                        ApplyDamage(playerNum == 1 ? 2 : 1, 10);
+                        Console.WriteLine($"[ExecutePunch] 💥 APPLYING DAMAGE 7 to Player {(playerNum == 1 ? 2 : 1)}");
+                        ApplyDamage(playerNum == 1 ? 2 : 1, 7); // ✅ SỬA: 10 -> 7
                         attacker.RegenerateManaOnHitLand(); // ✅ THÊM: Hồi mana khi đánh trúng
                         showHitEffectCallback?.Invoke("Strike!", Color.Orange);
                     }
@@ -305,7 +334,7 @@ namespace DoAn_NT106.Client.BattleSystems
                     {
                         Console.WriteLine($"[ExecutePunch] 💥 Goatman DAMAGE 10");
                         ApplyDamage(playerNum == 1 ? 2 : 1, 10);
-                        attacker.RegenerateManaOnHitLand(); // ✅ THÊM: Hồi mana khi đánh trúng
+                        attacker.RegenerateManaOnHitLand(); // ✅ TH ÊM: Hồi mana khi đánh trúng
                         showHitEffectCallback?.Invoke("Punch!", Color.Orange);
                     }
                 };
@@ -331,7 +360,7 @@ namespace DoAn_NT106.Client.BattleSystems
                     {
                         Console.WriteLine($"[ExecutePunch] 💥 GirlKnight DAMAGE 10");
                         ApplyDamage(playerNum == 1 ? 2 : 1, 10);
-                        attacker.RegenerateManaOnHitLand(); // ✅ THÊM: Hồi mana khi đánh trúng
+                        attacker.RegenerateManaOnHitLand(); // ✅ TH ÊM: Hồi mana khi đánh trúng
                         showHitEffectCallback?.Invoke("Punch!", Color.Pink);
                     }
                 };
@@ -355,9 +384,9 @@ namespace DoAn_NT106.Client.BattleSystems
 
                     if (attackBox.IntersectsWith(hurtBox))
                     {
-                        Console.WriteLine($"[ExecutePunch] 💥 Bringer DAMAGE 10");
-                        ApplyDamage(playerNum == 1 ? 2 : 1, 10);
-                        attacker.RegenerateManaOnHitLand(); // ✅ THÊM: Hồi mana khi đánh trúng
+                        Console.WriteLine($"[ExecutePunch] 💥 Bringer DAMAGE 20"); // ✅ SỬA: 10 -> 20
+                        ApplyDamage(playerNum == 1 ? 2 : 1, 20); // ✅ SỬA: 10 -> 20
+                        attacker.RegenerateManaOnHitLand();
                         showHitEffectCallback?.Invoke("Punch!", Color.Purple);
                     }
                 };
@@ -392,8 +421,8 @@ namespace DoAn_NT106.Client.BattleSystems
 
                     if (attackBox.IntersectsWith(hurtBox))
                     {
-                        ApplyDamage(playerNum == 1 ? 2 : 1, 15);
-                        attacker.RegenerateManaOnHitLand(); // ✅ THÊM: Hồi mana khi đánh trúng
+                        ApplyDamage(playerNum == 1 ? 2 : 1, 10); // ✅ SỬA: 15 -> 10 damage
+                        attacker.RegenerateManaOnHitLand(); // ✅ TH ÊM: Hồi mana khi đánh trúng
                         showHitEffectCallback?.Invoke("Kick!", Color.Orange);
                     }
                 };
@@ -430,7 +459,7 @@ namespace DoAn_NT106.Client.BattleSystems
                 if (attackHitbox.IntersectsWith(targetHurtbox))
                 {
                     ApplyDamage(playerNum == 1 ? 2 : 1, 15, false);
-                    attacker.RegenerateManaOnHitLand(); // ✅ THÊM: Hồi mana khi đánh trúng
+                    attacker.RegenerateManaOnHitLand(); // ✅ TH ÊM: Hồi mana khi đánh trúng
                     int knockbackDir = attacker.Facing == "right" ? 1 : -1;
                     ApplyKnockback(defender, knockbackDir, knockbackDistance);
                     showHitEffectCallback?.Invoke("Heavy Impact!", Color.OrangeRed);
@@ -520,7 +549,7 @@ namespace DoAn_NT106.Client.BattleSystems
                         if (CheckAttackHit(attacker, defender, "kick") && !defender.IsParrying && !defender.IsDashing)
                         {
                             ApplyDamage(playerNum == 1 ? 2 : 1, 15);
-                            attacker.RegenerateManaOnHitLand(); // ✅ THÊM: Hồi mana khi đánh trúng
+                            attacker.RegenerateManaOnHitLand(); // ✅ TH ÊM: Hồi mana khi đánh trúng
                             showHitEffectCallback?.Invoke("Kick!", Color.Pink);
                             hasDealtDamage = true; // only once
                         }
@@ -536,10 +565,10 @@ namespace DoAn_NT106.Client.BattleSystems
             int slideStartFrame = 1;
             int slideEndFrame = 3;
             int slideFrameCount = slideEndFrame - slideStartFrame;
-            int hitFrame = 4;
+            // ✅ SỬA: Lấy hit frame từ animator thay vì cứng cáp
+            int hitTime = animMgr.GetHitFrameDelay("kick");
 
             int slideDuration = (int)(slideFrameCount * msPerFrame);
-            int hitTime = (int)(hitFrame * msPerFrame);
             int slideDistance = 400;
 
             // Slide (có thể ngắt nếu muốn), nhưng KHÔNG ảnh hưởng hit timer
@@ -578,7 +607,7 @@ namespace DoAn_NT106.Client.BattleSystems
 
                 if (CheckAttackHit(attacker, defender, "kick"))
                 {
-                    ApplyDamage(playerNum == 1 ? 2 : 1, 15);
+                    ApplyDamage(playerNum == 1 ? 2 : 1, 10); // ✅ SỬA: 15 -> 10
                     attacker.RegenerateManaOnHitLand(); // ✅ THÊM: Hồi mana khi đánh trúng
                     showHitEffectCallback?.Invoke("Warrior Kick!", Color.Gold);
                 }
@@ -587,16 +616,54 @@ namespace DoAn_NT106.Client.BattleSystems
         }
         private void ExecuteSpecialAttack(int playerNum, PlayerState attacker, PlayerState defender, CharacterAnimationManager animMgr)
         {
-            if (!attacker.ConsumeMana(30))
+            string charType = attacker.CharacterType;
+            
+            // ✅ SỬA: Check mana và stamina TRƯỚC khi tiêu tốn gì
+            int manaCost = 30;
+            int staminaCost = 0;
+            
+            // ✅ SỬA: Bringer of Death skill tốn 35 mana, KHÔNG tốn stamina
+            if (charType == "bringerofdeath")
             {
+                manaCost = 35;
+                staminaCost = 0;
+            }
+            else if (charType == "warrior")
+            {
+                staminaCost = 15;
+            }
+            
+            // ✅ Kiểm tra đủ tài nguyên TRƯỚC
+            if (attacker.Mana < manaCost)
+            {
+                showHitEffectCallback?.Invoke("Not enough mana!", Color.Gray);
+                attacker.IsAttacking = false;
+                return;
+            }
+            
+            if (staminaCost > 0 && attacker.Stamina < staminaCost)
+            {
+                showHitEffectCallback?.Invoke("Not enough stamina!", Color.Gray);
+                attacker.IsAttacking = false;
+                return;
+            }
+            
+            // ✅ CHỈ tiêu tốn khi đã kiểm tra xong
+            if (!attacker.ConsumeMana(manaCost))
+            {
+                attacker.IsAttacking = false;
+                return;
+            }
+            
+            if (staminaCost > 0 && !attacker.ConsumeStamina(staminaCost))
+            {
+                showHitEffectCallback?.Invoke("No Stamina!", Color.Gray);
                 attacker.IsAttacking = false;
                 return;
             }
 
             attacker.CurrentAnimation = "fireball";
             animMgr.ResetAnimationToFirstFrame("fireball");
-
-            string charType = attacker.CharacterType;
 
             if (charType == "bringerofdeath")
             {
@@ -696,7 +763,9 @@ namespace DoAn_NT106.Client.BattleSystems
             int slideDistance = DASH_DISTANCE;
             if (player.CharacterType == "warrior")
             {
-                slideDuration = 150;
+                // ✅ SỬA: Warrior speed 1.2x Knight Girl
+                // Knight Girl: 300ms, Warrior: 300 * (1/1.2) = 250ms
+                slideDuration = 250;
                 slideDistance = 400;
             }
 
@@ -759,14 +828,25 @@ namespace DoAn_NT106.Client.BattleSystems
                 ToggleKnightGirlSkill(playerNum, player);
             else if (player.CharacterType == "goatman")
                 ExecuteGoatmanCharge(playerNum, player,playerNum == 1 ? player1AnimManager : player2AnimManager);
-            else if (player.Mana >= 30)
-                ExecuteAttack(playerNum, "special");
+            else if (player.CharacterType == "warrior")
+            {
+                // ✅ SỬA: Warrior cần 30 mana + 15 stamina
+                if (player.Mana >= 30 && player.Stamina >= 15)
+                    ExecuteAttack(playerNum, "special");
+                else if (player.Mana < 30)
+                    showHitEffectCallback?.Invoke("Need 30 Mana!", Color.Gray);
+                else
+                    showHitEffectCallback?.Invoke("Need 15 Stamina!", Color.Gray);
+            }
+            else if (player.CharacterType == "bringerofdeath")
+            {
+                // ✅ SỬA: Bringer of Death cần 35 mana, KHÔNG tốn stamina
+                if (player.Mana >= 35)
+                    ExecuteAttack(playerNum, "special");
+                else
+                    showHitEffectCallback?.Invoke("Need 35 Mana!", Color.Gray);
+            }
         }
-        // In CombatSystem.cs - ToggleKnightGirlSkill() (dòng ~710-820)
-
-        // In CombatSystem.cs - ToggleKnightGirlSkill()
-
-        // In CombatSystem.cs - ToggleKnightGirlSkill()
 
         private void ToggleKnightGirlSkill(int playerNum, PlayerState player)
         {
@@ -775,7 +855,7 @@ namespace DoAn_NT106.Client.BattleSystems
 
             if (!player.IsSkillActive)
             {
-                if (!player.ConsumeMana(30))
+                if (!player.ConsumeMana(25)) // ✅ SỬA: 30 -> 25 mana để bắt đầu skill
                 {
                     showHitEffectCallback?.Invoke("Not enough mana!", Color.Gray);
                     return;
@@ -787,15 +867,17 @@ namespace DoAn_NT106.Client.BattleSystems
 
                 int elapsedMs = 0;
                 int lastDamageTime = 0;
+                int manaCheckTime = 0; // ✅ TH ÊM: Track mana check separately
                 int damageCounter = 0;
 
                 Console.WriteLine($"[SKILL START] Player {playerNum} ({player.CharacterType}) activated skill!");
 
-                var continuousCheckTimer = new Timer { Interval = 100 };
+                var continuousCheckTimer = new Timer { Interval = 500 }; // ✅ SỬA: 1000 -> 500ms (check damage mỗi 0.5s)
                 continuousCheckTimer.Tick += (s, e) =>
                 {
-                    elapsedMs += 100;
-                    lastDamageTime += 100;
+                    elapsedMs += 500;
+                    lastDamageTime += 500;
+                    manaCheckTime += 500;
 
                     if (!player.IsSkillActive)
                     {
@@ -811,26 +893,20 @@ namespace DoAn_NT106.Client.BattleSystems
 
                     bool isColliding = attackBox.IntersectsWith(hurtBox);
 
-                    // ✅ REDUCED DEBUG: Chỉ log mỗi 500ms HOẶC khi collision
-                    bool shouldLog = (elapsedMs % 500 == 0) || isColliding;
+                    Console.WriteLine($"[SKILL {elapsedMs}ms] Player {playerNum}:");
+                    Console.WriteLine($"  Attack: X={attackBox.X}, Y={attackBox.Y}, W={attackBox.Width}, H={attackBox.Height}");
+                    Console.WriteLine($"  Hurt:   X={hurtBox.X}, Y={hurtBox.Y}, W={hurtBox.Width}, H={hurtBox.Height}");
+                    Console.WriteLine($"  Collision: {(isColliding ? "✅ YES" : "❌ NO")} | Last damage: {lastDamageTime}ms ago");
 
-                    if (shouldLog)
-                    {
-                        Console.WriteLine($"[SKILL {elapsedMs}ms] Player {playerNum}:");
-                        Console.WriteLine($"  Attack: X={attackBox.X}, Y={attackBox.Y}, W={attackBox.Width}, H={attackBox.Height}");
-                        Console.WriteLine($"  Hurt:   X={hurtBox.X}, Y={hurtBox.Y}, W={hurtBox.Width}, H={hurtBox.Height}");
-                        Console.WriteLine($"  Collision: {(isColliding ? "✅ YES" : "❌ NO")} | Last damage: {lastDamageTime}ms ago");
-                    }
-
-                    // ✅ GÂY DAMAGE MỖI 500MS
+                    // ✅ GÂY DAMAGE MỖI 500MS (2 lần/giây)
                     if (isColliding && lastDamageTime >= 500)
                     {
                         int targetPlayer = playerNum == 1 ? 2 : 1;
 
                         Console.WriteLine($"[SKILL] 🎯 Player {playerNum} dealing damage to Player {targetPlayer}!");
 
-                        ApplyDamage(targetPlayer, 5, false);
-                        player.RegenerateManaOnHitLand(); // ✅ THÊM: Hồi mana khi đánh trúng bằng skill
+                        ApplyDamage(targetPlayer, 10, false);
+                        player.RegenerateManaOnHitLand();
                         showHitEffectCallback?.Invoke("Energy!", Color.Cyan);
                         damageCounter++;
                         lastDamageTime = 0;
@@ -838,25 +914,31 @@ namespace DoAn_NT106.Client.BattleSystems
                         Console.WriteLine($"[SKILL] ✅ Damage #{damageCounter} dealt!");
                     }
 
-                    // ✅ Consume mana mỗi 1000ms
-                    if (elapsedMs % 1000 == 0 && elapsedMs > 0)
+                    // ✅ Consume mana + stamina MỎI 1000MS (mỗi 1 giây)
+                    if (manaCheckTime >= 1000)
                     {
-                        player.Mana -= 30;
+                        player.Mana -= 25; // ✅ SỬA: -30 -> -25 mana/s
                         Console.WriteLine($"[SKILL] Mana consumed at {elapsedMs}ms, remaining: {player.Mana}");
-                    }
 
-                    // ✅ Hết mana
-                    if (player.Mana < 30)
-                    {
-                        continuousCheckTimer.Stop();
-                        continuousCheckTimer.Dispose();
-                        player.IsSkillActive = false;
+                        // ✅ Consume stamina mỗi 1000ms
+                        player.Stamina = Math.Max(0, player.Stamina - 15);
+                        Console.WriteLine($"[SKILL] Stamina consumed at {elapsedMs}ms, remaining: {player.Stamina}");
 
-                        if (!player.IsAttacking && !player.IsJumping)
-                            player.ResetToIdle();
+                        manaCheckTime = 0; // Reset counter
 
-                        showHitEffectCallback?.Invoke("Out of Mana!", Color.Gray);
-                        Console.WriteLine($"[SKILL END] Player {playerNum} out of mana.  Total damage hits: {damageCounter}");
+                        // ✅ Hết mana
+                        if (player.Mana <= 0) // ✅ SỬA: < 30 -> <= 0 (vừa hết mana thì dừng)
+                        {
+                            continuousCheckTimer.Stop();
+                            continuousCheckTimer.Dispose();
+                            player.IsSkillActive = false;
+
+                            if (!player.IsAttacking && !player.IsJumping)
+                                player.ResetToIdle();
+
+                            showHitEffectCallback?.Invoke("Out of Mana!", Color.Gray);
+                            Console.WriteLine($"[SKILL END] Player {playerNum} out of mana. Total damage hits: {damageCounter}");
+                        }
                     }
                 };
                 continuousCheckTimer.Start();
@@ -875,7 +957,23 @@ namespace DoAn_NT106.Client.BattleSystems
         {
             PlayerState opponent = playerNum == 1 ? player2 : player1;
 
-            if (!player.ConsumeMana(30)) return;
+            // ✅ SỬA: Goatman skill tốn 35 mana + 35 stamina
+            // ✅ KIỂM TRA điều kiện TRƯỚC khi tiêu tốn
+            if (player.Mana < 35)
+            {
+                showHitEffectCallback?.Invoke("Need 35 Mana!", Color.Gray);
+                return;
+            }
+            
+            if (player.Stamina < 35)
+            {
+                showHitEffectCallback?.Invoke("Need 35 Stamina!", Color.Gray);
+                return;
+            }
+            
+            // ✅ CHỈ tiêu tốn khi đã kiểm tra xong
+            if (!player.ConsumeMana(35)) return;
+            if (!player.ConsumeStamina(35)) return;
 
             player.IsCharging = true;
             player.CurrentAnimation = "fireball";
@@ -988,7 +1086,7 @@ namespace DoAn_NT106.Client.BattleSystems
             bool wasCharging = target.IsCharging;
             
             target.TakeDamage(damage);
-            target.RegenerateManaOnHitMiss(); // ✅ THÊM: Hồi mana khi bị đánh (không parry kịp)
+            target.RegenerateManaOnHitMiss(); // ✅ TH ÊM: Hồi mana khi bị đánh (không parry kịp)
             showHitEffectCallback?.Invoke($"-{damage}", Color.Red);
             effectManager.ShowHitEffectAtPosition(target.CharacterType, target.X, target.Y, invalidateCallback);
             
@@ -1248,7 +1346,7 @@ namespace DoAn_NT106.Client.BattleSystems
 
             Console.WriteLine($"? {player.CharacterType} teleport dash: {DASH_DISTANCE}px -> {actualDistance}px to X={destinationX}");
 
-            // ? STEP 1: Show dash effect at START position
+            // ? STEP 1: Show dash effect at FIRST position
             effectManager.ShowDashEffect(playerNum, startX, startY, facing, invalidateCallback);
 
             // ? STEP 2: Make player INVISIBLE
