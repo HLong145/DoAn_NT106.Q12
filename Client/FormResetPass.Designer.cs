@@ -34,11 +34,11 @@ namespace DoAn_NT106
             lbl_Description = new Label();
             panelNewPassword = new Panel();
             lblNewPasswordError = new Label();
-            tb_newPassword = new Tb_Pixel();
+            tbPassword = new Tb_Pixel();
             lblNewPassword = new Label();
             panelConfirmPassword = new Panel();
             lblConfirmPasswordError = new Label();
-            tb_confirmPassword = new Tb_Pixel();
+            tbconfirmPassword = new Tb_Pixel();
             lblConfirmPassword = new Label();
             btn_complete = new Btn_Pixel();
             btn_backToLogin = new Btn_Pixel();
@@ -74,7 +74,7 @@ namespace DoAn_NT106
             pnl_Title.Location = new Point(20, 20);
             pnl_Title.Name = "pnl_Title";
             pnl_Title.Size = new Size(360, 100);
-            pnl_Title.TabIndex = 0;
+            pnl_Title.TabIndex = 4; // không nằm trong chuỗi Tab chính
             // 
             // lbl_Title
             // 
@@ -87,6 +87,7 @@ namespace DoAn_NT106
             lbl_Title.TabIndex = 0;
             lbl_Title.Text = "🔓 RESET PASSWORD 🔓";
             lbl_Title.TextAlign = ContentAlignment.MiddleCenter;
+            lbl_Title.TabStop = false;
             // 
             // pictureBox1
             // 
@@ -118,9 +119,10 @@ namespace DoAn_NT106
             lbl_Subtitle.Location = new Point(16, 49);
             lbl_Subtitle.Name = "lbl_Subtitle";
             lbl_Subtitle.Size = new Size(325, 20);
-            lbl_Subtitle.TabIndex = 1;
+            lbl_Subtitle.TabIndex = 3;
             lbl_Subtitle.Text = "CREATE NEW PASSWORD";
             lbl_Subtitle.TextAlign = ContentAlignment.MiddleCenter;
+            lbl_Subtitle.TabStop = false;
             // 
             // lbl_Description
             // 
@@ -130,19 +132,20 @@ namespace DoAn_NT106
             lbl_Description.Location = new Point(20, 140);
             lbl_Description.Name = "lbl_Description";
             lbl_Description.Size = new Size(360, 60);
-            lbl_Description.TabIndex = 1;
+            lbl_Description.TabIndex = 5;
             lbl_Description.Text = "Please enter your new password.\r\nMake sure it's strong and secure!\r\n(Min 8 characters)";
             lbl_Description.TextAlign = ContentAlignment.MiddleCenter;
+            lbl_Description.TabStop = false;
             // 
             // panelNewPassword
             // 
             panelNewPassword.Controls.Add(lblNewPasswordError);
-            panelNewPassword.Controls.Add(tb_newPassword);
+            panelNewPassword.Controls.Add(tbPassword);
             panelNewPassword.Controls.Add(lblNewPassword);
             panelNewPassword.Location = new Point(20, 220);
             panelNewPassword.Name = "panelNewPassword";
             panelNewPassword.Size = new Size(360, 80);
-            panelNewPassword.TabIndex = 2;
+            panelNewPassword.TabIndex = 0; // 1: tbPassword
             // 
             // lblNewPasswordError
             // 
@@ -153,20 +156,23 @@ namespace DoAn_NT106
             lblNewPasswordError.Location = new Point(0, 58);
             lblNewPasswordError.Name = "lblNewPasswordError";
             lblNewPasswordError.Size = new Size(360, 22);
-            lblNewPasswordError.TabIndex = 0;
+            lblNewPasswordError.TabIndex = 2;
+            lblNewPasswordError.TabStop = false;
             // 
-            // tb_newPassword
+            // tbPassword
             // 
-            tb_newPassword.BackColor = Color.FromArgb(42, 31, 26);
-            tb_newPassword.BorderStyle = BorderStyle.None;
-            tb_newPassword.Font = new Font("Courier New", 16.2F, FontStyle.Bold);
-            tb_newPassword.ForeColor = Color.White;
-            tb_newPassword.Location = new Point(0, 25);
-            tb_newPassword.Multiline = true;
-            tb_newPassword.Name = "tb_newPassword";
-            tb_newPassword.PasswordChar = '●';
-            tb_newPassword.Size = new Size(360, 31);
-            tb_newPassword.TabIndex = 1;
+            tbPassword.BackColor = Color.FromArgb(42, 31, 26);
+            tbPassword.BorderStyle = BorderStyle.None;
+            tbPassword.Font = new Font("Courier New", 16.2F, FontStyle.Bold);
+            tbPassword.ForeColor = Color.White;
+            tbPassword.Location = new Point(0, 25);
+            tbPassword.Multiline = true;
+            tbPassword.Name = "tbPassword";
+            tbPassword.PasswordChar = '●';
+            tbPassword.Size = new Size(360, 31);
+            tbPassword.TabIndex = 0; // đầu tiên
+            tbPassword.TextChanged += tbnewPassword_TextChanged;
+            tbPassword.KeyDown += tbnewPassword_KeyDown;
             // 
             // lblNewPassword
             // 
@@ -176,18 +182,19 @@ namespace DoAn_NT106
             lblNewPassword.Location = new Point(0, 0);
             lblNewPassword.Name = "lblNewPassword";
             lblNewPassword.Size = new Size(200, 20);
-            lblNewPassword.TabIndex = 3;
+            lblNewPassword.TabIndex = 1;
             lblNewPassword.Text = "🔒 NEW PASSWORD:";
+            lblNewPassword.TabStop = false;
             // 
             // panelConfirmPassword
             // 
             panelConfirmPassword.Controls.Add(lblConfirmPasswordError);
-            panelConfirmPassword.Controls.Add(tb_confirmPassword);
+            panelConfirmPassword.Controls.Add(tbconfirmPassword);
             panelConfirmPassword.Controls.Add(lblConfirmPassword);
             panelConfirmPassword.Location = new Point(20, 320);
             panelConfirmPassword.Name = "panelConfirmPassword";
             panelConfirmPassword.Size = new Size(360, 80);
-            panelConfirmPassword.TabIndex = 3;
+            panelConfirmPassword.TabIndex = 1; 
             // 
             // lblConfirmPasswordError
             // 
@@ -198,20 +205,23 @@ namespace DoAn_NT106
             lblConfirmPasswordError.Location = new Point(0, 58);
             lblConfirmPasswordError.Name = "lblConfirmPasswordError";
             lblConfirmPasswordError.Size = new Size(360, 22);
-            lblConfirmPasswordError.TabIndex = 0;
+            lblConfirmPasswordError.TabIndex = 2;
+            lblConfirmPasswordError.TabStop = false;
             // 
-            // tb_confirmPassword
+            // tbconfirmPassword
             // 
-            tb_confirmPassword.BackColor = Color.FromArgb(42, 31, 26);
-            tb_confirmPassword.BorderStyle = BorderStyle.None;
-            tb_confirmPassword.Font = new Font("Courier New", 16.2F, FontStyle.Bold);
-            tb_confirmPassword.ForeColor = Color.White;
-            tb_confirmPassword.Location = new Point(0, 25);
-            tb_confirmPassword.Multiline = true;
-            tb_confirmPassword.Name = "tb_confirmPassword";
-            tb_confirmPassword.PasswordChar = '●';
-            tb_confirmPassword.Size = new Size(360, 31);
-            tb_confirmPassword.TabIndex = 1;
+            tbconfirmPassword.BackColor = Color.FromArgb(42, 31, 26);
+            tbconfirmPassword.BorderStyle = BorderStyle.None;
+            tbconfirmPassword.Font = new Font("Courier New", 16.2F, FontStyle.Bold);
+            tbconfirmPassword.ForeColor = Color.White;
+            tbconfirmPassword.Location = new Point(0, 25);
+            tbconfirmPassword.Multiline = true;
+            tbconfirmPassword.Name = "tbconfirmPassword";
+            tbconfirmPassword.PasswordChar = '●';
+            tbconfirmPassword.Size = new Size(360, 31);
+            tbconfirmPassword.TabIndex = 0; 
+            tbconfirmPassword.TextChanged += tbconfirmPassword_TextChanged;
+            tbconfirmPassword.KeyDown += tbconfirmPassword_KeyDown;
             // 
             // lblConfirmPassword
             // 
@@ -221,8 +231,9 @@ namespace DoAn_NT106
             lblConfirmPassword.Location = new Point(0, 0);
             lblConfirmPassword.Name = "lblConfirmPassword";
             lblConfirmPassword.Size = new Size(250, 20);
-            lblConfirmPassword.TabIndex = 3;
+            lblConfirmPassword.TabIndex = 1;
             lblConfirmPassword.Text = "🔒 CONFIRM PASSWORD:";
+            lblConfirmPassword.TabStop = false;
             // 
             // btn_complete
             // 
@@ -233,7 +244,7 @@ namespace DoAn_NT106
             btn_complete.Location = new Point(20, 430);
             btn_complete.Name = "btn_complete";
             btn_complete.Size = new Size(360, 50);
-            btn_complete.TabIndex = 4;
+            btn_complete.TabIndex = 2; // thứ ba trong chuỗi Tab
             btn_complete.Text = "★ COMPLETE RESET ★";
             btn_complete.Click += btn_complete_Click;
             // 
@@ -246,7 +257,7 @@ namespace DoAn_NT106
             btn_backToLogin.Location = new Point(20, 490);
             btn_backToLogin.Name = "btn_backToLogin";
             btn_backToLogin.Size = new Size(360, 40);
-            btn_backToLogin.TabIndex = 5;
+            btn_backToLogin.TabIndex = 3; // cuối cùng
             btn_backToLogin.Text = "← BACK TO LOGIN";
             btn_backToLogin.Click += btn_backToLogin_Click;
             // 
@@ -281,11 +292,11 @@ namespace DoAn_NT106
         private Label lbl_Description;
         private Panel panelNewPassword;
         private Label lblNewPasswordError;
-        private Tb_Pixel tb_newPassword;
+        private Tb_Pixel tbPassword;
         private Label lblNewPassword;
         private Panel panelConfirmPassword;
         private Label lblConfirmPasswordError;
-        private Tb_Pixel tb_confirmPassword;
+        private Tb_Pixel tbconfirmPassword;
         private Label lblConfirmPassword;
         private Btn_Pixel btn_complete;
         private Btn_Pixel btn_backToLogin;
