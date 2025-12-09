@@ -8,14 +8,6 @@ using DoAn_NT106.Client; // ✅ THÊM CHO SOUNDMANAGER
 namespace DoAn_NT106
 {
     // Helper class for hit effects
-    public class HitEffectInstance
-    {
-        public int X { get; set; }
-        public int Y { get; set; }
-        public System.Windows.Forms.Timer Timer { get; set; }
-        public Image EffectImage { get; set; }
-    }
-
     public partial class BattleForm : Form
     {
         private string username;
@@ -230,6 +222,15 @@ namespace DoAn_NT106
         private int HITBOX_WIDTH_RATIO = 2; // Hitbox = PLAYER_WIDTH / 2
         private int HITBOX_HEIGHT_RATIO = 2; // Hitbox = PLAYER_HEIGHT / 2
                                              // ✅ THÊM: Class cấu hình vùng tấn công
+
+        public class HitEffectInstance
+        {
+            public int X { get; set; }
+            public int Y { get; set; }
+            public System.Windows.Forms.Timer Timer { get; set; }
+            public Image EffectImage { get; set; }
+        }
+
         public class AttackHitboxConfig
         {
             public float WidthPercent { get; set; }      // Chiều rộng vùng tấn công
