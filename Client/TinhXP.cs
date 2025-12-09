@@ -16,5 +16,10 @@ namespace DoAn_NT106.Client
         {
             InitializeComponent();
         }
+
+        private void pnl_Main_Paint(object sender, PaintEventArgs e)
+        {
+
+        }
     }
 }
