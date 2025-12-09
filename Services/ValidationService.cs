@@ -1,4 +1,5 @@
 ﻿using System.Text.RegularExpressions;
+using System.Net.Mail;
 
 namespace DoAn_NT106.Services
 {
@@ -12,8 +13,18 @@ namespace DoAn_NT106.Services
 
         public bool IsValidEmail(string email)
         {
-            if (string.IsNullOrWhiteSpace(email)) return false;
-            return Regex.IsMatch(email, @"^[^@\s]+@[^@\s]+\.[^@\s]+$");
+            if (string.IsNullOrWhiteSpace(email))
+                return false;
+
+            try
+            {
+                var addr = new MailAddress(email);  
+                return Regex.IsMatch(addr.Address, @"^[^@\s]+@[^@\s]+\.[^@\s]+$");
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         public bool IsValidPhone(string phone)
@@ -23,9 +34,14 @@ namespace DoAn_NT106.Services
         }
         public bool IsValidPassword(string password)
         {
-            if (string.IsNullOrEmpty(password)) return false;
-            // Min 8 ký tự, có chữ hoa, chữ thường, số, ký tự đặc biệt
-            return Regex.IsMatch(password, @"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_\-+=\[\]{};:'"",.<>/?\\|`~]).{8,}$");
+            if (string.IsNullOrEmpty(password))
+                return false;
+
+            // Tối thiểu 8 ký tự, ít nhất 1 thường, 1 hoa, 1 số, 1 ký tự đặc biệt. 
+            return Regex.IsMatch(
+                password,
+                @"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_\-+\[\]{};:'"",.<>/?\\|`~]).{8,}$"
+            );
         }
 
         public (bool IsValid, string Message) ValidateRegistration(
