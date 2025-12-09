@@ -83,8 +83,11 @@
             timer_XPAnimation = new System.Windows.Forms.Timer(components);
             timer_FloatingClouds = new System.Windows.Forms.Timer(components);
             pnl_Main = new Pnl_Pixel();
-            pic_Cloud4 = new PictureBox();
+            btn_ViewStats = new Btn_Pixel();
+            pictureBox3 = new PictureBox();
+            pictureBox2 = new PictureBox();
             pnl_Title = new Pnl_Pixel();
+            pictureBox1 = new PictureBox();
             pic_TitleCloud1 = new PictureBox();
             lbl_Title = new Label();
             lbl_Subtitle = new Label();
@@ -110,18 +113,16 @@
             lbl_XPDetailsTitle = new Label();
             pnl_XPDetails = new Panel();
             btn_Continue = new Btn_Pixel();
-            pictureBox1 = new PictureBox();
-            pictureBox2 = new PictureBox();
-            pictureBox3 = new PictureBox();
+            pic_Cloud4 = new PictureBox();
             pnl_Main.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)pic_Cloud4).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)pictureBox3).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)pictureBox2).BeginInit();
             pnl_Title.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)pictureBox1).BeginInit();
             ((System.ComponentModel.ISupportInitialize)pic_TitleCloud1).BeginInit();
             pnl_PlayerInfo.SuspendLayout();
             pnl_XPBarContainer.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)pictureBox1).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)pictureBox2).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)pictureBox3).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)pic_Cloud4).BeginInit();
             SuspendLayout();
             // 
             // timer_XPAnimation
@@ -137,6 +138,7 @@
             // pnl_Main
             // 
             pnl_Main.BackColor = Color.FromArgb(210, 105, 30);
+            pnl_Main.Controls.Add(btn_ViewStats);
             pnl_Main.Controls.Add(pictureBox3);
             pnl_Main.Controls.Add(pictureBox2);
             pnl_Main.Controls.Add(pnl_Title);
@@ -160,16 +162,39 @@
             pnl_Main.TabIndex = 0;
             pnl_Main.Paint += pnl_Main_Paint;
             // 
-            // pic_Cloud4
+            // btn_ViewStats
             // 
-            pic_Cloud4.BackColor = Color.Transparent;
-            pic_Cloud4.Image = Properties.Resources.mayxanh;
-            pic_Cloud4.Location = new Point(-58, 375);
-            pic_Cloud4.Name = "pic_Cloud4";
-            pic_Cloud4.Size = new Size(117, 40);
-            pic_Cloud4.SizeMode = PictureBoxSizeMode.Zoom;
-            pic_Cloud4.TabIndex = 20;
-            pic_Cloud4.TabStop = false;
+            btn_ViewStats.BtnColor = Color.FromArgb(139, 69, 19);
+            btn_ViewStats.FlatStyle = FlatStyle.Flat;
+            btn_ViewStats.Font = new Font("Courier New", 8F, FontStyle.Bold);
+            btn_ViewStats.ForeColor = Color.White;
+            btn_ViewStats.Location = new Point(163, 709);
+            btn_ViewStats.Name = "btn_ViewStats";
+            btn_ViewStats.Size = new Size(170, 40);
+            btn_ViewStats.TabIndex = 17;
+            btn_ViewStats.Text = "VIEW STATS";
+            // 
+            // pictureBox3
+            // 
+            pictureBox3.BackColor = Color.Transparent;
+            pictureBox3.Image = Properties.Resources.mây;
+            pictureBox3.Location = new Point(350, 705);
+            pictureBox3.Name = "pictureBox3";
+            pictureBox3.Size = new Size(137, 65);
+            pictureBox3.SizeMode = PictureBoxSizeMode.Zoom;
+            pictureBox3.TabIndex = 16;
+            pictureBox3.TabStop = false;
+            // 
+            // pictureBox2
+            // 
+            pictureBox2.BackColor = Color.Transparent;
+            pictureBox2.Image = Properties.Resources.mây;
+            pictureBox2.Location = new Point(-8, 705);
+            pictureBox2.Name = "pictureBox2";
+            pictureBox2.Size = new Size(137, 65);
+            pictureBox2.SizeMode = PictureBoxSizeMode.Zoom;
+            pictureBox2.TabIndex = 15;
+            pictureBox2.TabStop = false;
             // 
             // pnl_Title
             // 
@@ -182,6 +207,17 @@
             pnl_Title.Name = "pnl_Title";
             pnl_Title.Size = new Size(460, 90);
             pnl_Title.TabIndex = 0;
+            // 
+            // pictureBox1
+            // 
+            pictureBox1.BackColor = Color.Transparent;
+            pictureBox1.Image = Properties.Resources.mây;
+            pictureBox1.Location = new Point(353, 46);
+            pictureBox1.Name = "pictureBox1";
+            pictureBox1.Size = new Size(110, 43);
+            pictureBox1.SizeMode = PictureBoxSizeMode.Zoom;
+            pictureBox1.TabIndex = 4;
+            pictureBox1.TabStop = false;
             // 
             // pic_TitleCloud1
             // 
@@ -464,38 +500,16 @@
             btn_Continue.Text = "► CONTINUE ◄";
             btn_Continue.Click += Btn_Continue_Click;
             // 
-            // pictureBox1
+            // pic_Cloud4
             // 
-            pictureBox1.BackColor = Color.Transparent;
-            pictureBox1.Image = Properties.Resources.mây;
-            pictureBox1.Location = new Point(353, 46);
-            pictureBox1.Name = "pictureBox1";
-            pictureBox1.Size = new Size(110, 43);
-            pictureBox1.SizeMode = PictureBoxSizeMode.Zoom;
-            pictureBox1.TabIndex = 4;
-            pictureBox1.TabStop = false;
-            // 
-            // pictureBox2
-            // 
-            pictureBox2.BackColor = Color.Transparent;
-            pictureBox2.Image = Properties.Resources.mây;
-            pictureBox2.Location = new Point(-8, 706);
-            pictureBox2.Name = "pictureBox2";
-            pictureBox2.Size = new Size(137, 65);
-            pictureBox2.SizeMode = PictureBoxSizeMode.Zoom;
-            pictureBox2.TabIndex = 15;
-            pictureBox2.TabStop = false;
-            // 
-            // pictureBox3
-            // 
-            pictureBox3.BackColor = Color.Transparent;
-            pictureBox3.Image = Properties.Resources.mây;
-            pictureBox3.Location = new Point(350, 705);
-            pictureBox3.Name = "pictureBox3";
-            pictureBox3.Size = new Size(137, 65);
-            pictureBox3.SizeMode = PictureBoxSizeMode.Zoom;
-            pictureBox3.TabIndex = 16;
-            pictureBox3.TabStop = false;
+            pic_Cloud4.BackColor = Color.Transparent;
+            pic_Cloud4.Image = Properties.Resources.mayxanh;
+            pic_Cloud4.Location = new Point(-58, 375);
+            pic_Cloud4.Name = "pic_Cloud4";
+            pic_Cloud4.Size = new Size(117, 40);
+            pic_Cloud4.SizeMode = PictureBoxSizeMode.Zoom;
+            pic_Cloud4.TabIndex = 20;
+            pic_Cloud4.TabStop = false;
             // 
             // TinhXP
             // 
@@ -514,14 +528,14 @@
             Text = "Match Summary";
             Load += TinhXP_Load;
             pnl_Main.ResumeLayout(false);
-            ((System.ComponentModel.ISupportInitialize)pic_Cloud4).EndInit();
+            ((System.ComponentModel.ISupportInitialize)pictureBox3).EndInit();
+            ((System.ComponentModel.ISupportInitialize)pictureBox2).EndInit();
             pnl_Title.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)pictureBox1).EndInit();
             ((System.ComponentModel.ISupportInitialize)pic_TitleCloud1).EndInit();
             pnl_PlayerInfo.ResumeLayout(false);
             pnl_XPBarContainer.ResumeLayout(false);
-            ((System.ComponentModel.ISupportInitialize)pictureBox1).EndInit();
-            ((System.ComponentModel.ISupportInitialize)pictureBox2).EndInit();
-            ((System.ComponentModel.ISupportInitialize)pictureBox3).EndInit();
+            ((System.ComponentModel.ISupportInitialize)pic_Cloud4).EndInit();
             ResumeLayout(false);
         }
 
@@ -565,5 +579,6 @@
         private PictureBox pictureBox2;
         private PictureBox pictureBox1;
         private PictureBox pictureBox3;
+        private Btn_Pixel btn_ViewStats;
     }
 }
