@@ -92,7 +92,7 @@ namespace DoAn_NT106
             panelOuter.Location = new Point(0, 0);
             panelOuter.Name = "panelOuter";
             panelOuter.Padding = new Padding(12);
-            panelOuter.Size = new Size(701, 752);
+            panelOuter.Size = new Size(701, 749);
             panelOuter.TabIndex = 0;
             // 
             // panelMain
@@ -106,7 +106,7 @@ namespace DoAn_NT106
             panelMain.Location = new Point(12, 12);
             panelMain.Name = "panelMain";
             panelMain.Padding = new Padding(32);
-            panelMain.Size = new Size(677, 728);
+            panelMain.Size = new Size(677, 725);
             panelMain.TabIndex = 0;
             // 
             // pnl_Main
@@ -127,7 +127,7 @@ namespace DoAn_NT106
             pnl_Main.Location = new Point(21, 15);
             pnl_Main.Name = "pnl_Main";
             pnl_Main.Size = new Size(633, 755);
-            pnl_Main.TabIndex = 10;
+            pnl_Main.TabIndex = 0;
             // 
             // pnl_Title
             // 
@@ -140,7 +140,7 @@ namespace DoAn_NT106
             pnl_Title.Location = new Point(61, 22);
             pnl_Title.Name = "pnl_Title";
             pnl_Title.Size = new Size(510, 100);
-            pnl_Title.TabIndex = 9;
+            pnl_Title.TabIndex = 7;
             // 
             // lbl_Title
             // 
@@ -162,7 +162,7 @@ namespace DoAn_NT106
             pictureBox6.Name = "pictureBox6";
             pictureBox6.Size = new Size(194, 97);
             pictureBox6.SizeMode = PictureBoxSizeMode.Zoom;
-            pictureBox6.TabIndex = 13;
+            pictureBox6.TabIndex = 1;
             pictureBox6.TabStop = false;
             // 
             // pictureBox5
@@ -173,7 +173,7 @@ namespace DoAn_NT106
             pictureBox5.Name = "pictureBox5";
             pictureBox5.Size = new Size(194, 78);
             pictureBox5.SizeMode = PictureBoxSizeMode.Zoom;
-            pictureBox5.TabIndex = 13;
+            pictureBox5.TabIndex = 2;
             pictureBox5.TabStop = false;
             // 
             // pictureBox2
@@ -184,7 +184,7 @@ namespace DoAn_NT106
             pictureBox2.Name = "pictureBox2";
             pictureBox2.Size = new Size(194, 73);
             pictureBox2.SizeMode = PictureBoxSizeMode.Zoom;
-            pictureBox2.TabIndex = 11;
+            pictureBox2.TabIndex = 3;
             pictureBox2.TabStop = false;
             // 
             // lbl_Subtitle
@@ -195,7 +195,7 @@ namespace DoAn_NT106
             lbl_Subtitle.Location = new Point(99, 62);
             lbl_Subtitle.Name = "lbl_Subtitle";
             lbl_Subtitle.Size = new Size(325, 20);
-            lbl_Subtitle.TabIndex = 1;
+            lbl_Subtitle.TabIndex = 4;
             lbl_Subtitle.Text = "CREATE YOUR ACCOUNT";
             lbl_Subtitle.TextAlign = ContentAlignment.MiddleCenter;
             // 
@@ -210,7 +210,7 @@ namespace DoAn_NT106
             btn_alreadyHaveAccount.Location = new Point(17, 656);
             btn_alreadyHaveAccount.Name = "btn_alreadyHaveAccount";
             btn_alreadyHaveAccount.Size = new Size(592, 62);
-            btn_alreadyHaveAccount.TabIndex = 7;
+            btn_alreadyHaveAccount.TabIndex = 6;
             btn_alreadyHaveAccount.Text = "← HAVE ACCOUNT? LOGIN";
             btn_alreadyHaveAccount.UseVisualStyleBackColor = false;
             btn_alreadyHaveAccount.Click += btn_alreadyHaveAccount_Click;
@@ -223,7 +223,7 @@ namespace DoAn_NT106
             pictureBox1.Name = "pictureBox1";
             pictureBox1.Size = new Size(153, 80);
             pictureBox1.SizeMode = PictureBoxSizeMode.Zoom;
-            pictureBox1.TabIndex = 10;
+            pictureBox1.TabIndex = 8;
             pictureBox1.TabStop = false;
             // 
             // pictureBox4
@@ -234,7 +234,7 @@ namespace DoAn_NT106
             pictureBox4.Name = "pictureBox4";
             pictureBox4.Size = new Size(194, 97);
             pictureBox4.SizeMode = PictureBoxSizeMode.Zoom;
-            pictureBox4.TabIndex = 12;
+            pictureBox4.TabIndex = 9;
             pictureBox4.TabStop = false;
             // 
             // pictureBox3
@@ -245,7 +245,7 @@ namespace DoAn_NT106
             pictureBox3.Name = "pictureBox3";
             pictureBox3.Size = new Size(194, 97);
             pictureBox3.SizeMode = PictureBoxSizeMode.Zoom;
-            pictureBox3.TabIndex = 11;
+            pictureBox3.TabIndex = 10;
             pictureBox3.TabStop = false;
             // 
             // btn_register
@@ -259,7 +259,7 @@ namespace DoAn_NT106
             btn_register.Location = new Point(17, 590);
             btn_register.Name = "btn_register";
             btn_register.Size = new Size(592, 60);
-            btn_register.TabIndex = 6;
+            btn_register.TabIndex = 5;
             btn_register.Text = "★ REGISTER ★";
             btn_register.UseVisualStyleBackColor = false;
             btn_register.Click += btn_register_Click;
@@ -272,7 +272,7 @@ namespace DoAn_NT106
             panelContact.Location = new Point(17, 228);
             panelContact.Name = "panelContact";
             panelContact.Size = new Size(592, 80);
-            panelContact.TabIndex = 2;
+            panelContact.TabIndex = 1;
             // 
             // lblContactError
             // 
@@ -283,7 +283,7 @@ namespace DoAn_NT106
             lblContactError.Location = new Point(0, 58);
             lblContactError.Name = "lblContactError";
             lblContactError.Size = new Size(592, 22);
-            lblContactError.TabIndex = 0;
+            lblContactError.TabIndex = 2;
             // 
             // tb_contact
             // 
@@ -292,9 +292,12 @@ namespace DoAn_NT106
             tb_contact.Font = new Font("Courier New", 16.2F, FontStyle.Bold);
             tb_contact.ForeColor = Color.FromArgb(214, 211, 209);
             tb_contact.Location = new Point(0, 25);
+            tb_contact.Multiline = true;
             tb_contact.Name = "tb_contact";
             tb_contact.Size = new Size(592, 31);
-            tb_contact.TabIndex = 1;
+            tb_contact.TabIndex = 0;
+            tb_contact.TextChanged += tb_contact_TextChanged;
+            tb_contact.KeyDown += EnterNext_KeyDown;
             // 
             // lblContact
             // 
@@ -303,7 +306,7 @@ namespace DoAn_NT106
             lblContact.Location = new Point(0, 0);
             lblContact.Name = "lblContact";
             lblContact.Size = new Size(250, 20);
-            lblContact.TabIndex = 2;
+            lblContact.TabIndex = 1;
             lblContact.Text = "✉/📞 EMAIL/PHONE:";
             // 
             // panelRobotCheck
@@ -314,7 +317,7 @@ namespace DoAn_NT106
             panelRobotCheck.Location = new Point(17, 528);
             panelRobotCheck.Name = "panelRobotCheck";
             panelRobotCheck.Size = new Size(592, 45);
-            panelRobotCheck.TabIndex = 5;
+            panelRobotCheck.TabIndex = 4;
             // 
             // lblRobotError
             // 
@@ -324,7 +327,7 @@ namespace DoAn_NT106
             lblRobotError.Location = new Point(0, 33);
             lblRobotError.Name = "lblRobotError";
             lblRobotError.Size = new Size(592, 12);
-            lblRobotError.TabIndex = 0;
+            lblRobotError.TabIndex = 1;
             // 
             // chkNotRobot
             // 
@@ -341,9 +344,10 @@ namespace DoAn_NT106
             chkNotRobot.Location = new Point(0, 0);
             chkNotRobot.Name = "chkNotRobot";
             chkNotRobot.Size = new Size(592, 45);
-            chkNotRobot.TabIndex = 1;
+            chkNotRobot.TabIndex = 0;
             chkNotRobot.Text = "  ☐ I'M NOT A ROBOT  🤖";
             chkNotRobot.UseVisualStyleBackColor = false;
+            chkNotRobot.TextChanged += chkNotRobot_TextChanged;
             // 
             // panelPassword
             // 
@@ -354,7 +358,7 @@ namespace DoAn_NT106
             panelPassword.Location = new Point(17, 328);
             panelPassword.Name = "panelPassword";
             panelPassword.Size = new Size(592, 80);
-            panelPassword.TabIndex = 3;
+            panelPassword.TabIndex = 2;
             // 
             // lblPasswordError
             // 
@@ -365,7 +369,7 @@ namespace DoAn_NT106
             lblPasswordError.Location = new Point(0, 58);
             lblPasswordError.Name = "lblPasswordError";
             lblPasswordError.Size = new Size(592, 22);
-            lblPasswordError.TabIndex = 0;
+            lblPasswordError.TabIndex = 3;
             // 
             // pictureBoxLock1
             // 
@@ -375,6 +379,7 @@ namespace DoAn_NT106
             pictureBoxLock1.Size = new Size(35, 35);
             pictureBoxLock1.TabIndex = 2;
             pictureBoxLock1.TabStop = false;
+            pictureBoxLock1.Click += pictureBoxLock1_Click;
             // 
             // tb_password
             // 
@@ -383,10 +388,13 @@ namespace DoAn_NT106
             tb_password.Font = new Font("Courier New", 16.2F, FontStyle.Bold);
             tb_password.ForeColor = Color.FromArgb(214, 211, 209);
             tb_password.Location = new Point(0, 25);
+            tb_password.Multiline = true;
             tb_password.Name = "tb_password";
             tb_password.PasswordChar = '●';
             tb_password.Size = new Size(592, 31);
-            tb_password.TabIndex = 1;
+            tb_password.TabIndex = 0;
+            tb_password.TextChanged += tb_password_TextChanged;
+            tb_password.KeyDown += EnterNext_KeyDown;
             // 
             // lblPassword
             // 
@@ -395,7 +403,7 @@ namespace DoAn_NT106
             lblPassword.Location = new Point(0, 0);
             lblPassword.Name = "lblPassword";
             lblPassword.Size = new Size(150, 20);
-            lblPassword.TabIndex = 3;
+            lblPassword.TabIndex = 1;
             lblPassword.Text = "🔒 PASSWORD:";
             // 
             // panelConfirmPassword
@@ -407,7 +415,7 @@ namespace DoAn_NT106
             panelConfirmPassword.Location = new Point(17, 428);
             panelConfirmPassword.Name = "panelConfirmPassword";
             panelConfirmPassword.Size = new Size(592, 80);
-            panelConfirmPassword.TabIndex = 4;
+            panelConfirmPassword.TabIndex = 3;
             // 
             // lblConfirmPasswordError
             // 
@@ -418,7 +426,7 @@ namespace DoAn_NT106
             lblConfirmPasswordError.Location = new Point(0, 58);
             lblConfirmPasswordError.Name = "lblConfirmPasswordError";
             lblConfirmPasswordError.Size = new Size(592, 22);
-            lblConfirmPasswordError.TabIndex = 0;
+            lblConfirmPasswordError.TabIndex = 3;
             // 
             // pictureBoxLock2
             // 
@@ -428,6 +436,7 @@ namespace DoAn_NT106
             pictureBoxLock2.Size = new Size(35, 35);
             pictureBoxLock2.TabIndex = 2;
             pictureBoxLock2.TabStop = false;
+            pictureBoxLock2.Click += pictureBoxLock2_Click;
             // 
             // tb_confirmPassword
             // 
@@ -436,10 +445,13 @@ namespace DoAn_NT106
             tb_confirmPassword.Font = new Font("Courier New", 16.2F, FontStyle.Bold);
             tb_confirmPassword.ForeColor = Color.FromArgb(214, 211, 209);
             tb_confirmPassword.Location = new Point(0, 25);
+            tb_confirmPassword.Multiline = true;
             tb_confirmPassword.Name = "tb_confirmPassword";
             tb_confirmPassword.PasswordChar = '●';
             tb_confirmPassword.Size = new Size(592, 31);
-            tb_confirmPassword.TabIndex = 1;
+            tb_confirmPassword.TabIndex = 0;
+            tb_confirmPassword.TextChanged += tb_confirmPassword_TextChanged;
+            tb_confirmPassword.KeyDown += tb_confirmPassword_KeyDown;
             // 
             // lblConfirmPassword
             // 
@@ -448,7 +460,7 @@ namespace DoAn_NT106
             lblConfirmPassword.Location = new Point(0, 0);
             lblConfirmPassword.Name = "lblConfirmPassword";
             lblConfirmPassword.Size = new Size(250, 20);
-            lblConfirmPassword.TabIndex = 3;
+            lblConfirmPassword.TabIndex = 1;
             lblConfirmPassword.Text = "🔒 CONFIRM PASS:";
             // 
             // panelUsername
@@ -459,7 +471,7 @@ namespace DoAn_NT106
             panelUsername.Location = new Point(17, 128);
             panelUsername.Name = "panelUsername";
             panelUsername.Size = new Size(592, 80);
-            panelUsername.TabIndex = 1;
+            panelUsername.TabIndex = 0;
             // 
             // tb_username
             // 
@@ -468,10 +480,12 @@ namespace DoAn_NT106
             tb_username.Font = new Font("Courier New", 16.2F, FontStyle.Bold);
             tb_username.ForeColor = Color.FromArgb(214, 211, 209);
             tb_username.Location = new Point(0, 25);
+            tb_username.Multiline = true;
             tb_username.Name = "tb_username";
             tb_username.Size = new Size(592, 31);
-            tb_username.TabIndex = 1;
+            tb_username.TabIndex = 0;
             tb_username.TextChanged += tb_username_TextChanged;
+            tb_username.KeyDown += EnterNext_KeyDown;
             // 
             // lblUsername
             // 
@@ -480,7 +494,7 @@ namespace DoAn_NT106
             lblUsername.Location = new Point(0, 0);
             lblUsername.Name = "lblUsername";
             lblUsername.Size = new Size(150, 20);
-            lblUsername.TabIndex = 2;
+            lblUsername.TabIndex = 1;
             lblUsername.Text = "👤 USERNAME:";
             // 
             // lblUsernameError
@@ -492,11 +506,11 @@ namespace DoAn_NT106
             lblUsernameError.Location = new Point(0, 58);
             lblUsernameError.Name = "lblUsernameError";
             lblUsernameError.Size = new Size(592, 22);
-            lblUsernameError.TabIndex = 0;
+            lblUsernameError.TabIndex = 2;
             // 
             // FormDangKy
             // 
-            ClientSize = new Size(701, 752);
+            ClientSize = new Size(701, 749);
             Controls.Add(panelOuter);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             Name = "FormDangKy";
@@ -526,6 +540,7 @@ namespace DoAn_NT106
             panelUsername.PerformLayout();
             ResumeLayout(false);
         }
+
 
         #endregion
 
