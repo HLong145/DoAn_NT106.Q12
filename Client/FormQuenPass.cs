@@ -6,12 +6,14 @@ namespace DoAn_NT106
 {
     public partial class FormQuenPass : Form
     {
-        private readonly PersistentTcpClient tcpClient;  
+        private readonly PersistentTcpClient tcpClient;
+        private readonly ValidationService validationService;
 
         public FormQuenPass()
         {
             InitializeComponent();
-            lblContactError.Text = "";
+            validationService = new ValidationService();
+            lblContactError.Text = string.Empty;
 
             tcpClient = PersistentTcpClient.Instance;
         }
@@ -29,18 +31,31 @@ namespace DoAn_NT106
 
             if (string.IsNullOrEmpty(input))
             {
-                lblContactError.Text = "⚠ Please enter your Email or Phone number.";
+                MessageBox.Show(
+                    "⚠ Please enter your Email or Phone number.",
+                    "Validation error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning
+                );
+
+                tb_contact.Focus();
+                return;
+            }
+            else if (!IsValidEmail(input) && !IsValidPhone(input))
+            {
+                MessageBox.Show(
+                    "Please enter a valid email or phone number format!",
+                    "Validation error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning
+                );
+
+                tb_contact.Focus();
                 return;
             }
 
             bool isEmail = IsValidEmail(input);
             bool isPhone = IsValidPhone(input);
-
-            if (!isEmail && !isPhone)
-            {
-                lblContactError.Text = "Please enter a valid email or phone number format!";
-                return;
-            }
 
             try
             {
@@ -91,20 +106,44 @@ namespace DoAn_NT106
 
         private bool IsValidEmail(string email)
         {
-            try
-            {
-                var addr = new System.Net.Mail.MailAddress(email);
-                return addr.Address == email;
-            }
-            catch
-            {
-                return false;
-            }
+            return validationService.IsValidEmail(email);
         }
 
         private bool IsValidPhone(string phone)
         {
-            return System.Text.RegularExpressions.Regex.IsMatch(phone, @"^0\d{9}$");
+            return validationService.IsValidPhone(phone);
+        }
+
+        private void tb_contact_TextChanged(object sender, EventArgs e)
+        {
+            string input = tb_contact.Text.Trim();
+
+            if (string.IsNullOrEmpty(input))
+            {
+                lblContactError.Text = "⚠ Please enter your Email or Phone number.";
+                return;
+            }
+
+            else if (!IsValidEmail(input) && !IsValidPhone(input))
+            {
+                lblContactError.Text = "Please enter a valid email or phone number format!";
+                return;
+            }
+            else
+            {
+                lblContactError.Text = string.Empty;
+            }
+        }
+
+        private void tb_contact_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter)
+            {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+
+                btn_continue_Click(sender, e);
+            }
         }
     }
 }
