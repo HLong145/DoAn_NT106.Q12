@@ -498,7 +498,6 @@
             btn_Continue.Size = new Size(440, 45);
             btn_Continue.TabIndex = 14;
             btn_Continue.Text = "► CONTINUE ◄";
-            btn_Continue.Click += Btn_Continue_Click;
             // 
             // pic_Cloud4
             // 
@@ -554,28 +553,12 @@
         }
 
         // Add this event handler method to your partial class TinhXP
-        private void Btn_Continue_Click(object sender, EventArgs e)
-        {
-            // TODO: Add logic for what should happen when the Continue button is clicked.
-        }
-
-        // Add this event handler method to your partial class TinhXP
-        private void Btn_ViewStats_Click(object sender, EventArgs e)
-        {
-            // TODO: Add logic for what should happen when the View Stats button is clicked.
-        }
-
         // Add this method to your partial class TinhXP
         private void TinhXP_Load(object sender, EventArgs e)
         {
             // TODO: Add logic to initialize the form when it loads.
         }
 
-        // Add this event handler method to your partial class TinhXP
-        private void Btn_MainMenu_Click(object sender, EventArgs e)
-        {
-            // TODO: Add logic for what should happen when the Main Menu button is clicked.
-        }
         private PictureBox pictureBox2;
         private PictureBox pictureBox1;
         private PictureBox pictureBox3;
