@@ -18,10 +18,12 @@ namespace DoAn_NT106
         public string Token { get; private set; }
 
         private readonly PersistentTcpClient tcpClient;
+        private ValidationService validationService = new ValidationService();
         private static bool isAutoLoginPerformed = false;
 
-        // ✅ QUAN TRỌNG: Sự kiện này PHẢI được khai báo
         public event EventHandler SwitchToRegister;
+
+
 
         public FormDangNhap()
         {
@@ -135,19 +137,22 @@ namespace DoAn_NT106
             string contact = tb_Username.Text.Trim();
             string password = tb_Password.Text;
 
-            // Kiểm tra captcha
-            if (!chk_Captcha.Checked)
-            {
-                MessageBox.Show("Please confirm that you are not a robot!",
-                    "⚠ Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
+            tb_Password.Text = string.Empty;
 
             // Kiểm tra thông tin login
             if (string.IsNullOrEmpty(contact) || string.IsNullOrEmpty(password))
             {
                 MessageBox.Show("Please fill in all required login information!",
                     "⚠ Missing Information", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+
+            // Kiểm tra captcha
+            if (!chk_Captcha.Checked)
+            {
+                MessageBox.Show("Please confirm that you are not a robot!",
+                    "⚠ Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
@@ -257,20 +262,12 @@ namespace DoAn_NT106
         // =========================
         private bool IsValidEmail(string email)
         {
-            try
-            {
-                var addr = new System.Net.Mail.MailAddress(email);
-                return addr.Address == email;
-            }
-            catch
-            {
-                return false;
-            }
+            return validationService.IsValidEmail(email);
         }
 
         private bool IsValidPhone(string phone)
         {
-            return Regex.IsMatch(phone, @"^0\d{9}$");
+            return validationService.IsValidPhone(phone);
         }
 
         private void ShowPasswordCheckBox_CheckedChanged(object sender, EventArgs e)
@@ -325,5 +322,60 @@ namespace DoAn_NT106
         }
 
         private void chk_Remember_CheckedChanged(object sender, EventArgs e) { }
+
+        private void tb_Username_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter)
+            {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+
+                this.SelectNextControl(this.ActiveControl, true, true, true, true); 
+            }
+        }
+
+        private void tb_Password_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter)
+            {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+
+                btn_Login_Click(sender, e);
+            }
+        }
+
+        private void btn_Login_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter)
+            {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+
+                btn_Login_Click(sender, e);
+            }
+        }
+
+        private void btn_Register_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter)
+            {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+
+                btn_Register_Click(sender, e);
+            }
+        }
+
+        private void btn_Forgot_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter)
+            {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+
+                btn_Forgot_Click(sender, e);
+            }
+        }
     }
 }

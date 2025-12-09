@@ -160,7 +160,7 @@
             chk_Remember.Location = new Point(246, 300);
             chk_Remember.Name = "chk_Remember";
             chk_Remember.Size = new Size(167, 25);
-            chk_Remember.TabIndex = 7;
+            chk_Remember.TabIndex = 3;
             chk_Remember.Text = "REMEMBER ME";
             chk_Remember.UseVisualStyleBackColor = false;
             chk_Remember.CheckedChanged += chk_Remember_CheckedChanged;
@@ -196,7 +196,7 @@
             lbl_Title.Location = new Point(-17, 18);
             lbl_Title.Name = "lbl_Title";
             lbl_Title.Size = new Size(397, 30);
-            lbl_Title.TabIndex = 0;
+            lbl_Title.TabIndex = 3;
             lbl_Title.Text = "⚔️ FIGHTER X FIGHTER ⚔️";
             lbl_Title.TextAlign = ContentAlignment.MiddleCenter;
             // 
@@ -219,7 +219,7 @@
             lbl_Subtitle.Location = new Point(20, 48);
             lbl_Subtitle.Name = "lbl_Subtitle";
             lbl_Subtitle.Size = new Size(325, 20);
-            lbl_Subtitle.TabIndex = 1;
+            lbl_Subtitle.TabIndex = 11;
             lbl_Subtitle.Text = "ENTER YOUR CREDENTIALS";
             lbl_Subtitle.TextAlign = ContentAlignment.MiddleCenter;
             // 
@@ -231,7 +231,7 @@
             lbl_Username.Location = new Point(20, 140);
             lbl_Username.Name = "lbl_Username";
             lbl_Username.Size = new Size(120, 20);
-            lbl_Username.TabIndex = 1;
+            lbl_Username.TabIndex = 11;
             lbl_Username.Text = "USERNAME:";
             // 
             // tb_Username
@@ -244,7 +244,8 @@
             tb_Username.Multiline = true;
             tb_Username.Name = "tb_Username";
             tb_Username.Size = new Size(360, 31);
-            tb_Username.TabIndex = 2;
+            tb_Username.TabIndex = 0;
+            tb_Username.KeyDown += tb_Username_KeyDown;
             // 
             // lbl_Password
             // 
@@ -254,7 +255,7 @@
             lbl_Password.Location = new Point(20, 220);
             lbl_Password.Name = "lbl_Password";
             lbl_Password.Size = new Size(120, 20);
-            lbl_Password.TabIndex = 3;
+            lbl_Password.TabIndex = 12;
             lbl_Password.Text = "PASSWORD:";
             // 
             // tb_Password
@@ -268,7 +269,8 @@
             tb_Password.Name = "tb_Password";
             tb_Password.PasswordChar = '●';
             tb_Password.Size = new Size(360, 31);
-            tb_Password.TabIndex = 4;
+            tb_Password.TabIndex = 1;
+            tb_Password.KeyDown += tb_Password_KeyDown;
             // 
             // chk_ShowPassword
             // 
@@ -278,6 +280,7 @@
             chk_ShowPassword.Name = "chk_ShowPassword";
             chk_ShowPassword.Size = new Size(40, 25);
             chk_ShowPassword.TabIndex = 5;
+            chk_ShowPassword.TabStop = false;
             chk_ShowPassword.Text = "👁️";
             chk_ShowPassword.UseVisualStyleBackColor = false;
             chk_ShowPassword.CheckedChanged += ShowPasswordCheckBox_CheckedChanged;
@@ -290,7 +293,7 @@
             chk_Captcha.Location = new Point(20, 300);
             chk_Captcha.Name = "chk_Captcha";
             chk_Captcha.Size = new Size(250, 25);
-            chk_Captcha.TabIndex = 6;
+            chk_Captcha.TabIndex = 2;
             chk_Captcha.Text = "I'M NOT A ROBOT 🤖";
             chk_Captcha.UseVisualStyleBackColor = false;
             // 
@@ -303,9 +306,10 @@
             btn_Login.Location = new Point(20, 360);
             btn_Login.Name = "btn_Login";
             btn_Login.Size = new Size(360, 50);
-            btn_Login.TabIndex = 6;
+            btn_Login.TabIndex = 4;
             btn_Login.Text = "▶ START GAME ◀";
             btn_Login.Click += btn_Login_Click;
+            btn_Login.KeyDown += btn_Login_KeyDown;
             // 
             // btn_Register
             // 
@@ -316,9 +320,10 @@
             btn_Register.Location = new Point(20, 430);
             btn_Register.Name = "btn_Register";
             btn_Register.Size = new Size(170, 40);
-            btn_Register.TabIndex = 7;
+            btn_Register.TabIndex = 5;
             btn_Register.Text = "REGISTER";
             btn_Register.Click += btn_Register_Click;
+            btn_Register.KeyDown += btn_Register_KeyDown;
             // 
             // btn_Forgot
             // 
@@ -329,9 +334,10 @@
             btn_Forgot.Location = new Point(210, 430);
             btn_Forgot.Name = "btn_Forgot";
             btn_Forgot.Size = new Size(170, 40);
-            btn_Forgot.TabIndex = 8;
+            btn_Forgot.TabIndex = 6;
             btn_Forgot.Text = "FORGOT?";
             btn_Forgot.Click += btn_Forgot_Click;
+            btn_Forgot.KeyDown += btn_Forgot_KeyDown;
             // 
             // FormDangNhap
             // 
