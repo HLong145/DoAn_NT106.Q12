@@ -21,6 +21,8 @@ namespace DoAn_NT106
         private System.Windows.Forms.Timer rainTimer;
         private List<Particle> particles = new List<Particle>();
         private Random rand = new Random();
+        // Avatar hint label (declared in Designer)
+        private ToolTip avatarToolTip;
 
         public class Particle
         {
@@ -36,7 +38,47 @@ namespace DoAn_NT106
         {
             InitializeComponent();
             InitializeCustomUI();
+            // Make avatar larger for better visibility and center it in sidebar
+            try
+            {
+                pbAvatar.Size = new Size(260, 260);
+                pbAvatar.SizeMode = PictureBoxSizeMode.Zoom;
+                pbAvatar.BorderStyle = BorderStyle.None; // Xóa đường viền
+                // center horizontally inside panelSidebar
+                pbAvatar.Left = Math.Max(8, (panelSidebar.ClientSize.Width - pbAvatar.Width) / 2);
+                pbAvatar.Top = 20;
+            }
+            catch { }
+
             pbAvatar.Cursor = Cursors.Hand;
+
+            // Hint label (created in Designer) - ensure initial state
+            try
+            {
+                lblAvatarHint.Text = "Click to change avatar";
+                lblAvatarHint.ForeColor = Color.LightGoldenrodYellow;
+                lblAvatarHint.BackColor = Color.Transparent;
+                lblAvatarHint.Font = new Font("Courier New", 10, FontStyle.Italic);
+                lblAvatarHint.Visible = false;
+            }
+            catch { }
+
+            avatarToolTip = new ToolTip();
+            avatarToolTip.SetToolTip(pbAvatar, "Click to change avatar");
+
+            // Show hint on hover - position above avatar to not block player name
+            pbAvatar.MouseEnter += (s, e) =>
+            {
+                try
+                {
+                    lblAvatarHint.Text = "Click to change avatar";
+                    lblAvatarHint.Location = new Point(pbAvatar.Left + 10, pbAvatar.Top - 20);
+                    lblAvatarHint.Visible = true;
+                }
+                catch { }
+                pbAvatar.BorderStyle = BorderStyle.None;
+            };
+            pbAvatar.MouseLeave += (s, e) => { lblAvatarHint.Visible = false; pbAvatar.BorderStyle = BorderStyle.None; };
             this.FormClosing += MainForm_FormClosing;
 
             // ✅ Initialize Sound Manager khi MainForm khởi tạo
@@ -436,32 +478,46 @@ namespace DoAn_NT106
             this.Hide();
         }
 
-        // ✅ Avatar có sẵn trong game
+        // ✅ Avatar available in game (use avt_* resources)
         private readonly Image[] gameAvatars =
         {
-            Properties.Resources.portrait_knightgirl,
-            Properties.Resources.portrait_warrior,
-            Properties.Resources.portrait_Bringer,
-            Properties.Resources.portrait_goatman
+            Properties.Resources.avt_knightgirl,
+            Properties.Resources.avt_bringer,
+            Properties.Resources.avt_warrior,
+            Properties.Resources.avt_goatman
         };
 
-        private int currentAvatarIndex = -1;
+        private int currentAvatarIndex = 0;
 
         // ✅ CLICK: chỉ đổi avatar trong game
         private void PbAvatar_Click(object sender, EventArgs e)
         {
-            using (var selector = new AvatarSelectorForm(gameAvatars))
+            try
             {
-                pbAvatar.Image = gameAvatars[currentAvatarIndex];
-                pbAvatar.SizeMode = PictureBoxSizeMode.StretchImage;
-                if (selector.ShowDialog() == DialogResult.OK)
-                {
-                    currentAvatarIndex = selector.SelectedIndex;
-                    pbAvatar.Image = gameAvatars[currentAvatarIndex];
+                if (gameAvatars == null || gameAvatars.Length == 0)
+                    return;
 
-                    SaveAvatarForUser(username, currentAvatarIndex);
-                    SendAvatarToServer(username, currentAvatarIndex);
+                using (var selector = new AvatarSelectorForm(gameAvatars))
+                {
+                    // Show selector first, then apply selected index
+                    if (selector.ShowDialog() == DialogResult.OK)
+                    {
+                        currentAvatarIndex = selector.SelectedIndex;
+
+                        if (currentAvatarIndex >= 0 && currentAvatarIndex < gameAvatars.Length)
+                        {
+                            pbAvatar.Image = gameAvatars[currentAvatarIndex];
+                            pbAvatar.SizeMode = PictureBoxSizeMode.StretchImage;
+
+                            SaveAvatarForUser(username, currentAvatarIndex);
+                            SendAvatarToServer(username, currentAvatarIndex);
+                        }
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("❌ PbAvatar_Click error: " + ex.Message);
             }
         }
 
@@ -558,8 +614,18 @@ namespace DoAn_NT106
                         if (idx >= 0 && idx < gameAvatars.Length)
                         {
                             currentAvatarIndex = idx;
-                            pbAvatar.Image = gameAvatars[currentAvatarIndex];
-                            pbAvatar.SizeMode = PictureBoxSizeMode.Zoom;
+                            // Create a fitted avatar image sized to the picture box for perfect alignment
+                            var fitted = CreateFittedAvatar(gameAvatars[currentAvatarIndex], pbAvatar.ClientSize);
+                            if (fitted != null)
+                            {
+                                pbAvatar.Image = fitted;
+                                pbAvatar.SizeMode = PictureBoxSizeMode.Normal;
+                            }
+                            else
+                            {
+                                pbAvatar.Image = gameAvatars[currentAvatarIndex];
+                                pbAvatar.SizeMode = PictureBoxSizeMode.Zoom;
+                            }
                         }
                     }
                 }
@@ -567,6 +633,38 @@ namespace DoAn_NT106
             catch (Exception ex)
             {
                 Console.WriteLine("LoadUserAvatar error: " + ex.Message);
+            }
+        }
+
+        // Tạo ảnh đã scale & center để chính xác khớp khung ảnh ở MainForm
+        private Image CreateFittedAvatar(Image src, Size targetSize)
+        {
+            try
+            {
+                if (src == null || targetSize.Width <= 0 || targetSize.Height <= 0)
+                    return null;
+
+                var bmp = new Bitmap(targetSize.Width, targetSize.Height);
+                using (var g = Graphics.FromImage(bmp))
+                {
+                    g.Clear(Color.Transparent);
+                    g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                    g.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighQuality;
+                    g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
+
+                    float scale = Math.Min((float)targetSize.Width / src.Width, (float)targetSize.Height / src.Height);
+                    int drawW = (int)(src.Width * scale);
+                    int drawH = (int)(src.Height * scale);
+                    int offsetX = (targetSize.Width - drawW) / 2;
+                    int offsetY = (targetSize.Height - drawH) / 2;
+
+                    g.DrawImage(src, new Rectangle(offsetX, offsetY, drawW, drawH));
+                }
+                return bmp;
+            }
+            catch
+            {
+                return null;
             }
         }
 
