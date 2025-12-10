@@ -174,7 +174,7 @@ namespace DoAn_NT106.Client.BattleSystems
             invalidateCallback?.Invoke();
         }
 
-        public void ExecuteAttack(int playerNum, string attackType)
+        public bool ExecuteAttack(int playerNum, string attackType)
         {
             PlayerState attacker = playerNum == 1 ? player1 : player2;
             PlayerState defender = playerNum == 1 ? player2 : player1;
@@ -184,13 +184,13 @@ namespace DoAn_NT106.Client.BattleSystems
             if (attacker.IsSkillActive)
             {
                 showHitEffectCallback?.Invoke("Skill Active!", Color.Cyan);
-                return;
+                return false;
             }
 
             if (!attacker.CanAttack || attacker.IsDashing || attacker.IsAttacking)
             {
                 Console.WriteLine($"⚠️ Player{playerNum} không thể attack!");
-                return;
+                return false;
             }
 
             // ✅ SỬA: Special attack không tiêu tốn stamina ở đây, sẽ quản lý riêng trong ExecuteSpecialAttack
@@ -226,7 +226,7 @@ namespace DoAn_NT106.Client.BattleSystems
                 {
                     showHitEffectCallback?.Invoke("No Stamina!", Color.Gray);
                     Console.WriteLine($"❌ Player{playerNum} không đủ stamina! Need {staminaCost}, have {attacker.Stamina}");
-                    return;
+                    return false;
                 }
 
                 Console.WriteLine($"✅ Player{playerNum} consumed {staminaCost} stamina, remaining: {attacker.Stamina}");
@@ -258,6 +258,7 @@ namespace DoAn_NT106.Client.BattleSystems
             else if (attackType == "special") ExecuteSpecialAttack(playerNum, attacker, defender, animMgr);
 
             invalidateCallback?.Invoke();
+            return true;
         }
         private void ExecutePunchAttack(int playerNum, PlayerState attacker, PlayerState defender, CharacterAnimationManager animMgr)
         {
