@@ -682,6 +682,7 @@ namespace PixelGameLobby
             finally
             {
                 notReadyButton.Enabled = true;
+                notReadyButton.Focus();
             }
         }
 
@@ -840,6 +841,17 @@ namespace PixelGameLobby
                     Color.Black, 2, ButtonBorderStyle.Solid,
                     Color.Black, 2, ButtonBorderStyle.Solid,
                     Color.Black, 2, ButtonBorderStyle.Solid);
+            }
+        }
+
+        private void notReadyButton_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Space || e.KeyCode == Keys.Enter)
+            {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+             
+                notReadyButton_Click(sender, e);
             }
         }
     }

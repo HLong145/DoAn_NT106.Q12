@@ -15,7 +15,7 @@ namespace DoAn_NT106
 
         private void BtnOK_Click(object sender, EventArgs e)
         {
-            Password = txtPassword.Text;
+            Password = tbPassword.Text;
             DialogResult = DialogResult.OK;
             Close();
         }
@@ -24,6 +24,17 @@ namespace DoAn_NT106
         {
             DialogResult = DialogResult.Cancel;
             Close();
+        }
+
+        private void tbPassword_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter)
+            {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+
+                BtnOK_Click(sender, e);
+            }
         }
     }
 }
