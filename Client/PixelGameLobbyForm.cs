@@ -27,6 +27,7 @@ namespace PixelGameLobby
         private bool hasLeft = false;
         private bool bothPlayersReady = false;
         private bool isHost = false;  // Player 1 = host
+        private string selectedMap = "battleground1";  // ✅ MAP SELECTION
 
         // TCP Client - dùng singleton
         private PersistentTcpClient TcpClient => PersistentTcpClient.Instance;
@@ -159,6 +160,10 @@ namespace PixelGameLobby
             //start game button initial state
             startGameButton.Enabled = false;
             startGameButton.BackColor = Color.Gray;
+
+            // ✅ CHOOSE MAP BUTTON - DISABLED BY DEFAULT (ONLY HOST CAN USE)
+            chooseMapButton.Enabled = false;
+            chooseMapButton.BackColor = Color.Gray;
 
             // Update displays
             UpdatePlayersDisplay();
@@ -312,6 +317,10 @@ namespace PixelGameLobby
 
                 // Xác định xem user hiện tại có phải host không
                 isHost = (player1 == username);
+
+                // ✅ ENABLE CHOOSE MAP BUTTON ONLY FOR HOST
+                chooseMapButton.Enabled = isHost;
+                chooseMapButton.BackColor = isHost ? Color.FromArgb(139, 69, 19) : Color.Gray;
 
                 // Kiểm tra both ready
                 bool newBothReady = player1Ready && player2Ready &&
@@ -488,6 +497,7 @@ namespace PixelGameLobby
                 }
 
                 Console.WriteLine("[GameLobby] Game starting!");
+                Console.WriteLine($"[GameLobby] SelectedMap = {selectedMap}");
 
                 AddSystemMessage("🎮 Both players ready! Starting game...");
 
@@ -502,9 +512,11 @@ namespace PixelGameLobby
                     hasLeft = true;
                     isLeaving = true;
 
-                    // Mở Character Select Form
+                    // ✅ PASS MAP TO CHARACTER SELECT FORM
+                    // selectedMap is already "battleground1" format from chooseMapButton_Click
                     string opponent = opponentName ?? "Opponent";
-                    var selectForm = new CharacterSelectForm(username, token, roomCode, opponent, true);
+                    Console.WriteLine($"[GameLobby] Passing selectedMap='{selectedMap}' to CharacterSelectForm");
+                    var selectForm = new CharacterSelectForm(username, token, roomCode, opponent, true, selectedMap);
                     selectForm.FormClosed += (s2, args) =>
                     {
                         if (selectForm.DialogResult != DialogResult.OK)
@@ -747,6 +759,48 @@ namespace PixelGameLobby
             }
         }
 
+
+        private async void chooseMapButton_Click(object sender, EventArgs e)
+        {
+            // ✅ ONLY HOST CAN CHOOSE MAP
+            if (!isHost)
+            {
+                MessageBox.Show("Only the room host can choose the battleground!", "Info",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            try
+            {
+                using (var f = new MapSelectForm())
+                {
+                    var res = f.ShowDialog(this);
+                    if (res == DialogResult.OK)
+                    {
+                        // ✅ MapSelectForm ALREADY returns "battleground2" format
+                        // NO NEED TO CONVERT AGAIN!
+                        selectedMap = f.SelectedMap ?? "battleground1";  // e.g., "battleground2"
+                        
+                        // Get display name for UI (e.g., "Battlefield 2" from "battleground2")
+                        string displayName = "Battlefield 1";
+                        if (selectedMap.StartsWith("battleground") && int.TryParse(selectedMap.Replace("battleground", ""), out int mapNum))
+                        {
+                            displayName = $"Battlefield {mapNum}";
+                        }
+
+                        mapLabel.Text = "Map: " + displayName;
+                        AddSystemMessage($"🗺️ Host selected map: {displayName}");
+                        
+                        Console.WriteLine($"[GameLobby.chooseMapButton_Click] MapSelectForm returned: '{f.SelectedMap}'");
+                        Console.WriteLine($"[GameLobby.chooseMapButton_Click] selectedMap now = '{selectedMap}'");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Choose map error: " + ex.Message);
+            }
+        }
 
         private async void sendButton_Click(object sender, EventArgs e)
         {

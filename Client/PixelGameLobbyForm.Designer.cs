@@ -41,6 +41,7 @@
             timeLabel = new Label();
             nodeLabel = new Label();
             mapLabel = new Label();
+            chooseMapButton = new Button();
             playersPanel.SuspendLayout();
             player1Panel.SuspendLayout();
             player2Panel.SuspendLayout();
@@ -315,10 +316,11 @@
             gameInfoPanel.Controls.Add(timeLabel);
             gameInfoPanel.Controls.Add(nodeLabel);
             gameInfoPanel.Controls.Add(mapLabel);
+            gameInfoPanel.Controls.Add(chooseMapButton);
             gameInfoPanel.Location = new Point(12, 420);
             gameInfoPanel.Margin = new Padding(3, 2, 3, 2);
             gameInfoPanel.Name = "gameInfoPanel";
-            gameInfoPanel.Size = new Size(588, 50);
+            gameInfoPanel.Size = new Size(588, 80);  // ✅ TĂNG từ 50 → 80
             gameInfoPanel.TabIndex = 3;
             gameInfoPanel.Paint += Panel_Paint;
             // 
@@ -326,7 +328,7 @@
             // 
             timeLabel.Font = new Font("Courier New", 9F, FontStyle.Bold);
             timeLabel.ForeColor = Color.Gold;
-            timeLabel.Location = new Point(400, 15);
+            timeLabel.Location = new Point(400, 45);  // ✅ DỊCH xuống
             timeLabel.Name = "timeLabel";
             timeLabel.Size = new Size(180, 20);
             timeLabel.TabIndex = 0;
@@ -336,7 +338,7 @@
             // 
             nodeLabel.Font = new Font("Courier New", 9F, FontStyle.Bold);
             nodeLabel.ForeColor = Color.Gold;
-            nodeLabel.Location = new Point(200, 15);
+            nodeLabel.Location = new Point(200, 45);  // ✅ DỊCH xuống
             nodeLabel.Name = "nodeLabel";
             nodeLabel.Size = new Size(180, 20);
             nodeLabel.TabIndex = 1;
@@ -346,11 +348,26 @@
             // 
             mapLabel.Font = new Font("Courier New", 9F, FontStyle.Bold);
             mapLabel.ForeColor = Color.Gold;
-            mapLabel.Location = new Point(10, 15);
+            mapLabel.Location = new Point(10, 45);  // ✅ DỊCH xuống
             mapLabel.Name = "mapLabel";
             mapLabel.Size = new Size(180, 20);
             mapLabel.TabIndex = 2;
             mapLabel.Text = "Map: Forest Arena";
+            // 
+            // chooseMapButton
+            // 
+            chooseMapButton.BackColor = Color.FromArgb(139, 69, 19);
+            chooseMapButton.FlatStyle = FlatStyle.Flat;
+            chooseMapButton.Font = new Font("Courier New", 8F, FontStyle.Bold);
+            chooseMapButton.ForeColor = Color.Gold;
+            chooseMapButton.Location = new Point(200, 12);
+            chooseMapButton.Name = "chooseMapButton";
+            chooseMapButton.Size = new Size(150, 26);
+            chooseMapButton.TabIndex = 3;
+            chooseMapButton.Text = "Choose Battleground";
+            chooseMapButton.UseVisualStyleBackColor = false;
+            chooseMapButton.Click += chooseMapButton_Click;
+            chooseMapButton.Paint += Button_Paint;
             // 
             // GameLobbyForm
             // 
@@ -408,5 +425,6 @@
         private Label mapLabel;
         private Label nodeLabel;
         private Label timeLabel;
+        private Button chooseMapButton;
     }
 }

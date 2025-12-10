@@ -430,7 +430,9 @@ namespace DoAn_NT106
                 MessageBoxIcon.Exclamation
             );
 
-            BtnBack_Click(null, EventArgs.Empty);
+            // ✅ CLOSE battle form and return to lobby
+            this.Close();
+            
             // ✅ Resume theme music when returning to MainForm
             try { DoAn_NT106.SoundManager.PlayMusic(DoAn_NT106.Client.BackgroundMusic.ThemeMusic, loop: true); } catch { }
         }

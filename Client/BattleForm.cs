@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Windows.Forms;
 using DoAn_NT106.Client.BattleSystems; // ✅ THÊM NAMESPACE MỚI
 using DoAn_NT106.Client; // ✅ THÊM CHO SOUNDMANAGER
+using PixelGameLobby;
 
 namespace DoAn_NT106
 {
@@ -13,6 +14,7 @@ namespace DoAn_NT106
         private string username;
         private string token;
         private string opponent;
+        private string roomCode = "000000";  // ✅ THÊM: Lưu roomCode để quay về đúng phòng
 
         // ===== ✅ NEW SYSTEMS (ADDED) =====
         private PlayerState player1State;
@@ -211,6 +213,7 @@ namespace DoAn_NT106
         // Key states
         private bool aPressed, dPressed;
         private bool leftPressed, rightPressed;
+        private bool isPaused = false;
 
         // Kích thước nhân vật (dynamic)
         private int PLAYER_WIDTH = 80;
@@ -531,15 +534,32 @@ namespace DoAn_NT106
         private string player1CharacterType = "girlknight";
         private string player2CharacterType = "girlknight";
 
-        public BattleForm(string username, string token, string opponent, string player1Character, string player2Character)
+        public BattleForm(string username, string token, string opponent, string player1Character, string player2Character, string selectedMap = "battleground1", string roomCode = "000000")
         {
             InitializeComponent();
 
             this.username = username;
             this.token = token;
             this.opponent = opponent;
+            this.roomCode = roomCode;  // ✅ LƯU roomCode
             this.player1CharacterType = player1Character;
             this.player2CharacterType = player2Character;
+
+            // ✅ Set map background based on selectedMap ("battleground1" format)
+            // ✅ FIX: selectedMap is already "battleground1" format, find its index
+            int mapIndex = -1;
+            if (!string.IsNullOrEmpty(selectedMap))
+            {
+                // Extract number from "battleground4" → 4
+                string mapNumberStr = selectedMap.Replace("battleground", "");
+                if (int.TryParse(mapNumberStr, out int mapNum) && mapNum >= 1 && mapNum <= 4)
+                {
+                    mapIndex = mapNum - 1;  // 1 → index 0, 4 → index 3
+                }
+            }
+            currentBackground = (mapIndex >= 0 && mapIndex < 4) ? mapIndex : 0;
+            
+            Console.WriteLine($"[BattleForm] selectedMap='{selectedMap}' → mapIndex={currentBackground}");
 
             this.WindowState = FormWindowState.Maximized;
             this.FormBorderStyle = FormBorderStyle.None;
@@ -729,106 +749,6 @@ namespace DoAn_NT106
                 //     p2ParryCooldownTimer.Stop();
                 //     player2ParryOnCooldown = false;
                 // };
-                // Load background options
-                if (cmbBackground.Items.Count == 0) // CHỈ thêm nếu ComboBox rỗng
-        {
-            // Xóa danh sách cũ và thêm mới
-            backgroundImages.Clear();
-            backgroundImages.Add("battleground1");
-            backgroundImages.Add("battleground2");
-            backgroundImages.Add("battleground3");
-            backgroundImages.Add("battleground4");
-
-            cmbBackground.Items.Clear(); // Xóa trước khi thêm mới
-            cmbBackground.Items.AddRange(new object[] {
-                "Battlefield 1", "Battlefield 2", "Battlefield 3", "Battlefield 4"
-            });
-            
-            Console.WriteLine($"[SetupGame] Added {cmbBackground.Items.Count} background options");
-        }
-                // Set background (uses current ClientSize; safe-guards inside)
-                SetBackground(backgroundImages[currentBackground]);
-
-                // Load fireball (resource may be Image or byte[])
-                try
-                {
-                    fireball = ResourceToImage(Properties.Resources.fireball);
-                    if (fireball != null && ImageAnimator.CanAnimate(fireball))
-                    {
-                        ImageAnimator.Animate(fireball, OnFrameChanged);
-                    }
-                }
-                catch
-                {
-                    fireball = CreateColoredImage(FIREBALL_WIDTH, FIREBALL_HEIGHT, Color.Orange);
-                }
-
-                // Load spell animation (for Bringer of Death)
-                try
-                {
-                    spellAnimation = ResourceToImage(Properties.Resources.BringerofDeath_Spell);
-                    if (spellAnimation != null && ImageAnimator.CanAnimate(spellAnimation))
-                    {
-                        ImageAnimator.Animate(spellAnimation, OnFrameChanged);
-                    }
-                }
-                catch
-                {
-                    spellAnimation = CreateColoredImage(SPELL_WIDTH, SPELL_HEIGHT, Color.Purple);
-                }
-
-                // Load dash effect
-                try
-                {
-                    dashEffectImage = CreateColoredImage(80, 80, Color.FromArgb(150, Color.White));
-                }
-                catch
-                {
-                    dashEffectImage = CreateColoredImage(80, 80, Color.White);
-                }
-
-                // Load GM impact effect ( TẠO LỚN HƠN để dễ nhìn - từ 60x60 lên 100x100)
-                try
-                {
-                    gmImpactEffect = CreateColoredImage(100, 100, Color.OrangeRed);
-                }
-                catch
-                {
-                    gmImpactEffect = CreateColoredImage(100, 100, Color.OrangeRed);
-                }
-
-                // Load warrior skill effect (projectile)
-                try
-                {
-                    var warriorEffect = ResourceToImage(Properties.Resources.Warrior_skill_effect);
-                    if (warriorEffect != null)
-                    {
-                        warriorSkillEffect = warriorEffect;
-                        if (ImageAnimator.CanAnimate(warriorSkillEffect))
-                        {
-                            ImageAnimator.Animate(warriorSkillEffect, OnFrameChanged);
-                        }
-                    }
-                    else
-                    {
-                        warriorSkillEffect = CreateColoredImage(PROJECTILE_WIDTH, PROJECTILE_HEIGHT, Color.FromArgb(200, Color.Gold));
-                    }
-                }
-                catch
-                {
-                    warriorSkillEffect = CreateColoredImage(PROJECTILE_WIDTH, PROJECTILE_HEIGHT, Color.FromArgb(200, Color.Gold));
-                }
-
-                // Load hit effect
-                try
-                {
-                    hitEffectImage = CreateColoredImage(50, 50, Color.FromArgb(200, Color.Red));
-                }
-                catch
-                {
-                    hitEffectImage = CreateColoredImage(50, 50, Color.Red);
-                }
-
                 // Initialize timers
                 player1DashTimer = new System.Windows.Forms.Timer();
                 player2DashTimer = new System.Windows.Forms.Timer();
@@ -899,6 +819,11 @@ namespace DoAn_NT106
             }
 
             SetupControlsInfo();
+
+            // ✅ THÊM: Load background map
+            string backgroundName = $"battleground{currentBackground + 1}";
+            SetBackground(backgroundName);
+            Console.WriteLine($"[SetupGame] Background loaded: {backgroundName}");
 
             // Initialize round system
             InitializeRoundSystem();
@@ -1123,7 +1048,40 @@ namespace DoAn_NT106
                     }
                     break;
                 case Keys.Escape:
-                    BtnBack_Click(null, EventArgs.Empty);
+                    // Open main menu: Back to Lobby (go to PixelGameLobbyForm) or Continue
+                    try
+                    {
+                        if (!isPaused)
+                        {
+                            PauseGame();
+                            using (var menu = new MainMenuForm(roomCode))  // ✅ TRUYỀN roomCode
+                            {
+                                var res = menu.ShowDialog(this);
+                                if (res == DialogResult.OK)
+                                {
+                                    // Back to Lobby: stop timers and return to PixelGameLobbyForm
+                                    try { gameTimer?.Stop(); } catch { }
+                                    try { walkAnimationTimer?.Stop(); } catch { }
+                                    
+                                    this.Close();
+                                    
+                                    // ✅ QUAY VỀ PIXELGAMELOBBYFORM VỚI ĐÚNG roomCode
+                                    var lobbyForm = new PixelGameLobby.GameLobbyForm(roomCode, username, token);
+                                    lobbyForm.StartPosition = FormStartPosition.CenterScreen;
+                                    lobbyForm.Show();
+                                }
+                                else
+                                {
+                                    ResumeGame();
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine("Main menu open error: " + ex.Message);
+                        ResumeGame();
+                    }
                     break;
             }
 
@@ -1210,6 +1168,37 @@ namespace DoAn_NT106
                     break;
             }
             e.Handled = true;
+        }
+
+        private void PauseGame()
+        {
+            try
+            {
+                isPaused = true;
+                try { gameTimer?.Stop(); } catch { }
+                try { walkAnimationTimer?.Stop(); } catch { }
+                try { player1DashTimer?.Stop(); } catch { }
+                try { player2DashTimer?.Stop(); } catch { }
+                try { player1SkillTimer?.Stop(); } catch { }
+                try { player2SkillTimer?.Stop(); } catch { }
+                // Optionally pause other timers/effects
+            }
+            catch { }
+        }
+
+        private void ResumeGame()
+        {
+            try
+            {
+                isPaused = false;
+                try { if (gameTimer != null) gameTimer.Start(); } catch { }
+                try { if (walkAnimationTimer != null) walkAnimationTimer.Start(); } catch { }
+                try { if (player1DashTimer != null) player1DashTimer.Start(); } catch { }
+                try { if (player2DashTimer != null) player2DashTimer.Start(); } catch { }
+                try { if (player1SkillTimer != null) player1SkillTimer.Start(); } catch { }
+                try { if (player2SkillTimer != null) player2SkillTimer.Start(); } catch { }
+            }
+            catch { }
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -1874,24 +1863,12 @@ namespace DoAn_NT106
 
         private void SetupEventHandlers()
         {
-            cmbBackground.SelectedIndexChanged += CmbBackground_SelectedIndexChanged;
-            btnBack.Click += BtnBack_Click;
             gameTimer.Tick += GameTimer_Tick;
             if (!gameTimer.Enabled) gameTimer.Start();
 
             this.KeyDown += BattleForm_KeyDown;
             this.KeyUp += BattleForm_KeyUp;
             this.Resize += BattleForm_Resize;
-        }
-
-        private void CmbBackground_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            if (cmbBackground.SelectedIndex >= 0 && cmbBackground.SelectedIndex < backgroundImages.Count)
-            {
-                string bgName = backgroundImages[cmbBackground.SelectedIndex];
-                currentBackground = cmbBackground.SelectedIndex;
-                SetBackground(bgName);
-            }
         }
 
         private void SetBackground(string backgroundName)
@@ -2051,23 +2028,6 @@ namespace DoAn_NT106
         {
             var actualSize = GetActualCharacterSize(characterType);
             return actualSize.actualWidth; // Trả về kích thước vẽ thực tế
-        }
-
-        private void BtnBack_Click(object sender, EventArgs e)
-        {
-            try { gameTimer?.Stop(); } catch { }
-            try { walkAnimationTimer?.Stop(); } catch { }
-
-            this.Close();
-
-            foreach (Form form in Application.OpenForms)
-            {
-                if (form is MainForm mainForm)
-                {
-                    mainForm.Show();
-                    break;
-                }
-            }
         }
 
         private void ShowHitEffect(string message, Color color)
@@ -2250,6 +2210,7 @@ namespace DoAn_NT106
 
             return hit;
         }
+
         private void CheckFireballHit()
         {
             if (!fireballActive) return;

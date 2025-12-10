@@ -23,9 +23,10 @@ namespace DoAn_NT106
 
         private string username;
         private string token;
-        private string roomCode;
+        private string roomCode;  // ✅ THÊM: roomCode
         private string opponentName;
         private bool isHost;
+        private string selectedMap = "battleground1";  // ✅ MAP SELECTION
 
         // Available characters
         private List<CharacterInfo> characters = new List<CharacterInfo>();
@@ -52,13 +53,14 @@ namespace DoAn_NT106
         private string player2Character = "girlknight"; // Mặc định
         public string SelectedCharacter { get; private set; }
 
-        public CharacterSelectForm(string username, string token, string roomCode, string opponentName, bool isHost = true)
+        public CharacterSelectForm(string username, string token, string roomCode, string opponentName, bool isHost = true, string selectedMap = "battleground1")
         {
             this.username = username;
             this.token = token;
             this.roomCode = roomCode;
             this.opponentName = opponentName;
             this.isHost = isHost;
+            this.selectedMap = selectedMap;  // ✅ SAVE MAP
 
             // ✅ GÁN GIÁ TRỊ MẶC ĐỊNH CHO CHARACTER
             this.player1Character = "girlknight"; // Người chơi hiện tại chọn
@@ -504,13 +506,16 @@ namespace DoAn_NT106
             // ✅ OPPONENT MẶC ĐỊNH là girlknight (sau này lấy từ server)
             string opponentCharacter = "girlknight";
 
-            // ✅ TRUYỀN ĐẦY ĐỦ 5 THAM SÓ với character đã chọn
+            // ✅ TRUYỀN ĐẦY ĐỦ 7 THAM SỐ với character đã chọn + map + roomCode
+            Console.WriteLine($"[CharacterSelectForm] Passing selectedMap='{selectedMap}' to BattleForm");
             var battleForm = new BattleForm(
                 username,              // Player 1 username
                 token,                 // Token
                 opponentName,          // Opponent username
                 SelectedCharacter,     // ✅ Player 1 character (người chơi đã chọn)
-                opponentCharacter      // ✅ Player 2 character (mặc định girlknight)
+                opponentCharacter,     // ✅ Player 2 character (mặc định girlknight)
+                selectedMap,           // ✅ MAP ĐÃ CHỈ ĐỊNH (e.g., "battleground4")
+                roomCode               // ✅ ROOM CODE
             );
 
             battleForm.FormClosed += (s, args) =>
