@@ -6,9 +6,14 @@ namespace DoAn_NT106.Client
 {
     public partial class CreateRoomForm : Form
     {
-        // Properties để trả về kết quả
-        public string RoomName { get; private set; }
+        #region Properties
+
+        public string RoomName { get; private set; }      
         public string RoomPassword { get; private set; }
+
+        #endregion
+
+        #region Constructor and Init
 
         public CreateRoomForm()
         {
@@ -16,31 +21,28 @@ namespace DoAn_NT106.Client
             SetupEventHandlers();
         }
 
+        //Gắn các event handlers
         private void SetupEventHandlers()
         {
-            // Checkbox password
             chkHasPassword.CheckedChanged += ChkHasPassword_CheckedChanged;
 
-            // Buttons
             btnCreate.Click += BtnCreate_Click;
             btnCancel.Click += BtnCancel_Click;
 
-            // Hover effects
             btnCreate.MouseEnter += Button_MouseEnter;
             btnCreate.MouseLeave += Button_MouseLeave;
             btnCancel.MouseEnter += Button_MouseEnter;
             btnCancel.MouseLeave += Button_MouseLeave;
 
-            // TextBox placeholder effect
             txtRoomName.Enter += TextBox_Enter;
             txtRoomName.Leave += TextBox_Leave;
             txtPassword.Enter += TextBox_Enter;
             txtPassword.Leave += TextBox_Leave;
         }
 
-        // ===========================
-        // EVENT HANDLERS
-        // ===========================
+        #endregion
+
+        #region Event Handlers
 
         private void ChkHasPassword_CheckedChanged(object sender, EventArgs e)
         {
@@ -57,6 +59,7 @@ namespace DoAn_NT106.Client
             }
             else
             {
+                // Clear password when user disables password option
                 txtPassword.Text = "";
             }
         }
@@ -92,6 +95,7 @@ namespace DoAn_NT106.Client
             if (chkHasPassword.Checked)
             {
                 password = txtPassword.Text;
+
                 if (string.IsNullOrEmpty(password))
                 {
                     ShowError("Please enter a password or uncheck the password option!");
@@ -117,14 +121,15 @@ namespace DoAn_NT106.Client
 
         private void BtnCancel_Click(object sender, EventArgs e)
         {
+            // User hủy tạo phòng
             this.DialogResult = DialogResult.Cancel;
             this.Close();
         }
 
-        // ===========================
-        // UI EFFECTS
-        // ===========================
+        #endregion
 
+        #region UI Effects
+        // UI EFFECTS
         private void Button_MouseEnter(object sender, EventArgs e)
         {
             if (sender is Button btn)
@@ -142,9 +147,9 @@ namespace DoAn_NT106.Client
             if (sender is Button btn)
             {
                 if (btn == btnCreate)
-                    btn.BackColor = Color.FromArgb(0, 128, 0); // Green
+                    btn.BackColor = Color.FromArgb(0, 128, 0);       
                 else if (btn == btnCancel)
-                    btn.BackColor = Color.FromArgb(128, 128, 128); // Gray
+                    btn.BackColor = Color.FromArgb(128, 128, 128);   
             }
         }
 
@@ -164,10 +169,11 @@ namespace DoAn_NT106.Client
             }
         }
 
-        // ===========================
-        // HELPERS
-        // ===========================
+        #endregion
 
+        #region Helpers
+
+        // HELPERS
         private void ShowError(string message)
         {
             MessageBox.Show(
@@ -177,5 +183,7 @@ namespace DoAn_NT106.Client
                 MessageBoxIcon.Warning
             );
         }
+
+        #endregion
     }
 }

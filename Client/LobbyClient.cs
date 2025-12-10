@@ -11,6 +11,8 @@ namespace DoAn_NT106.Client
     /// </summary>
     public class LobbyClient : IDisposable
     {
+        #region Fields and properties
+
         // Sử dụng PersistentTcpClient singleton
         private PersistentTcpClient TcpClient => PersistentTcpClient.Instance;
 
@@ -36,23 +38,25 @@ namespace DoAn_NT106.Client
         public bool IsConnected => TcpClient.IsConnected;
         public bool IsJoined => isJoined;
 
-        // ===========================
-        // CONSTRUCTOR
-        // ===========================
+        #endregion
+
+        #region Constructors
+
+    
         public LobbyClient()
         {
             // Subscribe vào broadcast của PersistentTcpClient
             TcpClient.OnBroadcast += HandleBroadcast;
             TcpClient.OnDisconnected += HandleDisconnected;
         }
+
         public LobbyClient(string address, int port) : this()
         {
-            // Ignore address/port - dùng PersistentTcpClient singleton
         }
 
-        // ===========================
-        // CONNECT AND JOIN LOBBY
-        // ===========================
+        #endregion
+
+        #region Connect and join lobby
         public async Task<(bool Success, LobbyStateData State)> ConnectAndJoinAsync(
             string roomCode, string username, string token)
         {
@@ -75,7 +79,6 @@ namespace DoAn_NT106.Client
 
                 // Gửi request join lobby
                 var response = await TcpClient.LobbyJoinAsync(roomCode, username, token);
-
                 Console.WriteLine($"[LobbyClient] Join response: {response.Success} - {response.Message}");
 
                 if (!response.Success)
@@ -127,18 +130,19 @@ namespace DoAn_NT106.Client
             }
         }
 
-        // ===========================
-        // HANDLE BROADCASTS
-        // ===========================
+        #endregion
+
+        #region Handle broadcasts
+
         private void HandleBroadcast(string action, JsonElement data)
         {
             if (!isJoined || isDisposed) return;
 
-            // Kiểm tra roomCode nếu có
+            // Kiểm tra roomCode nếu có 
             if (data.TryGetProperty("roomCode", out var rcEl))
             {
                 string broadcastRoomCode = rcEl.GetString();
-                if (broadcastRoomCode != roomCode) return; // Không phải room này
+                if (broadcastRoomCode != roomCode) return; 
             }
 
             try
@@ -219,7 +223,6 @@ namespace DoAn_NT106.Client
         {
             string changedUsername = GetStringProp(data, "username");
             bool isReady = GetBoolProp(data, "isReady");
-
             Console.WriteLine($"[LobbyClient] Ready changed: {changedUsername} = {isReady}");
             OnPlayerReadyChanged?.Invoke(changedUsername, isReady);
         }
@@ -247,9 +250,10 @@ namespace DoAn_NT106.Client
             }
         }
 
-        // ===========================
-        // GỬI ACTIONS
-        // ===========================
+        #endregion
+
+        #region Send actions
+
         public async Task<bool> SetReadyAsync(bool isReady)
         {
             try
@@ -305,9 +309,10 @@ namespace DoAn_NT106.Client
             }
         }
 
-        // ===========================
-        // DISPOSE
-        // ===========================
+        #endregion
+
+        #region Dispose
+
         public void Dispose()
         {
             if (isDisposed) return;
@@ -325,13 +330,15 @@ namespace DoAn_NT106.Client
                     _ = LeaveAsync();
                 }
             }
-            catch { }
-
+            catch
+            {
+            }
         }
 
-        // ===========================
-        // HELPER METHODS
-        // ===========================
+        #endregion
+
+        #region Helper methods
+
         private string GetStringProp(JsonElement el, string name)
         {
             return el.TryGetProperty(name, out var prop) ? prop.GetString() ?? "" : "";
@@ -341,33 +348,35 @@ namespace DoAn_NT106.Client
         {
             return el.TryGetProperty(name, out var prop) && prop.GetBoolean();
         }
-    }
 
-    // ===========================
-    // DATA CLASSES
-    // ===========================
-    public class LobbyStateData
-    {
-        public string RoomCode { get; set; }
-        public string RoomName { get; set; }
-        public string Player1 { get; set; }
-        public string Player2 { get; set; }
-        public bool Player1Ready { get; set; }
-        public bool Player2Ready { get; set; }
-        public List<LobbyChatMessage> ChatHistory { get; set; }
-    }
+        #endregion
 
-    public class LobbyPlayerData
-    {
-        public string Username { get; set; }
-        public bool IsPlayer1 { get; set; }
-    }
+        #region Data classes
+        public class LobbyStateData
+        {
+            public string RoomCode { get; set; }
+            public string RoomName { get; set; }
+            public string Player1 { get; set; }
+            public string Player2 { get; set; }
+            public bool Player1Ready { get; set; }
+            public bool Player2Ready { get; set; }
+            public List<LobbyChatMessage> ChatHistory { get; set; }
+        }
 
-    public class LobbyChatMessage
-    {
-        public string Username { get; set; }
-        public string Message { get; set; }
-        public string Timestamp { get; set; }
-        public string Type { get; set; }
+        public class LobbyPlayerData
+        {
+            public string Username { get; set; }
+            public bool IsPlayer1 { get; set; }
+        }
+
+        public class LobbyChatMessage
+        {
+            public string Username { get; set; }
+            public string Message { get; set; }
+            public string Timestamp { get; set; }
+            public string Type { get; set; }
+        }
+
+        #endregion
     }
 }

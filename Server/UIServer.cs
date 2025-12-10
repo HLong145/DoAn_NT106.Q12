@@ -82,12 +82,47 @@ namespace ServerApp
 
                 if (result == DialogResult.Yes)
                 {
-                    server.Stop();
+                    // ✅ ASYNC STOP TO PREVENT HANGING
+                    try
+                    {
+                        var stopTask = server.Stop();
+                        // Wait maximum 5 seconds for server to stop
+                        stopTask.Wait(TimeSpan.FromSeconds(5));
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"⚠️ Error stopping server: {ex.Message}");
+                    }
                 }
                 else
                 {
                     e.Cancel = true;
                 }
+            }
+            
+            // ✅ CLEANUP SERVER RESOURCES
+            CleanupServerResources();
+        }
+
+        // ✅ CLEANUP FUNCTION
+        private void CleanupServerResources()
+        {
+            try
+            {
+                Console.WriteLine("🧹 Cleaning up server resources...");
+
+                // ✅ Force stop server if still running
+                if (server?.IsRunning == true)
+                {
+                    var stopTask = server.Stop();
+                    stopTask.Wait(TimeSpan.FromSeconds(3));
+                }
+
+                Console.WriteLine("✅ Server cleanup complete");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ Cleanup error: {ex.Message}");
             }
         }
     }

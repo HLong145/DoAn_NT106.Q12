@@ -11,28 +11,36 @@ namespace DoAn_NT106
 {
     public partial class FormDangNhap : Form
     {
-        private int floatingOffset = 0;
-        private Random random = new Random();
-        private System.Windows.Forms.Timer floatingItemsTimer;
-        public string ReturnedUsername { get; private set; }
-        public string Token { get; private set; }
+        #region Fields
 
-        private readonly PersistentTcpClient tcpClient;
+        private int floatingOffset = 0;                        
+        private Random random = new Random();
+        private System.Windows.Forms.Timer floatingItemsTimer; 
+
+        public string ReturnedUsername { get; private set; }   
+        public string Token { get; private set; }         
+
+        private readonly PersistentTcpClient tcpClient;      
         private ValidationService validationService = new ValidationService();
-        private static bool isAutoLoginPerformed = false;
+
+        private static bool isAutoLoginPerformed = false;    
 
         public event EventHandler SwitchToRegister;
 
+        #endregion
 
+        #region Constructor
 
         public FormDangNhap()
         {
             InitializeComponent();
-            SetupFloatingAnimation();
 
-            tcpClient = PersistentTcpClient.Instance;
+            SetupFloatingAnimation();                         
+            tcpClient = PersistentTcpClient.Instance;         
+
             if (!isAutoLoginPerformed)
             {
+                // Chỉ auto load login 1 lần trong vòng đời app
                 this.Shown += async (sender, e) =>
                 {
                     await LoadRememberedLoginAsync();
@@ -40,9 +48,11 @@ namespace DoAn_NT106
             }
         }
 
-        // =========================
-        // ✅ Remember Login (ASYNC)
-        // =========================
+        #endregion
+
+        #region Secure Storage (Encrypt / Decrypt)
+        //Remember Login 
+        // Encrypt plain text using DPAPI (bind to current user)
         private string Encrypt(string plainText)
         {
             if (string.IsNullOrEmpty(plainText)) return "";
@@ -53,6 +63,7 @@ namespace DoAn_NT106
             return Convert.ToBase64String(bytes);
         }
 
+        // Decrypt text stored by Encrypt()
         private string Decrypt(string cipherText)
         {
             if (string.IsNullOrEmpty(cipherText)) return "";
@@ -66,9 +77,14 @@ namespace DoAn_NT106
             }
             catch
             {
+                // Nếu giải mã lỗi thì xem như không có dữ liệu
                 return "";
             }
         }
+
+        #endregion
+
+        #region Form Lifecycle Overrides
 
         protected override void OnShown(EventArgs e)
         {
@@ -77,8 +93,13 @@ namespace DoAn_NT106
             this.Focus();
         }
 
+        #endregion
+
+        #region Remember Me Auto Login
+
         private async Task LoadRememberedLoginAsync()
         {
+            // Chỉ chạy nếu chưa auto-login trong session này
             if (isAutoLoginPerformed) return;
 
             if (Properties.Settings.Default.RememberMe)
@@ -89,6 +110,7 @@ namespace DoAn_NT106
 
                 if (string.IsNullOrEmpty(savedUsername)) return;
 
+                // Đổ lại vào textbox cho user xem
                 tb_Username.Text = savedUsername;
                 tb_Password.Text = savedPassword;
 
@@ -96,18 +118,25 @@ namespace DoAn_NT106
 
                 try
                 {
+                    // Verify token với server để auto-login
                     var verifyResponse = await tcpClient.VerifyTokenAsync(savedToken);
                     if (verifyResponse.Success)
                     {
                         string usernameFromToken = verifyResponse.GetDataValue("username");
-                        MessageBox.Show($"🎉 Auto login successful!\n\nWelcome back {usernameFromToken}!",
-                            "✅ Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                        MessageBox.Show(
+                            $"🎉 Auto login successful!\n\nWelcome back {usernameFromToken}!",
+                            "✅ Success",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Information);
 
                         isAutoLoginPerformed = true;
+
                         this.Hide();
                         MainForm mainForm = new MainForm(usernameFromToken, savedToken);
                         mainForm.FormClosed += (s, args) =>
                         {
+                            // Cho phép auto-login lại nếu mở lại form login
                             isAutoLoginPerformed = false;
                             this.Close();
                         };
@@ -116,10 +145,15 @@ namespace DoAn_NT106
                     }
                     else
                     {
+                        // Token không còn hợp lệ xoá token đã lưu
                         Properties.Settings.Default.SavedToken = "";
                         Properties.Settings.Default.Save();
-                        MessageBox.Show("Your session has expired. Please click Login button.",
-                            "⚠ Session Expired", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+
+                        MessageBox.Show(
+                            "Your session has expired. Please click Login button.",
+                            "⚠ Session Expired",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Warning);
                     }
                 }
                 catch (Exception ex)
@@ -129,30 +163,38 @@ namespace DoAn_NT106
             }
         }
 
-        // =========================
-        // ✅ Button Login (ASYNC)
-        // =========================
+        #endregion
+
+        #region Login Button Logic
+
+        //Button Login
         private async void btn_Login_Click(object sender, EventArgs e)
         {
             string contact = tb_Username.Text.Trim();
             string password = tb_Password.Text;
 
+            // Clear password field
             tb_Password.Text = string.Empty;
 
             // Kiểm tra thông tin login
             if (string.IsNullOrEmpty(contact) || string.IsNullOrEmpty(password))
             {
-                MessageBox.Show("Please fill in all required login information!",
-                    "⚠ Missing Information", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(
+                    "Please fill in all required login information!",
+                    "⚠ Missing Information",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
                 return;
             }
-
 
             // Kiểm tra captcha
             if (!chk_Captcha.Checked)
             {
-                MessageBox.Show("Please confirm that you are not a robot!",
-                    "⚠ Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(
+                    "Please confirm that you are not a robot!",
+                    "⚠ Warning",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
                 return;
             }
 
@@ -163,8 +205,9 @@ namespace DoAn_NT106
             try
             {
                 btn_Login.Enabled = false;
-                var response = await tcpClient.LoginAsync(username, password);
 
+                // Gửi request login lên server
+                var response = await tcpClient.LoginAsync(username, password);
                 if (response.Success)
                 {
                     string token = response.GetDataValue("token");
@@ -172,8 +215,11 @@ namespace DoAn_NT106
 
                     if (string.IsNullOrEmpty(token))
                     {
-                        MessageBox.Show("Server did not return authentication token.",
-                            "❌ Login Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        MessageBox.Show(
+                            "Server did not return authentication token.",
+                            "❌ Login Error",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Error);
                         return;
                     }
 
@@ -192,10 +238,14 @@ namespace DoAn_NT106
                         Properties.Settings.Default.SavedPassword = "";
                         Properties.Settings.Default.SavedToken = "";
                     }
+
                     Properties.Settings.Default.Save();
 
-                    MessageBox.Show($"🎉 Login successful!\n\nWelcome {returnedUsername}!",
-                        "✅ Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show(
+                        $"🎉 Login successful!\n\nWelcome {returnedUsername}!",
+                        "✅ Success",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
 
                     // Mở MainForm và đóng FormDangNhap
                     MainForm mainForm = new MainForm(returnedUsername, token);
@@ -205,14 +255,20 @@ namespace DoAn_NT106
                 }
                 else
                 {
-                    MessageBox.Show(response.Message,
-                        "❌ Login Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(
+                        response.Message,
+                        "❌ Login Failed",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error);
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Error while connecting to server:\n" + ex.Message,
-                    "⚠ Connection Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(
+                    "Error while connecting to server:\n" + ex.Message,
+                    "⚠ Connection Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
             }
             finally
             {
@@ -220,26 +276,30 @@ namespace DoAn_NT106
             }
         }
 
-        // =========================
-        // ✅ QUAN TRỌNG: Sửa sự kiện Register button
-        // =========================
+        #endregion
+
+        #region Register / Forgot Password Navigation
+
+        // Register button
         private void btn_Register_Click(object sender, EventArgs e)
         {
             Console.WriteLine("🎯 Register button CLICKED in FormDangNhap!");
 
-            // ✅ DEBUG: Kiểm tra sự kiện
+            // tra sự kiện
             if (SwitchToRegister == null)
             {
                 Console.WriteLine("❌ ERROR: SwitchToRegister event is NULL! Using fallback...");
 
-                // FALLBACK: Chuyển form thủ công
                 this.Hide();
                 var registerForm = new FormDangKy();
+
+                // Khi FormDangKy đưa SwitchToLogin thì đóng form đăng ký, show lại form login
                 registerForm.SwitchToLogin += (s2, e2) =>
                 {
                     registerForm.Close();
                     this.Show();
                 };
+
                 registerForm.Show();
             }
             else
@@ -251,15 +311,17 @@ namespace DoAn_NT106
 
         private void btn_Forgot_Click(object sender, EventArgs e)
         {
+            // Mở form quên mật khẩu, ẩn form hiện tại
             this.Hide();
             FormQuenPass formQuenPass = new FormQuenPass();
             formQuenPass.FormClosed += (s, args) => this.Show();
             formQuenPass.Show();
         }
 
-        // =========================
-        // Helpers
-        // =========================
+        #endregion
+
+        #region Helpers (Validation, UI)
+    
         private bool IsValidEmail(string email)
         {
             return validationService.IsValidEmail(email);
@@ -272,16 +334,19 @@ namespace DoAn_NT106
 
         private void ShowPasswordCheckBox_CheckedChanged(object sender, EventArgs e)
         {
+            // Toggle hiển thị/ẩn mật khẩu
             tb_Password.UseSystemPasswordChar = !chk_ShowPassword.Checked;
         }
 
-        // =========================
+        #endregion
+
+        #region Floating Background Animation
+
         // Floating Animation
-        // =========================
         private void SetupFloatingAnimation()
         {
             floatingItemsTimer = new System.Windows.Forms.Timer();
-            floatingItemsTimer.Interval = 50;
+            floatingItemsTimer.Interval = 50;          // 20 FPS
             floatingItemsTimer.Tick += FloatingItemsTimer_Tick;
             floatingItemsTimer.Start();
         }
@@ -291,7 +356,8 @@ namespace DoAn_NT106
             floatingOffset += 2;
             if (floatingOffset > this.Height + 50)
                 floatingOffset = -50;
-            this.Invalidate();
+
+            this.Invalidate(); 
         }
 
         private void FormDangNhap_Paint(object sender, PaintEventArgs e)
@@ -312,14 +378,23 @@ namespace DoAn_NT106
             }
         }
 
+        #endregion
+
+        #region Form Closing
+
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             if (e.CloseReason == CloseReason.UserClosing)
             {
                 e.Cancel = false;
             }
+
             base.OnFormClosing(e);
         }
+
+        #endregion
+
+        #region Keyboard Shortcuts
 
         private void chk_Remember_CheckedChanged(object sender, EventArgs e) { }
 
@@ -329,8 +404,7 @@ namespace DoAn_NT106
             {
                 e.Handled = true;
                 e.SuppressKeyPress = true;
-
-                this.SelectNextControl(this.ActiveControl, true, true, true, true); 
+                this.SelectNextControl(this.ActiveControl, true, true, true, true);
             }
         }
 
@@ -340,7 +414,6 @@ namespace DoAn_NT106
             {
                 e.Handled = true;
                 e.SuppressKeyPress = true;
-
                 btn_Login_Click(sender, e);
             }
         }
@@ -351,7 +424,6 @@ namespace DoAn_NT106
             {
                 e.Handled = true;
                 e.SuppressKeyPress = true;
-
                 btn_Login_Click(sender, e);
             }
         }
@@ -362,7 +434,6 @@ namespace DoAn_NT106
             {
                 e.Handled = true;
                 e.SuppressKeyPress = true;
-
                 btn_Register_Click(sender, e);
             }
         }
@@ -373,9 +444,10 @@ namespace DoAn_NT106
             {
                 e.Handled = true;
                 e.SuppressKeyPress = true;
-
                 btn_Forgot_Click(sender, e);
             }
         }
+
+        #endregion
     }
 }

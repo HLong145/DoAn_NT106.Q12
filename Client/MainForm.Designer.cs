@@ -22,6 +22,7 @@ namespace DoAn_NT106
         {
             panelSidebar = new Panel();
             pbAvatar = new PictureBox();
+            lblAvatarHint = new Label();
             lblUserName = new Label();
             btn_play = new Btn_Pixel();
             btnLogout = new Btn_Pixel();
@@ -60,6 +61,7 @@ namespace DoAn_NT106
             // 
             panelSidebar.BackColor = Color.FromArgb(180, 83, 9);
             panelSidebar.Controls.Add(pbAvatar);
+            panelSidebar.Controls.Add(lblAvatarHint);
             panelSidebar.Controls.Add(lblUserName);
             panelSidebar.Controls.Add(btn_play);
             panelSidebar.Controls.Add(btnLogout);
@@ -72,28 +74,43 @@ namespace DoAn_NT106
             // 
             // pbAvatar
             // 
-            pbAvatar.BackColor = Color.FromArgb(255, 192, 128);
-            pbAvatar.BorderStyle = BorderStyle.FixedSingle;
-            pbAvatar.Location = new Point(78, 65);
+            pbAvatar.BackColor = Color.Transparent;
+            pbAvatar.BackgroundImageLayout = ImageLayout.None;
+            pbAvatar.Location = new Point(37, 20);
             pbAvatar.Margin = new Padding(4, 5, 4, 5);
             pbAvatar.Name = "pbAvatar";
-            pbAvatar.Size = new Size(169, 165);
+            pbAvatar.Size = new Size(260, 249);
             pbAvatar.TabIndex = 3;
             pbAvatar.TabStop = false;
             pbAvatar.Tag = "Placeholder for Hero Avatar";
+            pbAvatar.Click += PbAvatar_Click;
+            // 
+            // lblAvatarHint
+            // 
+            lblAvatarHint.AutoSize = true;
+            lblAvatarHint.BackColor = Color.Transparent;
+            lblAvatarHint.Font = new Font("Courier New", 10F, FontStyle.Italic);
+            lblAvatarHint.ForeColor = Color.LightGoldenrodYellow;
+            lblAvatarHint.Location = new Point(37, 286);
+            lblAvatarHint.Name = "lblAvatarHint";
+            lblAvatarHint.Size = new Size(0, 20);
+            lblAvatarHint.TabIndex = 4;
+            lblAvatarHint.Visible = false;
             // 
             // lblUserName
             // 
-            lblUserName.AutoSize = true;
+            lblUserName.AutoSize = false;
             lblUserName.BackColor = Color.Transparent;
             lblUserName.Font = new Font("Courier New", 22.2F, FontStyle.Bold, GraphicsUnit.Point, 0);
             lblUserName.ForeColor = Color.FromArgb(64, 0, 0);
-            lblUserName.Location = new Point(7, 262);
+            // center within sidebar and place below avatar
+            lblUserName.Location = new Point(10, 300);
             lblUserName.Margin = new Padding(4, 0, 4, 0);
             lblUserName.Name = "lblUserName";
-            lblUserName.Size = new Size(326, 41);
+            lblUserName.Size = new Size(314, 50);
             lblUserName.TabIndex = 2;
             lblUserName.Text = "HERO NAME HERE";
+            lblUserName.TextAlign = ContentAlignment.MiddleCenter;
             // 
             // btn_play
             // 
@@ -153,7 +170,7 @@ namespace DoAn_NT106
             label5.BackColor = Color.FromArgb(180, 83, 9);
             label5.Font = new Font("Courier New", 14F, FontStyle.Bold, GraphicsUnit.Point, 0);
             label5.ForeColor = Color.FromArgb(64, 0, 0);
-            label5.Location = new Point(43, 640);
+            label5.Location = new Point(33, 640);
             label5.Margin = new Padding(4, 0, 4, 0);
             label5.Name = "label5";
             label5.Size = new Size(236, 27);
@@ -166,12 +183,12 @@ namespace DoAn_NT106
             label4.BackColor = Color.FromArgb(180, 83, 9);
             label4.Font = new Font("Courier New", 14F, FontStyle.Bold, GraphicsUnit.Point, 0);
             label4.ForeColor = Color.FromArgb(64, 0, 0);
-            label4.Location = new Point(332, 640);
+            label4.Location = new Point(287, 640);
             label4.Margin = new Padding(4, 0, 4, 0);
             label4.Name = "label4";
-            label4.Size = new Size(124, 27);
+            label4.Size = new Size(208, 27);
             label4.TabIndex = 15;
-            label4.Text = "Goat man";
+            label4.Text = "Beserk Goatman";
             // 
             // label3
             // 
@@ -179,12 +196,12 @@ namespace DoAn_NT106
             label3.BackColor = Color.FromArgb(180, 83, 9);
             label3.Font = new Font("Courier New", 14F, FontStyle.Bold, GraphicsUnit.Point, 0);
             label3.ForeColor = Color.FromArgb(64, 0, 0);
-            label3.Location = new Point(719, 640);
+            label3.Location = new Point(732, 640);
             label3.Margin = new Padding(4, 0, 4, 0);
             label3.Name = "label3";
-            label3.Size = new Size(208, 27);
+            label3.Size = new Size(194, 27);
             label3.TabIndex = 14;
-            label3.Text = "Scarlet Hunter";
+            label3.Text = "Elite Warrior";
             // 
             // label2
             // 
@@ -192,12 +209,12 @@ namespace DoAn_NT106
             label2.BackColor = Color.FromArgb(180, 83, 9);
             label2.Font = new Font("Courier New", 14F, FontStyle.Bold, GraphicsUnit.Point, 0);
             label2.ForeColor = Color.FromArgb(64, 0, 0);
-            label2.Location = new Point(540, 640);
+            label2.Location = new Point(503, 640);
             label2.Margin = new Padding(4, 0, 4, 0);
             label2.Name = "label2";
-            label2.Size = new Size(138, 27);
+            label2.Size = new Size(208, 27);
             label2.TabIndex = 13;
-            label2.Text = "Rose Lili";
+            label2.Text = "Scarlet Hunter";
             // 
             // label1
             // 
@@ -238,7 +255,7 @@ namespace DoAn_NT106
             // 
             pictureBox8.BackColor = Color.FromArgb(180, 83, 9);
             pictureBox8.Image = Properties.Resources.thanhdamage;
-            pictureBox8.Location = new Point(84, 362);
+            pictureBox8.Location = new Point(74, 362);
             pictureBox8.Name = "pictureBox8";
             pictureBox8.Size = new Size(173, 54);
             pictureBox8.SizeMode = PictureBoxSizeMode.Zoom;
@@ -293,7 +310,7 @@ namespace DoAn_NT106
             // 
             pictureBox2.BackColor = Color.FromArgb(180, 83, 9);
             pictureBox2.Image = Properties.Resources.Bringer;
-            pictureBox2.Location = new Point(67, 376);
+            pictureBox2.Location = new Point(47, 376);
             pictureBox2.Name = "pictureBox2";
             pictureBox2.Size = new Size(222, 313);
             pictureBox2.SizeMode = PictureBoxSizeMode.Zoom;
@@ -373,6 +390,7 @@ namespace DoAn_NT106
 
         private System.Windows.Forms.Panel panelSidebar;
         private System.Windows.Forms.Label lblUserName;
+        private System.Windows.Forms.Label lblAvatarHint;
         private System.Windows.Forms.Label lblUserStatus;
         private System.Windows.Forms.PictureBox pbAvatar;
         private System.Windows.Forms.Panel panelMainContent;

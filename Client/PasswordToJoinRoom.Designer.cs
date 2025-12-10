@@ -5,7 +5,7 @@ namespace DoAn_NT106
 {
     partial class PasswordToJoinRoom
     {
-        private DoAn_NT106.Tb_Pixel txtPassword;
+        private DoAn_NT106.Tb_Pixel tbPassword;
         private DoAn_NT106.Btn_Pixel btnOK;
         private DoAn_NT106.Btn_Pixel btnCancel;
         private Label lblInfo;
@@ -17,7 +17,7 @@ namespace DoAn_NT106
             mainPanel = new Pnl_Pixel();
             lblInfo = new Label();
             lblPrompt = new Label();
-            txtPassword = new Tb_Pixel();
+            tbPassword = new Tb_Pixel();
             btnOK = new Btn_Pixel();
             btnCancel = new Btn_Pixel();
             mainPanel.SuspendLayout();
@@ -28,7 +28,7 @@ namespace DoAn_NT106
             mainPanel.BackColor = Color.FromArgb(210, 105, 30);
             mainPanel.Controls.Add(lblInfo);
             mainPanel.Controls.Add(lblPrompt);
-            mainPanel.Controls.Add(txtPassword);
+            mainPanel.Controls.Add(tbPassword);
             mainPanel.Controls.Add(btnOK);
             mainPanel.Controls.Add(btnCancel);
             mainPanel.Location = new Point(10, 10);
@@ -44,7 +44,7 @@ namespace DoAn_NT106
             lblInfo.Location = new Point(20, 20);
             lblInfo.Name = "lblInfo";
             lblInfo.Size = new Size(290, 37);
-            lblInfo.TabIndex = 0;
+            lblInfo.TabIndex = 10;
             lblInfo.Text = "Room:";
             // 
             // lblPrompt
@@ -55,18 +55,22 @@ namespace DoAn_NT106
             lblPrompt.Location = new Point(20, 57);
             lblPrompt.Name = "lblPrompt";
             lblPrompt.Size = new Size(200, 20);
-            lblPrompt.TabIndex = 1;
+            lblPrompt.TabIndex = 10;
             lblPrompt.Text = "Please enter password:";
             // 
-            // txtPassword
+            // tbPassword
             // 
-            txtPassword.BorderStyle = BorderStyle.None;
-            txtPassword.Font = new Font("Arial Narrow", 13.8F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            txtPassword.Location = new Point(20, 89);
-            txtPassword.Name = "txtPassword";
-            txtPassword.Size = new Size(290, 27);
-            txtPassword.TabIndex = 2;
-            txtPassword.UseSystemPasswordChar = true;
+            tbPassword.BackColor = Color.FromArgb(42, 31, 26);
+            tbPassword.BorderStyle = BorderStyle.None;
+            tbPassword.Font = new Font("Courier New", 13.8F, FontStyle.Bold);
+            tbPassword.ForeColor = Color.White;
+            tbPassword.Location = new Point(20, 89);
+            tbPassword.Multiline = true;
+            tbPassword.Name = "tbPassword";
+            tbPassword.Size = new Size(290, 27);
+            tbPassword.TabIndex = 0;
+            tbPassword.UseSystemPasswordChar = true;
+            tbPassword.KeyDown += tbPassword_KeyDown;
             // 
             // btnOK
             // 
@@ -77,7 +81,7 @@ namespace DoAn_NT106
             btnOK.Location = new Point(72, 138);
             btnOK.Name = "btnOK";
             btnOK.Size = new Size(83, 30);
-            btnOK.TabIndex = 3;
+            btnOK.TabIndex = 1;
             btnOK.Text = "OK";
             btnOK.Click += BtnOK_Click;
             // 
@@ -90,22 +94,22 @@ namespace DoAn_NT106
             btnCancel.Location = new Point(188, 138);
             btnCancel.Name = "btnCancel";
             btnCancel.Size = new Size(83, 30);
-            btnCancel.TabIndex = 4;
+            btnCancel.TabIndex = 2;
             btnCancel.Text = "Cancel";
             btnCancel.Click += BtnCancel_Click;
             // 
-            // PasswordToJoinRoom (Form)
+            // PasswordToJoinRoom
             // 
-            this.BackColor = Color.FromArgb(240, 240, 240);
-            this.BackgroundImage = Properties.Resources.background2;
-            this.ClientSize = new Size(391, 205);
-            this.Controls.Add(mainPanel);
-            this.FormBorderStyle = FormBorderStyle.FixedDialog;
-            this.MaximizeBox = false;
-            this.MinimizeBox = false;
-            this.Name = "PasswordToJoinRoom";
-            this.StartPosition = FormStartPosition.CenterParent;
-            this.Text = "Enter Password";
+            BackColor = Color.FromArgb(240, 240, 240);
+            BackgroundImage = Properties.Resources.background2;
+            ClientSize = new Size(391, 205);
+            Controls.Add(mainPanel);
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            MaximizeBox = false;
+            MinimizeBox = false;
+            Name = "PasswordToJoinRoom";
+            StartPosition = FormStartPosition.CenterParent;
+            Text = "Enter Password";
             mainPanel.ResumeLayout(false);
             mainPanel.PerformLayout();
             ResumeLayout(false);

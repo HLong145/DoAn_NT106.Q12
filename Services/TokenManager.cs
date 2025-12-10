@@ -21,9 +21,7 @@ namespace DoAn_NT106.Services
             LoadTokensFromFile();
         }
 
-        // ======================
         // Generate token mới
-        // ======================
         public string GenerateToken(string username)
         {
             var tokenHandler = new JwtSecurityTokenHandler();
@@ -45,9 +43,7 @@ namespace DoAn_NT106.Services
             return jwt;
         }
 
-        // ======================
         // Validate token
-        // ======================
         public bool ValidateToken(string token)
         {
             var tokenHandler = new JwtSecurityTokenHandler();
@@ -83,9 +79,7 @@ namespace DoAn_NT106.Services
             SaveTokensToFile();
         }
 
-        // ======================
         // Lưu token vào file JSON
-        // ======================
         private void SaveTokensToFile()
         {
             try
@@ -98,9 +92,7 @@ namespace DoAn_NT106.Services
             }
         }
 
-        // ======================
         // Load token từ file JSON
-        // ======================
         private void LoadTokensFromFile()
         {
             if (!File.Exists(tokenFilePath)) return;

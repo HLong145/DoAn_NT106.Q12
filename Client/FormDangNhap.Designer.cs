@@ -307,7 +307,7 @@
             btn_Login.Name = "btn_Login";
             btn_Login.Size = new Size(360, 50);
             btn_Login.TabIndex = 4;
-            btn_Login.Text = "▶ START GAME ◀";
+            btn_Login.Text = "▶ LOGIN ◀";
             btn_Login.Click += btn_Login_Click;
             btn_Login.KeyDown += btn_Login_KeyDown;
             // 
