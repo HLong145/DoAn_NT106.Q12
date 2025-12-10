@@ -1650,6 +1650,12 @@ namespace DoAn_NT106
         {
             Console.WriteLine($"[BattleForm] Player {playerNum} attempts {attackType}");
             combatSystem.ExecuteAttack(playerNum, attackType);
+
+            // COUNT ATTACK
+            if (playerNum == 1) player1State.AttackCount++;
+            else player2State.AttackCount++;
+
+            combatSystem.ExecuteAttack(playerNum, attackType);
         }
         private void OnFrameChanged(object sender, EventArgs e)
         {

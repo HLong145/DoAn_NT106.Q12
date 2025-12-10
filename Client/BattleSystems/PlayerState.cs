@@ -34,6 +34,17 @@ namespace DoAn_NT106.Client.BattleSystems
         public bool IsCharging { get; set; }
         public bool IsSkillActive { get; set; }
 
+        // ================================
+        // 🎯 THỐNG KÊ COMBAT (ADD NEW)
+        // ================================
+        public int AttackCount = 0;
+        public int ParryCount = 0;
+        public int SkillCount = 0;
+
+        // 🎯 Hiệp thắng liên tiếp
+        public int ConsecutiveRoundWins = 0;
+        public int SavedConsecutiveRoundWins = 0; // (>=2 thì lưu, <2 thì 0)
+
         // Resources
         public int Health { get; set; } = 100;
         public int Stamina { get; set; } = 100;
