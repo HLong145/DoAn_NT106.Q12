@@ -158,7 +158,7 @@
             pnl_Main.Controls.Add(btn_Continue);
             pnl_Main.Location = new Point(30, 20);
             pnl_Main.Name = "pnl_Main";
-            pnl_Main.Size = new Size(490, 769);
+            pnl_Main.Size = new Size(490, 779);
             pnl_Main.TabIndex = 0;
             pnl_Main.Paint += pnl_Main_Paint;
             // 
@@ -190,7 +190,7 @@
             // 
             pictureBox2.BackColor = Color.Transparent;
             pictureBox2.Image = Properties.Resources.mây;
-            pictureBox2.Location = new Point(-8, 705);
+            pictureBox2.Location = new Point(-2, 709);
             pictureBox2.Name = "pictureBox2";
             pictureBox2.Size = new Size(137, 65);
             pictureBox2.SizeMode = PictureBoxSizeMode.Zoom;
@@ -518,7 +518,7 @@
             BackColor = Color.FromArgb(26, 20, 16);
             BackgroundImage = Properties.Resources.background2;
             BackgroundImageLayout = ImageLayout.Stretch;
-            ClientSize = new Size(551, 831);
+            ClientSize = new Size(551, 859);
             Controls.Add(pnl_Main);
             Controls.Add(pic_Cloud4);
             FormBorderStyle = FormBorderStyle.FixedDialog;

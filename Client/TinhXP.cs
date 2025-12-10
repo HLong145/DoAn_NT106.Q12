@@ -31,6 +31,8 @@ namespace DoAn_NT106.Client
         public TinhXP(MatchResult data)
         {
             InitializeComponent();
+            this.AutoScroll = true;       
+            this.AutoScrollMinSize = new Size(0, 1200); 
             _data = data ?? throw new ArgumentNullException(nameof(data));
         }
 
