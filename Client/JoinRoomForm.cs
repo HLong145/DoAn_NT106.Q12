@@ -6,15 +6,20 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using DoAn_NT106.Services;
 
 namespace PixelGameLobby
 {
     public partial class JoinRoomForm : Form
     {
-        private string username;
-        private string token;
+        #region Fields and Properties
+
+        private string username;                   
+        private string token;                      
+
+        // Danh sách room hiển thị ở client
         private readonly List<Room> rooms = new List<Room>();
+
+        // Tcp client dùng singleton
         private PersistentTcpClient TcpClient => PersistentTcpClient.Instance;
 
         // Color palette
@@ -26,38 +31,46 @@ namespace PixelGameLobby
         private readonly Color hoverBrown = Color.FromArgb(120, 60, 30);
 
         // Global Chat
-        private GlobalChatClient globalChatClient;
-        private RoomListClient roomListClient;
+        private GlobalChatClient globalChatClient;  // Client chat global
+        private RoomListClient roomListClient;      // Client nhận broadcast danh sách phòng
+        private bool isLoadingRooms = false;        
 
-        private bool isLoadingRooms = false;
+        #endregion
+
+        #region Constructors
 
         public JoinRoomForm(string username, string token)
         {
             InitializeComponent();
+
             this.username = username;
             this.token = token;
 
-            SetupPixelStyling();
-            SetupEventHandlers();
-            SetupGlobalChatEvents();
+            SetupPixelStyling();       
+            SetupEventHandlers();      
+            SetupGlobalChatEvents();   
         }
 
         public JoinRoomForm() : this("Guest", "")
         {
         }
 
-        #region Initialization
+        #endregion
+
+        #region UI Initialization
 
         private void SetupPixelStyling()
         {
             Font = new Font("Courier New", 12, FontStyle.Bold);
             BackColor = primaryBrown;
+
+            
             lblWelcome.Text = $"Welcome, {username}!";
         }
 
         private void SetupEventHandlers()
         {
-            // Search/Join button
+            // Gắn event
             btnSearchJoin.Click += BtnSearchJoin_Click;
             btnSearchJoin.MouseEnter += Button_MouseEnter;
             btnSearchJoin.MouseLeave += Button_MouseLeave;
@@ -72,7 +85,7 @@ namespace PixelGameLobby
                 if (s is Button btn) btn.BackColor = Color.DarkOrchid;
             };
 
-            // ✅ NEW: Test Room button
+            // Test Room button
             btnTestRoom.Click += BtnTestRoom_Click;
             btnTestRoom.MouseEnter += Button_MouseEnter;
             btnTestRoom.MouseLeave += (s, e) =>
@@ -92,7 +105,7 @@ namespace PixelGameLobby
             // Back button
             btnBack.Click += BtnBack_Click;
 
-            // Panels
+            // Gắn event vẽ viền cho các panel
             foreach (var panel in new[] { pnlRoomList, pnlSearch, pnlHelp, headerPanel, roomsPanel })
             {
                 if (panel != null)
@@ -102,7 +115,7 @@ namespace PixelGameLobby
             if (lblTitle != null)
                 lblTitle.Paint += Label_Paint;
 
-            // Textboxes
+            // Gắn event focus + keypress cho textbox
             foreach (var tb in new[] { txtRoomCode, txtPassword })
             {
                 if (tb != null)
@@ -115,26 +128,25 @@ namespace PixelGameLobby
         }
 
         #endregion
-        #region Initialization
 
+        #region Room List Client Setup
 
-        // ✅ THÊM MỚI: Setup RoomListClient
         private async void SetupRoomListClient()
         {
+            // Kết nối tới service broadcast danh sách phòng
             try
             {
                 roomListClient = new RoomListClient();
 
-                // Subscribe to events
+                // Đăng ký even
                 roomListClient.OnRoomListUpdated += HandleRoomListUpdate;
                 roomListClient.OnError += (error) =>
                 {
                     Console.WriteLine($"❌ RoomListClient error: {error}");
                 };
 
-                // Connect and subscribe
+                // Connect and subscribe to room list
                 bool connected = await roomListClient.ConnectAndSubscribeAsync(username, token);
-
                 if (!connected)
                 {
                     Console.WriteLine("❌ Failed to connect to room list broadcaster");
@@ -146,10 +158,9 @@ namespace PixelGameLobby
             }
         }
 
-        // ✅ THÊM MỚI: Handle room list updates
-        // ✅ SỬA: Đổi từ RoomInfo sang RoomListInfo
         private void HandleRoomListUpdate(List<RoomListInfo> newRooms)
         {
+            // Cập nhật UI phải chạy trên UI thread
             if (InvokeRequired)
             {
                 Invoke(new Action(() => HandleRoomListUpdate(newRooms)));
@@ -171,7 +182,9 @@ namespace PixelGameLobby
                     });
                 }
 
+                // Cập nhật hiển thị danh sách phòng
                 UpdateRoomsDisplay();
+
                 Console.WriteLine($"✅ Room list updated: {rooms.Count} rooms");
             }
             catch (Exception ex)
@@ -179,9 +192,10 @@ namespace PixelGameLobby
                 Console.WriteLine($"❌ HandleRoomListUpdate error: {ex.Message}");
             }
         }
-        #endregion
-        #region Room Loading from Server
 
+        #endregion
+
+        #region Room Loading from Server
 
         private void UpdateRefreshButtonState(string text, bool enabled)
         {
@@ -202,10 +216,10 @@ namespace PixelGameLobby
             }
         }
 
+        // Parse dữ liệu phòng trả về từ server sang List<Room>
         private List<Room> ParseRoomsFromResponse(Dictionary<string, object> data)
         {
             var result = new List<Room>();
-
             try
             {
                 if (data.TryGetValue("rooms", out var roomsObj) && roomsObj != null)
@@ -235,6 +249,7 @@ namespace PixelGameLobby
             return result;
         }
 
+        // Cập nhật list phòng local và redraw lên UI
         private void UpdateRoomsList(List<Room> newRooms)
         {
             rooms.Clear();
@@ -249,8 +264,9 @@ namespace PixelGameLobby
 
         #endregion
 
-        #region UI Rendering
+        #region Rooms UI Rendering
 
+        // Danh sách phòng trong panel
         private void UpdateRoomsDisplay()
         {
             roomsPanel.Controls.Clear();
@@ -270,10 +286,12 @@ namespace PixelGameLobby
                 return;
             }
 
+            // Tạo panel item cho từng room
             foreach (var room in rooms)
                 AddRoomItem(room);
         }
 
+        // Tạo UI cho từng phòng trong danh sách
         private void AddRoomItem(Room room)
         {
             bool isFull = room.Players == "2/2";
@@ -338,14 +356,13 @@ namespace PixelGameLobby
                 Enabled = !isFull
             };
 
-            // Cập nhật vị trí khi resize
+            // Cập nhật vị trí khi resize để nút JOIN và icon khóa luôn nằm bên phải
             roomPanel.Resize += (s, e) =>
             {
                 lblLock.Location = new Point(roomPanel.Width - 160, 18);
                 btnAction.Location = new Point(roomPanel.Width - 110, 10);
             };
 
-            // Trigger resize để set vị trí ban đầu
             lblLock.Location = new Point(roomPanel.Width - 160, 18);
             btnAction.Location = new Point(roomPanel.Width - 110, 10);
 
@@ -360,9 +377,11 @@ namespace PixelGameLobby
                         btn.BackColor = room.IsLocked ? Color.Orange : Color.Green;
                 };
             }
-            btnAction.Paint += Button_Paint;
 
+            btnAction.Paint += Button_Paint;
             roomPanel.Paint += Panel_Paint;
+
+            // Hiệu ứng hover panel
             roomPanel.MouseEnter += (s, e) => roomPanel.BackColor = hoverBrown;
             roomPanel.MouseLeave += (s, e) => roomPanel.BackColor = darkBrown;
 
@@ -387,7 +406,6 @@ namespace PixelGameLobby
 
             // Tìm trong local list trước
             var room = rooms.Find(r => r.Code == code);
-
             if (room != null)
             {
                 // Nếu room có password và user đã nhập sẵn password
@@ -397,19 +415,19 @@ namespace PixelGameLobby
                 }
                 else
                 {
+                    // Nếu chưa nhập password thì mở dialog
                     JoinRoom(room);
                 }
             }
             else
             {
-                // Room không có trong list, thử join trực tiếp với server
+                // Room không có trong list  join trực tiếp với server
                 await JoinRoomAsync(code, code, password);
             }
         }
 
         private void RoomActionButton_Click(object sender, EventArgs e)
-        {
-            if (sender is Button btn && btn.Tag is string code)
+        {   if (sender is Button btn && btn.Tag is string code)
             {
                 var room = rooms.Find(r => r.Code == code);
                 if (room != null) JoinRoom(room);
@@ -422,7 +440,6 @@ namespace PixelGameLobby
             {
                 string password = null;
 
-                // Nếu room có password, hiển thị dialog nhập password
                 if (room.IsLocked)
                 {
                     using (var passForm = new PasswordToJoinRoom(room.Name))
@@ -431,7 +448,6 @@ namespace PixelGameLobby
                             return;
 
                         password = passForm.Password;
-
                         if (string.IsNullOrEmpty(password))
                         {
                             ShowMessage("Please enter password!");
@@ -440,7 +456,6 @@ namespace PixelGameLobby
                     }
                 }
 
-                // Kiểm tra room đã đầy chưa
                 if (room.Players == "2/2")
                 {
                     ShowMessage("Room is full!");
@@ -459,22 +474,25 @@ namespace PixelGameLobby
         {
             try
             {
+                // Disable các nút join/create để tránh spam
                 SetJoinButtonsEnabled(false);
 
                 var response = await TcpClient.JoinRoomAsync(roomCode, password, username);
-
                 if (response.Success)
                 {
+                    // Ngắt global chat
                     globalChatClient?.Dispose();
                     globalChatClient = null;
 
-                    // Mở GameLobbyForm (giữ nguyên tên cũ)
+                    // Mở GameLobbyForm
                     var lobbyForm = new GameLobbyForm(roomCode, username, token);
                     lobbyForm.FormClosed += async (s, e) =>
                     {
+                        // Khi đóng lobby, show lại JoinRoomForm và kết nối global chat
                         this.Show();
                         await ConnectGlobalChatAsync();
                     };
+
                     lobbyForm.Show();
                     this.Hide();
                 }
@@ -492,7 +510,6 @@ namespace PixelGameLobby
                 SetJoinButtonsEnabled(true);
             }
         }
-
 
         private void SetJoinButtonsEnabled(bool enabled)
         {
@@ -520,11 +537,6 @@ namespace PixelGameLobby
 
         #region Create Room
 
-        // ===========================
-        // ✅ SỬA: BtnCreateRoom_Click - KHÔNG tự động mở lobby
-        // Thay thế method cũ trong JoinRoomForm.cs
-        // ===========================
-
         private async void BtnCreateRoom_Click(object sender, EventArgs e)
         {
             using (var createForm = new CreateRoomForm())
@@ -541,14 +553,11 @@ namespace PixelGameLobby
                 try
                 {
                     var response = await TcpClient.CreateRoomAsync(roomName, password, username);
-
                     if (response.Success)
                     {
                         string roomCode = response.GetDataValue("roomCode");
-
                         if (!string.IsNullOrEmpty(roomCode))
                         {
-                            // ✅ SỬA: Chỉ thông báo tạo thành công, KHÔNG mở lobby
                             MessageBox.Show(
                                 $"✅ Room created successfully!\n\n" +
                                 $"Room Code: {roomCode}\n" +
@@ -558,12 +567,8 @@ namespace PixelGameLobby
                                 MessageBoxButtons.OK,
                                 MessageBoxIcon.Information);
 
-                            // ✅ SỬA: Tự động điền room code vào ô search
                             txtRoomCode.Text = roomCode;
                             txtPassword.Text = password ?? "";
-
-                            // ✅ Room list sẽ tự động update qua RoomListClient broadcast
-                            // Không cần gọi thủ công
                         }
                     }
                     else
@@ -589,7 +594,6 @@ namespace PixelGameLobby
 
         private void BtnTestRoom_Click(object sender, EventArgs e)
         {
-            // Open offline test character selection dialog
             using (var testForm = new OfflineTestForm(username))
             {
                 if (testForm.ShowDialog() == DialogResult.OK)
@@ -604,11 +608,11 @@ namespace PixelGameLobby
 
                     // Open BattleForm in offline mode
                     var battleForm = new BattleForm(
-                        username,           // Player 1 name
-                        token,              // Token (not used in offline)
-                        player2Name,        // Player 2 name
-                        player1Character,   // Player 1 character
-                        player2Character    // Player 2 character
+                        username,        // Player 1 name
+                        token,           // Token (not used in offline)
+                        player2Name,     // Player 2 name
+                        player1Character,// Player 1 character
+                        player2Character // Player 2 character
                     );
 
                     battleForm.FormClosed += async (s, args) =>
@@ -649,7 +653,7 @@ namespace PixelGameLobby
                     button.BackColor = Color.FromArgb(0, 128, 0);
                 else if (button == btn_refresh)
                     button.BackColor = Color.DarkOrchid;
-                else if (button == btnTestRoom) // ✅ NEW: Handle test room button
+                else if (button == btnTestRoom) 
                     button.BackColor = Color.FromArgb(0, 102, 204);
             }
         }
@@ -699,7 +703,6 @@ namespace PixelGameLobby
 
         private void Label_Paint(object sender, PaintEventArgs e)
         {
-            // Custom label painting if needed
         }
 
         private void ShowMessage(string message)
@@ -758,16 +761,13 @@ namespace PixelGameLobby
             try
             {
                 Console.WriteLine($"[JoinRoomForm] Connecting to GlobalChat as {username}...");
-
                 globalChatClient = new GlobalChatClient();
-
                 globalChatClient.OnChatMessage += GlobalChat_OnChatMessage;
                 globalChatClient.OnOnlineCountUpdate += GlobalChat_OnOnlineCountUpdate;
                 globalChatClient.OnError += GlobalChat_OnError;
                 globalChatClient.OnDisconnected += GlobalChat_OnDisconnected;
 
                 var result = await globalChatClient.ConnectAndJoinAsync(username, token);
-
                 Console.WriteLine($"[JoinRoomForm] GlobalChat result: Success={result.Success}, OnlineCount={result.OnlineCount}, History={result.History?.Count ?? 0}");
 
                 if (result.Success)
@@ -777,17 +777,18 @@ namespace PixelGameLobby
 
                     if (result.History != null)
                     {
+                        // Load lại lịch sử chat lên UI
                         foreach (var msg in result.History)
                         {
                             AddChatMessageToUI(msg);
                         }
                     }
 
-                    Console.WriteLine($"[JoinRoomForm] GlobalChat connected successfully");
+                    Console.WriteLine("[JoinRoomForm] GlobalChat connected successfully");
                 }
                 else
                 {
-                    Console.WriteLine($"[JoinRoomForm] Failed to connect to GlobalChat");
+                    Console.WriteLine("[JoinRoomForm] Failed to connect to GlobalChat");
                 }
             }
             catch (Exception ex)
@@ -805,6 +806,7 @@ namespace PixelGameLobby
                 this.Invoke(new Action<int>(GlobalChat_OnOnlineCountUpdate), count);
                 return;
             }
+
             UpdateOnlineCount(count);
         }
 
@@ -819,9 +821,10 @@ namespace PixelGameLobby
             }
             else
             {
-                Console.WriteLine($"[JoinRoomForm] ⚠️ lblOnlineCount is NULL!");
+                Console.WriteLine("[JoinRoomForm] ⚠️ lblOnlineCount is NULL!");
             }
         }
+
         private void GlobalChat_OnChatMessage(ChatMessageData message)
         {
             if (this.InvokeRequired)
@@ -829,10 +832,10 @@ namespace PixelGameLobby
                 this.Invoke(new Action<ChatMessageData>(GlobalChat_OnChatMessage), message);
                 return;
             }
+
             AddChatMessageToUI(message);
         }
 
-        
         private void GlobalChat_OnError(string error)
         {
             if (this.InvokeRequired)
@@ -840,6 +843,7 @@ namespace PixelGameLobby
                 this.Invoke(new Action<string>(GlobalChat_OnError), error);
                 return;
             }
+
             Console.WriteLine($"Global Chat Error: {error}");
         }
 
@@ -850,10 +854,10 @@ namespace PixelGameLobby
                 this.Invoke(new Action(GlobalChat_OnDisconnected));
                 return;
             }
+
+            // Khi mất kết nối chat, set online = 0
             UpdateOnlineCount(0);
         }
-
-        
 
         private void AddChatMessageToUI(ChatMessageData message)
         {
@@ -876,8 +880,8 @@ namespace PixelGameLobby
                     : $"[{message.Timestamp}] {message.Username}:",
                 Font = new Font("Courier New", 8, FontStyle.Bold),
                 ForeColor = message.Type == "system" ? Color.Orange
-                          : message.Username == username ? Color.LimeGreen
-                          : goldColor,
+                    : message.Username == username ? Color.LimeGreen
+                    : goldColor,
                 AutoSize = true,
                 Location = new Point(3, 2)
             };
@@ -900,8 +904,8 @@ namespace PixelGameLobby
             {
                 yPos = Math.Max(yPos, ctrl.Bottom + 3);
             }
-            msgPanel.Location = new Point(3, yPos);
 
+            msgPanel.Location = new Point(3, yPos);
             pnlChatMessages.Controls.Add(msgPanel);
             pnlChatMessages.ScrollControlIntoView(msgPanel);
         }
@@ -959,20 +963,20 @@ namespace PixelGameLobby
         }
 
         #endregion
+
+        #region Data Models
+
+        ///
+        /// Room model cho client-side
+        ///
+        public class Room
+        {
+            public string Name { get; set; }     
+            public string Code { get; set; }     
+            public string Players { get; set; }  
+            public bool IsLocked { get; set; }   
+        }
+
+        #endregion
     }
-
-    #region Data Models
-
-    /// <summary>
-    /// Room model cho client-side
-    /// </summary>
-    public class Room
-    {
-        public string Name { get; set; }
-        public string Code { get; set; }
-        public string Players { get; set; }
-        public bool IsLocked { get; set; }
-    }
-
-    #endregion
 }

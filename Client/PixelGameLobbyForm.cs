@@ -1,4 +1,4 @@
-﻿using DoAn_NT106;
+using DoAn_NT106;
 using DoAn_NT106.Services;
 using System;
 using System.Collections.Generic;
@@ -11,15 +11,16 @@ namespace PixelGameLobby
 {
     public partial class GameLobbyForm : Form
     {
-        // ===========================
+        #region Fields
+
         // FIELDS
-        // ===========================
         private List<ChatMessage> messages = new List<ChatMessage>();
         private List<Player> players = new List<Player>();
 
         private string roomCode;
         private string username;
         private string token;
+
         private bool isReady = false;
         private string opponentName = null;
         private bool opponentReady = false;
@@ -27,7 +28,8 @@ namespace PixelGameLobby
         private bool hasLeft = false;
         private bool bothPlayersReady = false;
         private bool isHost = false;  // Player 1 = host
-        private string selectedMap = "battleground1";  // ✅ MAP SELECTION
+        private string selectedMap = "battleground1";  // MAP SELECTION
+
 
         // TCP Client - dùng singleton
         private PersistentTcpClient TcpClient => PersistentTcpClient.Instance;
@@ -40,9 +42,11 @@ namespace PixelGameLobby
         private Color readyColor = Color.FromArgb(100, 200, 100);
         private Color notReadyColor = Color.FromArgb(255, 100, 100);
 
-        // ===========================
+        #endregion
+
+        #region Constructors
+
         // CONSTRUCTOR
-        // ===========================
         public GameLobbyForm(string roomCode, string username, string token)
         {
             InitializeComponent();
@@ -66,12 +70,14 @@ namespace PixelGameLobby
         {
         }
 
-        // ===========================
+        #endregion
+
+        #region Form Events
+
         // FORM EVENTS
-        // ===========================
         private async void GameLobbyForm_Load(object sender, EventArgs e)
         {
-            // Subscribe to broadcasts
+            // Đăng ký sự kiên
             TcpClient.OnBroadcast += HandleBroadcast;
             TcpClient.OnDisconnected += HandleDisconnected;
 
@@ -82,13 +88,15 @@ namespace PixelGameLobby
         private async void GameLobbyForm_FormClosing(object sender, FormClosingEventArgs e)
         {
             // Tránh gọi nhiều lần
-            if (hasLeft) return;
+            if (hasLeft)
+            {
+                return;
+            }
 
             // Nếu user đóng bằng X và chưa đang leave
             if (e.CloseReason == CloseReason.UserClosing && !isLeaving)
             {
                 e.Cancel = true;
-
                 var result = MessageBox.Show(
                     "Are you sure you want to leave the room?",
                     "Confirm Leave",
@@ -101,37 +109,20 @@ namespace PixelGameLobby
                     isLeaving = true;
                     this.Close();
                 }
+
                 return;
             }
 
-            // Cleanup
+            // Cleanup (xoá sự kiện)
             TcpClient.OnBroadcast -= HandleBroadcast;
             TcpClient.OnDisconnected -= HandleDisconnected;
         }
 
-        private async Task LeaveRoomSafelyAsync()
-        {
-            if (hasLeft) return;
-            hasLeft = true;
+        #endregion
 
-            try
-            {
-                Console.WriteLine($"[GameLobby] Leaving room {roomCode}...");
+        #region Join Leave lobby logic
 
-                // Gọi LobbyLeave (server sẽ tự gọi LeaveRoom)
-                var response = await TcpClient.LobbyLeaveAsync(roomCode, username);
-
-                Console.WriteLine($"[GameLobby] LobbyLeave response: {response.Success} - {response.Message}");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[GameLobby] Leave error: {ex.Message}");
-            }
-        }
-
-        // ===========================
         // INITIALIZE
-        // ===========================
         private void InitializePlayers()
         {
             players.Clear();
@@ -150,14 +141,14 @@ namespace PixelGameLobby
 
         private void SetupPixelStyling()
         {
-            // Room code display
+            //Hiển thị room code
             roomCodeValueLabel.Text = roomCode;
-
-            // Ready button initial state
+            
+            //Khởi tạo nút ready
             notReadyButton.Text = "NOT READY";
             notReadyButton.BackColor = notReadyColor;
 
-            //start game button initial state
+            // Khởi tạo nút bắt đầu game
             startGameButton.Enabled = false;
             startGameButton.BackColor = Color.Gray;
 
@@ -170,15 +161,12 @@ namespace PixelGameLobby
             UpdateChatDisplay();
         }
 
-        // ===========================
         // JOIN LOBBY
-        // ===========================
         private async Task JoinLobbyAsync()
         {
             try
             {
                 Console.WriteLine($"[GameLobby] Joining lobby {roomCode} as {username}...");
-
                 var response = await TcpClient.LobbyJoinAsync(roomCode, username, token);
 
                 if (response.Success)
@@ -210,9 +198,31 @@ namespace PixelGameLobby
             }
         }
 
-        // ===========================
+        private async Task LeaveRoomSafelyAsync()
+        {
+            if (hasLeft) return;
+            hasLeft = true;
+
+            try
+            {
+                Console.WriteLine($"[GameLobby] Leaving room {roomCode}...");
+                
+                // Gọi LobbyLeave (server tự gọi LeaveRoom)
+                var response = await TcpClient.LobbyLeaveAsync(roomCode, username);
+                Console.WriteLine($"[GameLobby] LobbyLeave response: {response.Success} - {response.Message}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GameLobby] Leave error: {ex.Message}");
+            }
+        }
+
+        #endregion
+
+
+        #region Broadcast handle
+
         // HANDLE BROADCASTS
-        // ===========================
         private void HandleBroadcast(string action, JsonElement data)
         {
             // Thread-safe UI update
@@ -233,11 +243,9 @@ namespace PixelGameLobby
                 case "LOBBY_STATE_UPDATE":
                     UpdateFromServerState(data);
                     break;
-
                 case "LOBBY_PLAYER_LEFT":
                     HandlePlayerLeft(data);
                     break;
-
                 case "LOBBY_CHAT_MESSAGE":
                     HandleChatMessage(data);
                     break;
@@ -324,8 +332,8 @@ namespace PixelGameLobby
 
                 // Kiểm tra both ready
                 bool newBothReady = player1Ready && player2Ready &&
-                                   !string.IsNullOrEmpty(player1) &&
-                                   !string.IsNullOrEmpty(player2);
+                                    !string.IsNullOrEmpty(player1) &&
+                                    !string.IsNullOrEmpty(player2);
 
                 // Cập nhật trạng thái nút Start
                 if (newBothReady)
@@ -465,7 +473,6 @@ namespace PixelGameLobby
 
                 bothPlayersReady = true;
                 Console.WriteLine("[GameLobby] Both players are ready!");
-
                 AddSystemMessage("✅ Both players are ready!");
 
                 // Chỉ enable nút Start cho host (Player 1)
@@ -497,26 +504,31 @@ namespace PixelGameLobby
                 }
 
                 Console.WriteLine("[GameLobby] Game starting!");
-                Console.WriteLine($"[GameLobby] SelectedMap = {selectedMap}");
 
                 AddSystemMessage("🎮 Both players ready! Starting game...");
 
                 // Đợi 1 giây để user thấy message
-                var timer = new System.Windows.Forms.Timer { Interval = 1000 };
+                var timer = new System.Windows.Forms.Timer
+                {
+                    Interval = 1000
+                };
+
                 timer.Tick += (s, e) =>
                 {
                     timer.Stop();
                     timer.Dispose();
 
-                    // ✅ Đánh dấu để không trigger confirm dialog khi close
+                    // Đánh dấu để không trigger confirm dialog khi close
                     hasLeft = true;
                     isLeaving = true;
 
                     // ✅ PASS MAP TO CHARACTER SELECT FORM
                     // selectedMap is already "battleground1" format from chooseMapButton_Click
                     string opponent = opponentName ?? "Opponent";
+
                     Console.WriteLine($"[GameLobby] Passing selectedMap='{selectedMap}' to CharacterSelectForm");
                     var selectForm = new CharacterSelectForm(username, token, roomCode, opponent, true, selectedMap);
+
                     selectForm.FormClosed += (s2, args) =>
                     {
                         if (selectForm.DialogResult != DialogResult.OK)
@@ -531,6 +543,7 @@ namespace PixelGameLobby
                             this.Close();
                         }
                     };
+
                     selectForm.Show();
                     this.Hide();
                 };
@@ -558,8 +571,9 @@ namespace PixelGameLobby
                             Time = item.GetProperty("timestamp").GetString()
                         });
                     }
-                    UpdateChatDisplay();
                 }
+
+                UpdateChatDisplay();
             }
             catch (Exception ex)
             {
@@ -584,9 +598,11 @@ namespace PixelGameLobby
             this.Close();
         }
 
-        // ===========================
+        #endregion
+
+        #region UI update
+
         // UI UPDATE METHODS
-        // ===========================
         private void UpdatePlayersDisplay()
         {
             if (players.Count >= 2)
@@ -606,8 +622,9 @@ namespace PixelGameLobby
         private void UpdateChatDisplay()
         {
             chatMessagesPanel.Controls.Clear();
-
+            
             int yOffset = 5;
+
             foreach (var msg in messages)
             {
                 var msgLabel = new Label
@@ -621,6 +638,7 @@ namespace PixelGameLobby
                     Font = new Font("Courier New", 9, FontStyle.Bold),
                     BackColor = Color.Transparent
                 };
+
                 chatMessagesPanel.Controls.Add(msgLabel);
                 yOffset += 22;
             }
@@ -651,18 +669,18 @@ namespace PixelGameLobby
             UpdateChatDisplay();
         }
 
-        // ===========================
-        // BUTTON CLICK HANDLERS
-        // ===========================
+        #endregion
+
+        #region Button Click Handle
+
         private async void notReadyButton_Click(object sender, EventArgs e)
         {
             try
             {
                 notReadyButton.Enabled = false;
-
                 bool newReadyState = !isReady;
-                var response = await TcpClient.LobbySetReadyAsync(roomCode, username, newReadyState);
 
+                var response = await TcpClient.LobbySetReadyAsync(roomCode, username, newReadyState);
                 if (response.Success)
                 {
                     isReady = newReadyState;
@@ -678,6 +696,7 @@ namespace PixelGameLobby
                             break;
                         }
                     }
+
                     UpdatePlayersDisplay();
                 }
                 else
@@ -700,7 +719,7 @@ namespace PixelGameLobby
 
         private async void startGameButton_Click(object sender, EventArgs e)
         {
-            // Kiểm tra điều kiện
+            // Kiểm tra điều kiện có phải host hay không
             if (!isHost)
             {
                 MessageBox.Show("Only the host can start the game!", "Info",
@@ -720,9 +739,8 @@ namespace PixelGameLobby
                 startGameButton.Enabled = false;
                 startGameButton.Text = "STARTING...";
 
-                // Gọi API để start game
+                // Gọi start game ở server
                 var response = await PersistentTcpClient.Instance.LobbyStartGameAsync(roomCode, username);
-
                 if (!response.Success)
                 {
                     MessageBox.Show($"Failed to start game: {response.Message}", "Error",
@@ -730,6 +748,7 @@ namespace PixelGameLobby
                     startGameButton.Enabled = true;
                     startGameButton.Text = "START GAME";
                 }
+
                 // Nếu success, server sẽ broadcast LOBBY_START_GAME và HandleStartGame sẽ xử lý
             }
             catch (Exception ex)
@@ -740,6 +759,7 @@ namespace PixelGameLobby
                 startGameButton.Text = "START GAME";
             }
         }
+
         private async void leaveRoomButton_Click(object sender, EventArgs e)
         {
             if (hasLeft) return;
@@ -751,9 +771,7 @@ namespace PixelGameLobby
             {
                 leaveRoomButton.Enabled = false;
                 leaveRoomButton.Text = "LEAVING...";
-
                 await LeaveRoomSafelyAsync();
-
                 isLeaving = true;
                 this.Close();
             }
@@ -802,6 +820,7 @@ namespace PixelGameLobby
             }
         }
 
+
         private async void sendButton_Click(object sender, EventArgs e)
         {
             string message = messageTextBox.Text.Trim();
@@ -813,7 +832,6 @@ namespace PixelGameLobby
                 messageTextBox.Enabled = false;
 
                 var response = await TcpClient.LobbySendChatAsync(roomCode, username, message);
-
                 if (response.Success)
                 {
                     messageTextBox.Clear();
@@ -831,6 +849,24 @@ namespace PixelGameLobby
             }
         }
 
+        private void CopyCodeButton_Click(object sender, EventArgs e)
+        {
+            Clipboard.SetText(roomCode);
+            MessageBox.Show("Room code copied!", "Info",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+
+        private void notReadyButton_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Space || e.KeyCode == Keys.Enter)
+            {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+                notReadyButton_Click(sender, e);
+            }
+        }
+
         private void messageTextBox_KeyPress(object sender, KeyPressEventArgs e)
         {
             if (e.KeyChar == (char)Keys.Enter)
@@ -840,16 +876,10 @@ namespace PixelGameLobby
             }
         }
 
-        private void CopyCodeButton_Click(object sender, EventArgs e)
-        {
-            Clipboard.SetText(roomCode);
-            MessageBox.Show("Room code copied!", "Info",
-                MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
+        #endregion
 
-        // ===========================
-        // HELPER METHODS
-        // ===========================
+        #region Helper Methods
+
         private string GetStringOrNull(JsonElement data, string propertyName)
         {
             if (data.TryGetProperty(propertyName, out var prop) && prop.ValueKind != JsonValueKind.Null)
@@ -869,9 +899,10 @@ namespace PixelGameLobby
             return false;
         }
 
-        // ===========================
-        // PAINT EVENTS (từ Designer)
-        // ===========================
+        #endregion
+
+        #region Paint events
+
         private void Panel_Paint(object sender, PaintEventArgs e)
         {
             var panel = sender as Panel;
@@ -898,34 +929,27 @@ namespace PixelGameLobby
             }
         }
 
-        private void notReadyButton_KeyDown(object sender, KeyEventArgs e)
+
+        #endregion
+
+        #region Data classes
+
+        public class Player
         {
-            if (e.KeyCode == Keys.Space || e.KeyCode == Keys.Enter)
-            {
-                e.Handled = true;
-                e.SuppressKeyPress = true;
-             
-                notReadyButton_Click(sender, e);
-            }
+            public int Id { get; set; }
+            public string Name { get; set; }
+            public string Status { get; set; }
+            public bool IsReady { get; set; }
         }
-    }
 
-    // ===========================
-    // DATA CLASSES
-    // ===========================
-    public class Player
-    {
-        public int Id { get; set; }
-        public string Name { get; set; }
-        public string Status { get; set; }
-        public bool IsReady { get; set; }
-    }
+        public class ChatMessage
+        {
+            public int Id { get; set; }
+            public string Player { get; set; }
+            public string Message { get; set; }
+            public string Time { get; set; }
+        }
 
-    public class ChatMessage
-    {
-        public int Id { get; set; }
-        public string Player { get; set; }
-        public string Message { get; set; }
-        public string Time { get; set; }
+        #endregion
     }
 }

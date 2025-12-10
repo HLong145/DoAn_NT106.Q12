@@ -9,29 +9,38 @@ using System.Threading.Tasks;
 
 namespace DoAn_NT106.Services
 {
-    /// <summary>
-    /// Response từ server - THAY THẾ class cũ trong TcpClientService.cs
-    /// </summary>
+    #region Server response model
+
     public class ServerResponse
     {
         public bool Success { get; set; }
         public string Message { get; set; }
-        public Dictionary<string, object> Data { get; set; }
-        public JsonElement RawData { get; set; }  // Thêm mới
 
+        public Dictionary<string, object> Data { get; set; }
+
+        public JsonElement RawData { get; set; }
+
+        // Helper lấy giá trị string theo key trong Data
         public string GetDataValue(string key)
         {
             if (Data != null && Data.ContainsKey(key))
                 return Data[key]?.ToString();
+
             return null;
         }
     }
+
+    #endregion
+
+    #region Persistent TCP client
 
     /// <summary>
     /// Client TCP persistent - giữ 1 connection cho toàn bộ session
     /// </summary>
     public class PersistentTcpClient : IDisposable
     {
+        #region Fields
+
         private readonly string serverAddress;
         private readonly int serverPort;
 
@@ -39,23 +48,31 @@ namespace DoAn_NT106.Services
         private NetworkStream stream;
         private CancellationTokenSource cts;
         private Task listenTask;
-
         private bool isConnected = false;
+
         private readonly object sendLock = new object();
 
-        // Pending requests: RequestId -> TaskCompletionSource
+        // Pending requests: RequestId => TaskCompletionSource
         private ConcurrentDictionary<string, TaskCompletionSource<ServerResponse>> pendingRequests
             = new ConcurrentDictionary<string, TaskCompletionSource<ServerResponse>>();
 
-        // Events
+        #endregion
+
+        #region Events
+
+        // Event broadcast từ server
         public event Action<string, JsonElement> OnBroadcast;
+
         public event Action OnConnected;
         public event Action<string> OnDisconnected;
         public event Action<string> OnError;
 
         public bool IsConnected => isConnected && client?.Connected == true;
 
-        // Singleton
+        #endregion
+
+        #region Singleton
+
         private static PersistentTcpClient _instance;
         private static readonly object _lock = new object();
 
@@ -71,9 +88,14 @@ namespace DoAn_NT106.Services
                             _instance = new PersistentTcpClient();
                     }
                 }
+
                 return _instance;
             }
         }
+
+        #endregion
+
+        #region Constructor
 
         public PersistentTcpClient(string address = "127.0.0.1", int port = 8080)
         {
@@ -81,9 +103,10 @@ namespace DoAn_NT106.Services
             serverPort = port;
         }
 
-        // ===========================
-        // CONNECT
-        // ===========================
+        #endregion
+
+        #region Connect
+
         public async Task<bool> ConnectAsync()
         {
             if (isConnected) return true;
@@ -116,11 +139,13 @@ namespace DoAn_NT106.Services
             }
         }
 
-        // ===========================
-        // SEND REQUEST
-        // ===========================
+        #endregion
+
+        #region Send request
+
         public async Task<ServerResponse> SendRequestAsync(string action, Dictionary<string, object> data = null, int timeoutMs = 10000)
         {
+            // Đảm bảo đã kết nối trước khi gửi
             if (!IsConnected && !await ConnectAsync())
                 return new ServerResponse { Success = false, Message = "Cannot connect" };
 
@@ -132,14 +157,20 @@ namespace DoAn_NT106.Services
 
             try
             {
-                var request = new { Action = action, RequestId = requestId, Data = data ?? new Dictionary<string, object>() };
-                string json = JsonSerializer.Serialize(request);
+                var request = new
+                {
+                    Action = action,
+                    RequestId = requestId,
+                    Data = data ?? new Dictionary<string, object>()
+                };
 
+                string json = JsonSerializer.Serialize(request);
                 string encrypted = EncryptionService.Encrypt(json);
                 byte[] bytes = Encoding.UTF8.GetBytes(encrypted);
 
                 Console.WriteLine($"[TCP] Sending: {action} (ID: {requestId})");
 
+                // Lock để tránh ghi chồng dữ liệu trên stream
                 lock (sendLock)
                 {
                     stream.Write(bytes, 0, bytes.Length);
@@ -165,9 +196,10 @@ namespace DoAn_NT106.Services
             }
         }
 
-        // ===========================
-        // LISTEN LOOP
-        // ===========================
+        #endregion
+
+        #region Listen loop
+
         private async Task ListenLoop(CancellationToken token)
         {
             byte[] buffer = new byte[65536];
@@ -178,13 +210,16 @@ namespace DoAn_NT106.Services
                 while (!token.IsCancellationRequested && client?.Connected == true)
                 {
                     int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, token);
-                    if (bytesRead == 0) break;
+                    if (bytesRead == 0) break; // server đóng kết nối
 
                     msgBuffer.Append(Encoding.UTF8.GetString(buffer, 0, bytesRead));
                     ProcessMessages(msgBuffer);
                 }
             }
-            catch (OperationCanceledException) { }
+            catch (OperationCanceledException)
+            {
+                // Bị cancel thì bỏ qua
+            }
             catch (Exception ex)
             {
                 if (!token.IsCancellationRequested)
@@ -193,17 +228,20 @@ namespace DoAn_NT106.Services
             finally
             {
                 isConnected = false;
+
+                // Báo lỗi cho tất cả request đang chờ
                 foreach (var kvp in pendingRequests)
                     kvp.Value.TrySetResult(new ServerResponse { Success = false, Message = "Disconnected" });
+
                 pendingRequests.Clear();
                 OnDisconnected?.Invoke("Connection closed");
             }
         }
 
+        // Cắt chuỗi buffer theo từng dòng (mỗi message 1 dòng)
         private void ProcessMessages(StringBuilder buffer)
         {
             string content = buffer.ToString();
-
             int startIndex = 0;
             int newlineIndex;
 
@@ -229,6 +267,8 @@ namespace DoAn_NT106.Services
             if (startIndex < content.Length)
                 buffer.Append(content.Substring(startIndex));
         }
+
+        // Xử lý 1 message (sau khi decrypt)
         private void ProcessSingleMessage(string encryptedJson)
         {
             string json;
@@ -245,7 +285,7 @@ namespace DoAn_NT106.Services
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
 
-            // Response to pending request
+            // Response thuộc về 1 request đang chờ (có RequestId)
             if (root.TryGetProperty("RequestId", out var reqIdEl))
             {
                 string requestId = reqIdEl.GetString();
@@ -264,11 +304,12 @@ namespace DoAn_NT106.Services
                     }
 
                     tcs.TrySetResult(response);
-                    return;
                 }
+
+                return;
             }
 
-            // Broadcast
+            // Broadcast  chỉ có Action
             if (root.TryGetProperty("Action", out var actionEl))
             {
                 string action = actionEl.GetString();
@@ -278,9 +319,10 @@ namespace DoAn_NT106.Services
             }
         }
 
-        // ===========================
-        // DISCONNECT
-        // ===========================
+        #endregion
+
+        #region Disconnect & dispose
+
         public void Disconnect()
         {
             try
@@ -289,7 +331,9 @@ namespace DoAn_NT106.Services
                 stream?.Close();
                 client?.Close();
             }
-            catch { }
+            catch
+            {
+            }
             finally
             {
                 isConnected = false;
@@ -300,81 +344,168 @@ namespace DoAn_NT106.Services
 
         public void Dispose() => Disconnect();
 
-        // ===========================
-        // API METHODS - AUTH
-        // ===========================
+        #endregion
+
+        #region API methods - auth
+
         public Task<ServerResponse> LoginAsync(string username, string password)
-            => SendRequestAsync("LOGIN", new Dictionary<string, object> { { "username", username }, { "password", password } });
+            => SendRequestAsync("LOGIN", new Dictionary<string, object>
+            {
+                { "username", username },
+                { "password", password }
+            });
 
         public Task<ServerResponse> RegisterAsync(string username, string email, string phone, string password)
-            => SendRequestAsync("REGISTER", new Dictionary<string, object> { { "username", username }, { "email", email ?? "" }, { "phone", phone ?? "" }, { "password", password } });
+            => SendRequestAsync("REGISTER", new Dictionary<string, object>
+            {
+                { "username", username },
+                { "email", email ?? "" },
+                { "phone", phone ?? "" },
+                { "password", password }
+            });
 
         public Task<ServerResponse> LogoutAsync(string token, string logoutType = "normal")
-            => SendRequestAsync("LOGOUT", new Dictionary<string, object> { { "token", token }, { "logoutType", logoutType } });
+            => SendRequestAsync("LOGOUT", new Dictionary<string, object>
+            {
+                { "token", token },
+                { "logoutType", logoutType }
+            });
 
         public Task<ServerResponse> VerifyTokenAsync(string token)
-            => SendRequestAsync("VERIFY_TOKEN", new Dictionary<string, object> { { "token", token } });
+            => SendRequestAsync("VERIFY_TOKEN", new Dictionary<string, object>
+            {
+                { "token", token }
+            });
 
         public Task<ServerResponse> GenerateOtpAsync(string username)
-            => SendRequestAsync("GENERATE_OTP", new Dictionary<string, object> { { "username", username } });
+            => SendRequestAsync("GENERATE_OTP", new Dictionary<string, object>
+            {
+                { "username", username }
+            });
 
         public Task<ServerResponse> VerifyOtpAsync(string username, string otp)
-            => SendRequestAsync("VERIFY_OTP", new Dictionary<string, object> { { "username", username }, { "otp", otp } });
+            => SendRequestAsync("VERIFY_OTP", new Dictionary<string, object>
+            {
+                { "username", username },
+                { "otp", otp }
+            });
 
         public Task<ServerResponse> ResetPasswordAsync(string username, string newPassword)
-            => SendRequestAsync("RESET_PASSWORD", new Dictionary<string, object> { { "username", username }, { "newPassword", newPassword } });
+            => SendRequestAsync("RESET_PASSWORD", new Dictionary<string, object>
+            {
+                { "username", username },
+                { "newPassword", newPassword }
+            });
 
         public Task<ServerResponse> GetUserByContactAsync(string contact, bool isEmail)
-            => SendRequestAsync("GET_USER_BY_CONTACT", new Dictionary<string, object> { { "contact", contact }, { "isEmail", isEmail } });
+            => SendRequestAsync("GET_USER_BY_CONTACT", new Dictionary<string, object>
+            {
+                { "contact", contact },
+                { "isEmail", isEmail }
+            });
+
+        #endregion
+
+        #region API methods - room
 
 
-        // ===========================
-        // API METHODS - ROOM
-        // ===========================
         public Task<ServerResponse> CreateRoomAsync(string roomName, string password, string username)
-            => SendRequestAsync("CREATE_ROOM", new Dictionary<string, object> { { "roomName", roomName }, { "password", password ?? "" }, { "username", username } });
+            => SendRequestAsync("CREATE_ROOM", new Dictionary<string, object>
+            {
+                { "roomName", roomName },
+                { "password", password ?? "" },
+                { "username", username }
+            });
 
         public Task<ServerResponse> JoinRoomAsync(string roomCode, string password, string username)
-            => SendRequestAsync("JOIN_ROOM", new Dictionary<string, object> { { "roomCode", roomCode }, { "password", password ?? "" }, { "username", username } });
+            => SendRequestAsync("JOIN_ROOM", new Dictionary<string, object>
+            {
+                { "roomCode", roomCode },
+                { "password", password ?? "" },
+                { "username", username }
+            });
 
         public Task<ServerResponse> LeaveRoomAsync(string roomCode, string username)
-            => SendRequestAsync("LEAVE_ROOM", new Dictionary<string, object> { { "roomCode", roomCode }, { "username", username } });
+            => SendRequestAsync("LEAVE_ROOM", new Dictionary<string, object>
+            {
+                { "roomCode", roomCode },
+                { "username", username }
+            });
 
         public Task<ServerResponse> GetRoomListAsync()
             => SendRequestAsync("GET_ROOMS");
 
-        // ===========================
-        // API METHODS - LOBBY
-        // ===========================
+        #endregion
+
+        #region API methods - lobby
+
         public Task<ServerResponse> LobbyJoinAsync(string roomCode, string username, string token)
-            => SendRequestAsync("LOBBY_JOIN", new Dictionary<string, object> { { "roomCode", roomCode }, { "username", username }, { "token", token } });
+            => SendRequestAsync("LOBBY_JOIN", new Dictionary<string, object>
+            {
+                { "roomCode", roomCode },
+                { "username", username },
+                { "token", token }
+            });
 
         public Task<ServerResponse> LobbyLeaveAsync(string roomCode, string username)
-            => SendRequestAsync("LOBBY_LEAVE", new Dictionary<string, object> { { "roomCode", roomCode }, { "username", username } });
+            => SendRequestAsync("LOBBY_LEAVE", new Dictionary<string, object>
+            {
+                { "roomCode", roomCode },
+                { "username", username }
+            });
 
         public Task<ServerResponse> LobbySetReadyAsync(string roomCode, string username, bool isReady)
-            => SendRequestAsync("LOBBY_SET_READY", new Dictionary<string, object> { { "roomCode", roomCode }, { "username", username }, { "isReady", isReady } });
+            => SendRequestAsync("LOBBY_SET_READY", new Dictionary<string, object>
+            {
+                { "roomCode", roomCode },
+                { "username", username },
+                { "isReady", isReady }
+            });
 
         public Task<ServerResponse> LobbySendChatAsync(string roomCode, string username, string message)
-            => SendRequestAsync("LOBBY_CHAT_SEND", new Dictionary<string, object> { { "roomCode", roomCode }, { "username", username }, { "message", message } });
-        public Task<ServerResponse> LobbyStartGameAsync(string roomCode, string username)
-    => SendRequestAsync("LOBBY_START_GAME", new Dictionary<string, object> { { "roomCode", roomCode }, { "username", username } });
+            => SendRequestAsync("LOBBY_CHAT_SEND", new Dictionary<string, object>
+            {
+                { "roomCode", roomCode },
+                { "username", username },
+                { "message", message }
+            });
 
-        // ===========================
-        // API METHODS - GLOBAL CHAT
-        // ===========================
+        public Task<ServerResponse> LobbyStartGameAsync(string roomCode, string username)
+            => SendRequestAsync("LOBBY_START_GAME", new Dictionary<string, object>
+            {
+                { "roomCode", roomCode },
+                { "username", username }
+            });
+
+        #endregion
+
+        #region API methods - global chat
+
         public Task<ServerResponse> GlobalChatJoinAsync(string username, string token)
-            => SendRequestAsync("GLOBAL_CHAT_JOIN", new Dictionary<string, object> { { "username", username }, { "token", token } });
+            => SendRequestAsync("GLOBAL_CHAT_JOIN", new Dictionary<string, object>
+            {
+                { "username", username },
+                { "token", token }
+            });
 
         public Task<ServerResponse> GlobalChatSendAsync(string username, string message, string token)
-            => SendRequestAsync("GLOBAL_CHAT_SEND", new Dictionary<string, object> { { "username", username }, { "message", message }, { "token", token } });
+            => SendRequestAsync("GLOBAL_CHAT_SEND", new Dictionary<string, object>
+            {
+                { "username", username },
+                { "message", message },
+                { "token", token }
+            });
 
         public Task<ServerResponse> GlobalChatLeaveAsync(string username)
-            => SendRequestAsync("GLOBAL_CHAT_LEAVE", new Dictionary<string, object> { { "username", username } });
+            => SendRequestAsync("GLOBAL_CHAT_LEAVE", new Dictionary<string, object>
+            {
+                { "username", username }
+            });
 
-        // ===========================
-        // SYNC WRAPPERS (backward compatibility)
-        // ===========================
+        #endregion
+
+        #region Sync wrappers
+
         public ServerResponse Login(string username, string password)
             => LoginAsync(username, password).GetAwaiter().GetResult();
 
@@ -398,5 +529,9 @@ namespace DoAn_NT106.Services
 
         public ServerResponse GetRoomList()
             => GetRoomListAsync().GetAwaiter().GetResult();
+
+        #endregion
     }
+
+    #endregion
 }

@@ -11,11 +11,11 @@ namespace DoAn_NT106.Services
 {
     public class DatabaseService
     {
-        // ✅ CONNECTION STRING
+        // CONNECTION STRING
         private readonly string connectionString = "Server=localhost;Database=USERDB;Trusted_Connection=True;TrustServerCertificate=True;";
         private ConcurrentDictionary<string, (string Otp, DateTime ExpireTime)> otps = new();
 
-        // ✅ KIỂM TRA USER TỒN TẠI - BẢN ĐÃ SỬA
+        // KIỂM TRA USER TỒN TẠI 
         public bool IsUserExists(string username, string email, string phone)
         {
             try
@@ -24,7 +24,7 @@ namespace DoAn_NT106.Services
                 {
                     connection.Open();
 
-                    // ✅ FIX: Sử dụng parameterized query an toàn
+                    // Sử dụng parameterized query 
                     string query = @"
                         SELECT COUNT(*) 
                         FROM PLAYERS 
@@ -47,12 +47,12 @@ namespace DoAn_NT106.Services
             catch (Exception ex)
             {
                 Console.WriteLine($"❌ IsUserExists ERROR: {ex.Message}");
-                // ✅ Trả về true để ngăn tạo user trùng lặp khi có lỗi
+                // Trả về true để ngăn tạo user trùng lặp khi có lỗi
                 return true;
             }
         }
 
-        // ✅ LƯU USER VÀO DATABASE 
+        // LƯU USER VÀO DATABASE 
         public bool SaveUserToDatabase(string username, string email, string phone, string hash, string salt)
         {
             try
@@ -61,7 +61,7 @@ namespace DoAn_NT106.Services
                 {
                     connection.Open();
 
-                    // ✅ FIX: Sử dụng transaction để đảm bảo tính toàn vẹn
+                    // Sử dụng transaction để đảm bảo tính toàn vẹn
                     using (var transaction = connection.BeginTransaction())
                     {
                         try
@@ -80,7 +80,7 @@ namespace DoAn_NT106.Services
 
                                 int rowsAffected = command.ExecuteNonQuery();
 
-                                transaction.Commit(); // ✅ Commit transaction
+                                transaction.Commit(); //
 
                                 Console.WriteLine($"✅ SaveUserToDatabase SUCCESS: {username}, Rows: {rowsAffected}");
                                 return rowsAffected > 0;
@@ -88,7 +88,7 @@ namespace DoAn_NT106.Services
                         }
                         catch (Exception)
                         {
-                            transaction.Rollback(); // ✅ Rollback nếu có lỗi
+                            transaction.Rollback();
                             throw;
                         }
                     }
@@ -99,7 +99,7 @@ namespace DoAn_NT106.Services
                 Console.WriteLine($"❌ SQL Error saving user {username}: {sqlEx.Message}");
                 Console.WriteLine($"❌ SQL Number: {sqlEx.Number}");
 
-                // ✅ Xử lý các lỗi SQL phổ biến
+                // Xử lý các lỗi SQL phổ biến
                 if (sqlEx.Number == 2627) // Violation of PRIMARY KEY constraint
                 {
                     Console.WriteLine("❌ User already exists (primary key violation)");
@@ -122,7 +122,7 @@ namespace DoAn_NT106.Services
             }
         }
 
-        // ✅ XÁC THỰC ĐĂNG NHẬP
+        // XÁC THỰC ĐĂNG NHẬP
         public bool VerifyUserLogin(string username, string password)
         {
             try
@@ -161,7 +161,7 @@ namespace DoAn_NT106.Services
             }
         }
 
-        // ✅ TÌM USERNAME BẰNG EMAIL/PHONE
+        // TÌM USERNAME BẰNG EMAIL/PHONE
         public string GetUsernameByContact(string contact, bool isEmail)
         {
             try
@@ -213,7 +213,7 @@ namespace DoAn_NT106.Services
             }
         }
 
-        // ✅ RESET PASSWORD - BẢN ĐÃ SỬA
+        // RESET PASSWORD 
         public bool ResetPassword(string username, string newPassword)
         {
             try
@@ -225,7 +225,7 @@ namespace DoAn_NT106.Services
                 {
                     connection.Open();
 
-                    // ✅ FIX: Sử dụng transaction
+                    // Sử dụng transaction
                     using (var transaction = connection.BeginTransaction())
                     {
                         try
@@ -263,7 +263,7 @@ namespace DoAn_NT106.Services
             }
         }
 
-        // ✅ KIỂM TRA VÀ SỬA CẤU TRÚC BẢNG
+        // KIỂM TRA VÀ SỬA CẤU TRÚC BẢNG
         public bool CheckAndFixTableStructure()
         {
             try
@@ -315,7 +315,7 @@ namespace DoAn_NT106.Services
             }
         }
 
-        // ✅ TEST TOÀN DIỆN
+        // TEST TOÀN DIỆN
         public void RunDiagnostics()
         {
             Console.WriteLine("🔧 Running Database Diagnostics...");
@@ -451,7 +451,7 @@ namespace DoAn_NT106.Services
 
         #region ROOM MANAGEMENT
         /// <summary>
-        /// ✅ THÊM MỚI: Tạo room TRỐNG (không có player nào)
+        /// Tạo room TRỐNG (không có player nào)
         /// </summary>
         public (bool Success, string Message, int? RoomId) CreateRoomEmpty(
             string roomCode,
@@ -498,7 +498,7 @@ namespace DoAn_NT106.Services
         }
 
         /// <summary>
-        /// ✅ THÊM MỚI: Xóa room theo code
+        /// Xóa room theo code
         /// (Chỉ thêm nếu chưa có method này)
         /// </summary>
         public bool DeleteRoom(string roomCode)
@@ -528,7 +528,7 @@ namespace DoAn_NT106.Services
         }
 
         /// <summary>
-        /// ✅ THÊM MỚI: Kiểm tra room code đã tồn tại
+        /// Kiểm tra room code đã tồn tại
         /// </summary>
         public bool RoomCodeExists(string roomCode)
         {
