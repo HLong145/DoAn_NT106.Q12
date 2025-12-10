@@ -1,24 +1,29 @@
 ﻿using DoAn_NT106.Services;
 using System;
 using System.Windows.Forms;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace DoAn_NT106
 {
     public partial class FormResetPass : Form
     {
-        private readonly string _username;
-        private readonly PersistentTcpClient tcpClient;
-        private readonly ValidationService _validationService;
+        #region Fields
 
+        private readonly string _username;              
+        private readonly PersistentTcpClient tcpClient;     
+        private readonly ValidationService _validationService; 
+
+        #endregion
+
+        #region Constructors
 
         public FormResetPass(string username)
         {
             InitializeComponent();
+
             _username = username;
             _validationService = new ValidationService();
 
-            // Khởi tạo tcp client
+
             tcpClient = PersistentTcpClient.Instance;
         }
 
@@ -26,14 +31,20 @@ namespace DoAn_NT106
         {
         }
 
-        // ✅ RESET PASSWORD (ASYNC)
+        #endregion
+
+        #region Reset Password Logic
+
+        // RESET PASSWORD
         private async void btn_complete_Click(object sender, EventArgs e)
         {
+            // Xóa lỗi cũ trước khi validate lại
             lblNewPasswordError.Text = string.Empty;
             lblConfirmPasswordError.Text = string.Empty;
 
             string newPass = tbPassword.Text.Trim();
             string confirmPass = tbconfirmPassword.Text.Trim();
+
 
             if (string.IsNullOrEmpty(newPass))
             {
@@ -67,12 +78,14 @@ namespace DoAn_NT106
                 return;
             }
 
+            // Kiểm tra mật khẩu theo rule 
             if (!_validationService.IsValidPassword(newPass))
             {
+                //clear cả 2 text box
                 tbPassword.Text = string.Empty;
                 tbconfirmPassword.Text = string.Empty;
-                lblConfirmPasswordError.Text = string.Empty;
 
+                lblConfirmPasswordError.Text = string.Empty;
                 lblNewPasswordError.Text =
                     "Password must be at least 8 characters long, including uppercase, lowercase, number and a special character!";
 
@@ -87,6 +100,7 @@ namespace DoAn_NT106
                 return;
             }
 
+            // Nếu pass và confirm không khớp
             if (newPass != confirmPass)
             {
                 lblNewPasswordError.Text = string.Empty;
@@ -106,10 +120,12 @@ namespace DoAn_NT106
             bool success = false;
             string message = "";
 
-            btn_complete.Enabled = false;
+            btn_complete.Enabled = false; 
+
 
             try
             {
+                // Gửi request reset password lên server
                 var response = await tcpClient.ResetPasswordAsync(_username, newPass);
                 success = response.Success;
                 message = response.Message;
@@ -133,6 +149,7 @@ namespace DoAn_NT106
                     MessageBoxIcon.Information
                 );
 
+            
                 this.Hide();
                 FormDangNhap formLogin = new FormDangNhap();
                 formLogin.Show();
@@ -149,12 +166,20 @@ namespace DoAn_NT106
             }
         }
 
+        #endregion
+
+        #region Navigation
+
         private void btn_backToLogin_Click(object sender, EventArgs e)
         {
             this.Close();
             FormDangNhap formLogin = new FormDangNhap();
             formLogin.Show();
         }
+
+        #endregion
+
+        #region Live Validation (TextChanged)
 
         private void tbnewPassword_TextChanged(object sender, EventArgs e)
         {
@@ -169,31 +194,35 @@ namespace DoAn_NT106
             {
                 if (!isValidPassword)
                 {
-                    lblNewPasswordError.Text = "Password must be at least 8 characters long, including uppercase, lowercase, number and a special character!";
+                    lblNewPasswordError.Text =
+                        "Password must be at least 8 characters long, including uppercase, lowercase, number and a special character!";
                 }
                 else
                 {
                     lblNewPasswordError.Text = string.Empty;
                 }
+            }
 
-                if (!string.IsNullOrEmpty(tbconfirmPassword.Text) && tbconfirmPassword.Text != tbPassword.Text)
-                {
-                    lblConfirmPasswordError.Text = "Password confirmation does not match!";
-                }
-                else
-                {
-                    lblConfirmPasswordError.Text = string.Empty;
-                }
+            // Nếu đã nhập confirm mà khác password thì hiển thị lỗi
+            if (!string.IsNullOrEmpty(tbconfirmPassword.Text) && tbconfirmPassword.Text != tbPassword.Text)
+            {
+                lblConfirmPasswordError.Text = "Password confirmation does not match!";
+            }
+            else
+            {
+                lblConfirmPasswordError.Text = string.Empty;
             }
         }
 
         private void tbconfirmPassword_TextChanged(object sender, EventArgs e)
         {
+            // Nếu 1 trong 2 trống thì không hiển thị lỗi
             if (string.IsNullOrEmpty(tbconfirmPassword.Text) || string.IsNullOrEmpty(tbPassword.Text))
             {
                 lblNewPassword.Text = string.Empty;
                 lblConfirmPassword.Text = string.Empty;
             }
+
             else if (tbconfirmPassword.Text.Trim() != tbPassword.Text.Trim())
             {
                 lblConfirmPasswordError.Text = "Password confirmation does not match!";
@@ -204,13 +233,17 @@ namespace DoAn_NT106
             }
         }
 
+        #endregion
+
+        #region Keyboard Shortcuts
+
         private void tbnewPassword_KeyDown(object sender, KeyEventArgs e)
         {
+            
             if (e.KeyCode == Keys.Enter)
             {
                 e.Handled = true;
                 e.SuppressKeyPress = true;
-
                 this.SelectNextControl(this.ActiveControl, true, true, true, true);
             }
         }
@@ -221,9 +254,10 @@ namespace DoAn_NT106
             {
                 e.Handled = true;
                 e.SuppressKeyPress = true;
-
                 btn_complete_Click(sender, e);
             }
         }
+
+        #endregion
     }
 }

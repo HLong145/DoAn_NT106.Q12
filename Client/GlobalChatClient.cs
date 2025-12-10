@@ -5,13 +5,15 @@ using System.Threading.Tasks;
 
 namespace DoAn_NT106.Services
 {
+    #region Global chat client
+
     /// <summary>
     /// Global Chat Client - Sử dụng PersistentTcpClient singleton
-    /// KHÔNG tạo connection riêng
     /// </summary>
     public class GlobalChatClient : IDisposable
     {
-        // Sử dụng PersistentTcpClient singleton thay vì tạo connection riêng
+        #region Fields and properties
+
         private PersistentTcpClient TcpClient => PersistentTcpClient.Instance;
 
         private string username;
@@ -21,8 +23,13 @@ namespace DoAn_NT106.Services
 
         // Events
         public event Action<ChatMessageData> OnChatMessage;
+
+        // Events when server reports the number of online users
         public event Action<int> OnOnlineCountUpdate;
+
+        // Events when server returns chat history upon successful join
         public event Action<List<ChatMessageData>> OnHistoryReceived;
+
         public event Action<string> OnError;
         public event Action OnConnected;
         public event Action OnDisconnected;
@@ -31,9 +38,10 @@ namespace DoAn_NT106.Services
         public bool IsConnected => TcpClient.IsConnected;
         public bool IsJoined => isJoined;
 
-        // ===========================
-        // CONSTRUCTOR
-        // ===========================
+        #endregion
+
+        #region Constructors
+
         public GlobalChatClient()
         {
             // Subscribe vào broadcast của PersistentTcpClient
@@ -43,12 +51,12 @@ namespace DoAn_NT106.Services
 
         public GlobalChatClient(string address, int port) : this()
         {
-            // Ignore address/port - dùng PersistentTcpClient singleton
         }
 
-        // ===========================
-        // CONNECT AND JOIN
-        // ===========================
+        #endregion
+
+        #region Connect and join
+
         public async Task<(bool Success, int OnlineCount, List<ChatMessageData> History)> ConnectAndJoinAsync(string username, string token)
         {
             try
@@ -69,7 +77,6 @@ namespace DoAn_NT106.Services
 
                 // Gửi request qua PersistentTcpClient
                 var response = await TcpClient.GlobalChatJoinAsync(username, token);
-
                 Console.WriteLine($"[GlobalChatClient] Join response: {response.Success} - {response.Message}");
 
                 if (!response.Success)
@@ -105,11 +112,14 @@ namespace DoAn_NT106.Services
                                 Type = GetStringProp(item, "type")
                             });
                         }
+
                         Console.WriteLine($"[GlobalChatClient] Loaded {history.Count} history messages");
                     }
                 }
 
+                OnHistoryReceived?.Invoke(history);
                 OnConnected?.Invoke();
+
                 return (true, onlineCount, history);
             }
             catch (Exception ex)
@@ -120,9 +130,9 @@ namespace DoAn_NT106.Services
             }
         }
 
-        // ===========================
-        // HANDLE BROADCASTS
-        // ===========================
+        #endregion
+
+        #region Handle broadcasts
         private void HandleBroadcast(string action, JsonElement data)
         {
             if (!isJoined || isDisposed) return;
@@ -187,9 +197,10 @@ namespace DoAn_NT106.Services
             }
         }
 
-        // ===========================
-        // SEND MESSAGE
-        // ===========================
+        #endregion
+
+        #region Send message
+
         public async Task<bool> SendMessageAsync(string message)
         {
             try
@@ -202,11 +213,11 @@ namespace DoAn_NT106.Services
 
                 if (string.IsNullOrEmpty(message)) return false;
 
+                // Giới hạn độ dài message để tránh spam quá dài
                 if (message.Length > 1000)
                     message = message.Substring(0, 1000);
 
                 var response = await TcpClient.GlobalChatSendAsync(username, message, token);
-
                 Console.WriteLine($"[GlobalChatClient] Send result: {response.Success}");
                 return response.Success;
             }
@@ -218,9 +229,10 @@ namespace DoAn_NT106.Services
             }
         }
 
-        // ===========================
-        // LEAVE
-        // ===========================
+        #endregion
+
+        #region Leave and dispose
+
         public async Task LeaveAsync()
         {
             try
@@ -241,9 +253,7 @@ namespace DoAn_NT106.Services
             }
         }
 
-        // ===========================
-        // DISPOSE
-        // ===========================
+
         public void Dispose()
         {
             if (isDisposed) return;
@@ -261,23 +271,26 @@ namespace DoAn_NT106.Services
                     _ = LeaveAsync();
                 }
             }
-            catch { }
+            catch
+            {
+            }
 
-            // KHÔNG disconnect PersistentTcpClient vì nó dùng chung cho toàn app
         }
 
-        // ===========================
-        // HELPER
-        // ===========================
+        #endregion
+
+        #region Helpers
         private string GetStringProp(JsonElement el, string name)
         {
             return el.TryGetProperty(name, out var prop) ? prop.GetString() ?? "" : "";
         }
-    }
 
-    // ===========================
-    // DATA CLASS
-    // ===========================
+        #endregion
+
+        }
+
+        #region Data class
+
     public class ChatMessageData
     {
         public string Id { get; set; }
@@ -285,5 +298,8 @@ namespace DoAn_NT106.Services
         public string Message { get; set; }
         public string Timestamp { get; set; }
         public string Type { get; set; }
+        #endregion
     }
+
+    #endregion
 }

@@ -2,33 +2,57 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Text.Json;
+using static PixelGameLobby.JoinRoomForm;
 
 namespace DoAn_NT106.Server
 {
+    #region Class definition
     public class RoomListBroadcaster
     {
-        private ConcurrentDictionary<string, ClientHandler> listeners = new ConcurrentDictionary<string, ClientHandler>();
+        #endregion
+
+        #region Fields
+
+        // Danh sách các client đang lắng nghe broadcast danh sách phòng, key là username
+        private ConcurrentDictionary<string, ClientHandler> listeners 
+            = new ConcurrentDictionary<string, ClientHandler>();
+
         private RoomManager roomManager;
+
+        #endregion
+
+        #region Events
+
         public event Action<string> OnLog;
 
-        // JSON options với camelCase
+        #endregion
+
+        #region JSON options
+
         private static readonly JsonSerializerOptions jsonOptions = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
+
+        #endregion
+
+        #region Constructor
 
         public RoomListBroadcaster(RoomManager roomManager)
         {
             this.roomManager = roomManager;
         }
 
-        // ===========================
-        // ĐĂNG KÝ LẮNG NGHE
-        // ===========================
-        public (bool Success, string Message, List<RoomInfo> Rooms) Subscribe(string username, ClientHandler client)
+        #endregion
+
+        #region Subscribe
+
+        public (bool Success, string Message, List<RoomInfo> Rooms) Subscribe
+            (string username, ClientHandler client)
         {
             try
             {
+                // Lưu client theo username để  broadcast
                 listeners[username] = client;
                 Log($"✅ {username} subscribed to room list broadcasts");
 
@@ -45,27 +69,30 @@ namespace DoAn_NT106.Server
             }
         }
 
-        // ===========================
-        // HỦY ĐĂNG KÝ
-        // ===========================
+        #endregion
+
+        #region Unsubscribe
+
         public void Unsubscribe(string username)
         {
+            // Xóa client khỏi danh sách  nếu tồn tại
             if (listeners.TryRemove(username, out _))
             {
                 Log($"👋 {username} unsubscribed from room list");
             }
         }
 
-        // ===========================
-        // BROADCAST DANH SÁCH PHÒNG
-        // ===========================
+        #endregion
+
+        #region Broadcast
+
         public void BroadcastRoomList()
         {
             try
             {
+                // Lấy danh sách phòng khả dụng từ RoomManager
                 var rooms = roomManager.GetAvailableRooms();
 
-                // Tạo data với camelCase
                 var roomsData = new List<object>();
                 foreach (var r in rooms)
                 {
@@ -89,20 +116,21 @@ namespace DoAn_NT106.Server
                     }
                 };
 
-                string json = JsonSerializer.Serialize(broadcast);
-
+                string json = JsonSerializer.Serialize(broadcast, jsonOptions);
                 Log($"📤 Broadcasting: {json.Substring(0, Math.Min(200, json.Length))}...");
 
+                // Gửi cho từng client đang lắng nghe
                 foreach (var kvp in listeners.ToArray())
                 {
                     try
                     {
                         kvp.Value.SendMessage(json);
-                        Log($"   → Sent to {kvp.Key}");
+                        Log($" → Sent to {kvp.Key}");
                     }
                     catch (Exception ex)
                     {
-                        Log($"   ❌ Failed to send to {kvp.Key}: {ex.Message}");
+                        Log($" ❌ Failed to send to {kvp.Key}: {ex.Message}");
+                        // Nếu gửi thất bại thì remove listener đó
                         listeners.TryRemove(kvp.Key, out _);
                     }
                 }
@@ -115,6 +143,13 @@ namespace DoAn_NT106.Server
             }
         }
 
+        #endregion
+
+        #region Logging
+
+        // Hàm helper để log, thêm prefix tên class
         private void Log(string message) => OnLog?.Invoke($"[RoomListBroadcaster] {message}");
+
+        #endregion
     }
 }

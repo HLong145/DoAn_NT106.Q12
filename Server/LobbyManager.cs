@@ -12,11 +12,12 @@ namespace DoAn_NT106.Server
     /// </summary>
     public class LobbyManager
     {
+        #region Fields and constructor
+
         // Room Code -> Lobby Data
         private ConcurrentDictionary<string, LobbyData> lobbies = new ConcurrentDictionary<string, LobbyData>();
 
-
-        // ✅ THÊM MỚI: Reference đến RoomManager để gọi LeaveRoom
+        // Reference đến RoomManager để gọi LeaveRoom
         private RoomManager roomManager;
 
         private DatabaseService dbService;
@@ -27,21 +28,25 @@ namespace DoAn_NT106.Server
 
         public LobbyManager(DatabaseService dbService = null)
         {
+            // Khởi tạo DatabaseService dùng để lưu chat lobby
             this.dbService = dbService ?? new DatabaseService();
         }
 
-        // ✅ THÊM MỚI: Set RoomManager sau khi khởi tạo
+        // Set RoomManager sau khi khởi tạo
         public void SetRoomManager(RoomManager manager)
         {
             this.roomManager = manager;
             Log("✅ RoomManager reference set");
         }
 
-        // ===========================
-        // JOIN LOBBY
-        // ===========================
+        #endregion
+
+        #region Join and leave lobby
         public (bool Success, string Message, LobbyData Lobby) JoinLobby(
-            string roomCode, string username, ClientHandler client, RoomManager roomMgr)
+            string roomCode,
+            string username,
+            ClientHandler client,
+            RoomManager roomMgr)
         {
             try
             {
@@ -59,14 +64,14 @@ namespace DoAn_NT106.Server
 
                 lock (lobby.Lock)
                 {
-                    // Get room info from RoomManager
+                    // Lấy thông tin room từ RoomManager
                     var room = roomMgr?.GetRoom(roomCode);
                     if (room != null)
                     {
                         lobby.RoomName = room.RoomName;
                     }
 
-                    // Determine player slot
+                    // Gán slot cho player
                     if (string.IsNullOrEmpty(lobby.Player1Username))
                     {
                         lobby.Player1Username = username;
@@ -98,7 +103,7 @@ namespace DoAn_NT106.Server
                         return (false, "Lobby is full", null);
                     }
 
-                    // Broadcast to other player
+                    // Broadcast trạng thái lobby cho 2 bên
                     BroadcastLobbyState(lobby, excludeUsername: null);
                 }
 
@@ -111,9 +116,7 @@ namespace DoAn_NT106.Server
             }
         }
 
-        // ===========================
-        // ✅ SỬA: LEAVE LOBBY - Gọi RoomManager.LeaveRoom
-        // ===========================
+        // LEAVE LOBBY - Gọi RoomManager.LeaveRoom
         public (bool Success, string Message) LeaveLobby(string roomCode, string username)
         {
             try
@@ -123,8 +126,8 @@ namespace DoAn_NT106.Server
                 if (!lobbies.TryGetValue(roomCode, out var lobby))
                 {
                     Log($"⚠️ Lobby not found for {roomCode}, but will still leave room");
-
-                    // ✅ QUAN TRỌNG: Vẫn gọi LeaveRoom dù lobby không tồn tại
+                    
+                    //Vẫn gọi LeaveRoom dù lobby không tồn tại
                     roomManager?.LeaveRoom(roomCode, username);
                     return (true, "Lobby not found but room left");
                 }
@@ -149,10 +152,10 @@ namespace DoAn_NT106.Server
                         Log($"👋 {username} left lobby {roomCode} (was Player 2)");
                     }
 
-                    // ✅ QUAN TRỌNG: Broadcast TRƯỚC khi xóa lobby
+                    // Broadcast TRƯỚC khi xóa lobby
                     BroadcastPlayerLeft(lobby, username);
 
-                    // ✅ QUAN TRỌNG: Gọi RoomManager.LeaveRoom để xóa username khỏi room
+                    // Gọi RoomManager.LeaveRoom để xóa username khỏi room
                     roomManager?.LeaveRoom(roomCode, username);
                     Log($"✅ Called RoomManager.LeaveRoom for {username}");
 
@@ -174,10 +177,14 @@ namespace DoAn_NT106.Server
             }
         }
 
-        // ===========================
+        #endregion
+
+        #region Ready and start game
         // SET READY STATUS
-        // ===========================
-        public (bool Success, string Message, bool BothReady) SetReady(string roomCode, string username, bool isReady)
+        public (bool Success, string Message, bool BothReady) SetReady(
+            string roomCode,
+            string username,
+            bool isReady)
         {
             try
             {
@@ -201,13 +208,13 @@ namespace DoAn_NT106.Server
                         return (false, "Player not in lobby", false);
                     }
 
-                    // Broadcast updated state
+                    // Broadcast trạng thái ready tới cả 2 bên
                     BroadcastLobbyState(lobby, excludeUsername: null);
 
                     // Check if both ready
                     bool bothReady = lobby.Player1Ready && lobby.Player2Ready &&
-                                    !string.IsNullOrEmpty(lobby.Player1Username) &&
-                                    !string.IsNullOrEmpty(lobby.Player2Username);
+                                     !string.IsNullOrEmpty(lobby.Player1Username) &&
+                                     !string.IsNullOrEmpty(lobby.Player2Username);
 
                     if (bothReady)
                     {
@@ -224,9 +231,7 @@ namespace DoAn_NT106.Server
                 return (false, ex.Message, false);
             }
         }
-        // ===========================
         // START GAME (by host)
-        // ===========================
         public (bool Success, string Message) StartGame(string roomCode, string username)
         {
             try
@@ -244,8 +249,8 @@ namespace DoAn_NT106.Server
 
                     // Kiểm tra cả 2 đã ready
                     bool bothReady = lobby.Player1Ready && lobby.Player2Ready &&
-                                    !string.IsNullOrEmpty(lobby.Player1Username) &&
-                                    !string.IsNullOrEmpty(lobby.Player2Username);
+                                     !string.IsNullOrEmpty(lobby.Player1Username) &&
+                                     !string.IsNullOrEmpty(lobby.Player2Username);
 
                     if (!bothReady)
                     {
@@ -254,7 +259,6 @@ namespace DoAn_NT106.Server
 
                     Log($"🎮 Host {username} starting game in lobby {roomCode}");
                     BroadcastStartGame(lobby);
-
                     return (true, "Game started");
                 }
             }
@@ -265,10 +269,15 @@ namespace DoAn_NT106.Server
             }
         }
 
-        // ===========================
+        #endregion`
+
+        #region Chat and data access
+
         // SEND CHAT MESSAGE
-        // ===========================
-        public (bool Success, string Message) SendChatMessage(string roomCode, string username, string message)
+        public (bool Success, string Message) SendChatMessage(
+            string roomCode,
+            string username,
+            string message)
         {
             try
             {
@@ -278,6 +287,7 @@ namespace DoAn_NT106.Server
                 if (string.IsNullOrWhiteSpace(message))
                     return (false, "Message cannot be empty");
 
+                // Tạo message chat mới
                 var chatMessage = new LobbyChatMessage
                 {
                     Id = Guid.NewGuid().ToString("N").Substring(0, 8),
@@ -288,6 +298,7 @@ namespace DoAn_NT106.Server
 
                 try
                 {
+                    // Lưu chat xuống DB  nếu fail chỉ log warning
                     var dbResult = dbService.SaveLobbyChatMessage(roomCode, username, message);
                     if (!dbResult.Success)
                     {
@@ -301,12 +312,12 @@ namespace DoAn_NT106.Server
 
                 lock (lobby.Lock)
                 {
-                    // Store in history
+                    // Lưu vào history trong bộ nhớ
                     lobby.ChatHistory.Add(chatMessage);
                     if (lobby.ChatHistory.Count > 50)
                         lobby.ChatHistory.RemoveAt(0);
 
-                    // Broadcast to both players
+                    // Broadcast chat message cho cả 2 players
                     BroadcastChatMessage(lobby, chatMessage);
                 }
 
@@ -319,22 +330,23 @@ namespace DoAn_NT106.Server
                 return (false, ex.Message);
             }
         }
-
-        // ===========================
+        
+        
         // GET LOBBY DATA
-        // ===========================
         public LobbyData GetLobby(string roomCode)
         {
+            // Lấy thông tin lobby hiện tại
             lobbies.TryGetValue(roomCode, out var lobby);
             return lobby;
         }
 
-        // ===========================
-        // BROADCAST METHODS
-        // ===========================
+        #endregion
+
+        #region Broadcast helpers
+
         private void BroadcastLobbyState(LobbyData lobby, string excludeUsername)
         {
-            // Tính player count
+            // Tính số lượng player hiện tại trong lobby
             int playerCount = 0;
             if (!string.IsNullOrEmpty(lobby.Player1Username)) playerCount++;
             if (!string.IsNullOrEmpty(lobby.Player2Username)) playerCount++;
@@ -378,6 +390,7 @@ namespace DoAn_NT106.Server
             };
 
             string json = JsonSerializer.Serialize(broadcast);
+
             Log($"📢 Broadcasting LOBBY_PLAYER_LEFT: {leftUsername}");
 
             // Gửi cho TẤT CẢ client trong lobby
@@ -434,18 +447,6 @@ namespace DoAn_NT106.Server
                 SafeSend(lobby.Player2Client, json);
         }
 
-        private void SafeSend(ClientHandler client, string json)
-        {
-            try
-            {
-                client?.SendMessage(json);
-            }
-            catch (Exception ex)
-            {
-                Log($"⚠️ SafeSend error: {ex.Message}");
-            }
-        }
-
         private void BroadcastBothReady(LobbyData lobby)
         {
             var broadcast = new
@@ -467,34 +468,49 @@ namespace DoAn_NT106.Server
                 SafeSend(lobby.Player2Client, json);
         }
 
+        private void SafeSend(ClientHandler client, string json)
+        {
+            try
+            {
+                client?.SendMessage(json);
+            }
+            catch (Exception ex)
+            {
+                Log($"⚠️ SafeSend error: {ex.Message}");
+            }
+        }
 
-    }
+        #endregion
 
-    // ===========================
-    // DATA CLASSES
-    // ===========================
-    public class LobbyData
-    {
-        public string RoomCode { get; set; }
-        public string RoomName { get; set; }
+        #region Data classes
 
-        public string Player1Username { get; set; }
-        public ClientHandler Player1Client { get; set; }
-        public bool Player1Ready { get; set; }
+        public class LobbyData
+        {
+            public string RoomCode { get; set; }
+            public string RoomName { get; set; }
 
-        public string Player2Username { get; set; }
-        public ClientHandler Player2Client { get; set; }
-        public bool Player2Ready { get; set; }
+            public string Player1Username { get; set; }
+            public ClientHandler Player1Client { get; set; }
+            public bool Player1Ready { get; set; }
 
-        public List<LobbyChatMessage> ChatHistory { get; } = new List<LobbyChatMessage>();
-        public object Lock { get; } = new object();
-    }
+            public string Player2Username { get; set; }
+            public ClientHandler Player2Client { get; set; }
+            public bool Player2Ready { get; set; }
 
-    public class LobbyChatMessage
-    {
-        public string Id { get; set; }
-        public string Username { get; set; }
-        public string Message { get; set; }
-        public DateTime Timestamp { get; set; }
+            // Lịch sử chat trong lobby, giữ với số lượng nhất định
+            public List<LobbyChatMessage> ChatHistory { get; } = new List<LobbyChatMessage>();
+
+            public object Lock { get; } = new object();
+        }
+
+        public class LobbyChatMessage
+        {
+            public string Id { get; set; }
+            public string Username { get; set; }
+            public string Message { get; set; }
+            public DateTime Timestamp { get; set; }
+        }
+
+        #endregion
     }
 }
