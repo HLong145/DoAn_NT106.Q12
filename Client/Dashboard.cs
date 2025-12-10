@@ -7,21 +7,29 @@ namespace DoAn_NT106.Client
 {
     public partial class Dashboard : Form
     {
+        // ✅ THÊM TRACKING CHO CHILD PROCESSES
+        private Process clientProcess;
+        // ✅ FLAG ĐỂ TRÁNH GỌI MESSAGEBOX NHIỀU LẦN
+        private bool isClosing = false;
+
         public Dashboard()
         {
             InitializeComponent();
-
         }
-
-        /// <summary>
-        /// Mở Client mode (Login/Register)
-        /// </summary>
 
         /// <summary>
         /// Khi đóng Dashboard → Thoát toàn bộ ứng dụng
         /// </summary>
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
+            // ✅ KIỂM TRA FLAG ĐỂ TRÁNH GỌI NHIỀU LẦN
+            if (isClosing)
+            {
+                e.Cancel = false;
+                base.OnFormClosing(e);
+                return;
+            }
+
             var result = MessageBox.Show(
                 "Are you sure you want to exit the application?", "⚠️ Exit Confirmation", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
 
@@ -29,8 +37,69 @@ namespace DoAn_NT106.Client
             {
                 e.Cancel = true; // Hủy đóng form
             }
+            else
+            {
+                // ✅ SET FLAG ĐỂ TRÁNH MESSAGEBOX LẦN THỨ 2
+                isClosing = true;
+                e.Cancel = false;
 
-            base.OnFormClosing(e); // Gọi base
+                // ✅ KILL CHILD PROCESS NẾU CÓ
+                KillChildProcess();
+                
+                // ✅ FORCE SHUTDOWN
+                ForceShutdown();
+            }
+
+            base.OnFormClosing(e);
+        }
+
+        // ✅ HỖ TRỢ FUNCTION: KILL CHILD PROCESS
+        private void KillChildProcess()
+        {
+            try
+            {
+                if (clientProcess != null && !clientProcess.HasExited)
+                {
+                    Console.WriteLine($"🛑 Terminating child process (PID: {clientProcess.Id})...");
+                    clientProcess.Kill();
+                    clientProcess.WaitForExit(3000); // Chờ 3 giây
+                    clientProcess?.Dispose();
+                    clientProcess = null;
+                    Console.WriteLine("✅ Child process terminated");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ Error killing child process: {ex.Message}");
+            }
+        }
+
+        // ✅ HỖ TRỢ FUNCTION: FORCE SHUTDOWN
+        private void ForceShutdown()
+        {
+            Console.WriteLine("🛑 Force shutdown initiated...");
+            
+            // ✅ Tìm và kill tất cả child processes
+            try
+            {
+                foreach (var process in Process.GetProcessesByName(Process.GetCurrentProcess().ProcessName))
+                {
+                    if (process.Id != Process.GetCurrentProcess().Id)
+                    {
+                        try
+                        {
+                            Console.WriteLine($"🛑 Killing process: {process.ProcessName} (PID: {process.Id})");
+                            process.Kill();
+                        }
+                        catch { }
+                    }
+                }
+            }
+            catch { }
+
+            // ✅ FORCE EXIT - Không dùng Application.Exit() vì nó sẽ trigger OnFormClosing lần nữa
+            Console.WriteLine("🛑 Force exit now");
+            Environment.Exit(0);
         }
 
         private void btn_Client_Click(object sender, EventArgs e)
@@ -39,12 +108,26 @@ namespace DoAn_NT106.Client
             {
                 Console.WriteLine("Starting NEW Client Login process...");
 
-                Process.Start(new ProcessStartInfo
+                // ✅ TRACK PROCESS
+                clientProcess = Process.Start(new ProcessStartInfo
                 {
                     FileName = Application.ExecutablePath,   // exe hiện tại
                     Arguments = "--login",                  // báo cho Program.cs biết là chạy login
                     UseShellExecute = true
                 });
+
+                Console.WriteLine($"✅ Client process started (PID: {clientProcess?.Id})");
+
+                // ✅ MONITOR PROCESS
+                if (clientProcess != null)
+                {
+                    clientProcess.EnableRaisingEvents = true;
+                    clientProcess.Exited += (s, e) =>
+                    {
+                        Console.WriteLine("ℹ️ Client process exited");
+                        clientProcess = null;
+                    };
+                }
             }
             catch (Exception ex)
             {
@@ -57,6 +140,7 @@ namespace DoAn_NT106.Client
                 );
             }
         }
+
         private void btn_Server_Click(object sender, EventArgs e)
         {
             try
@@ -86,9 +170,6 @@ namespace DoAn_NT106.Client
     /// <summary>
     /// Controller quản lý Client flow (Login/Register)
     /// </summary>
-    /// <summary>
-    /// Controller quản lý Client flow (Login/Register) - BẢN ĐÃ SỬA
-    /// </summary>
     public class ClientApplicationController
     {
         private FormDangNhap loginForm;
@@ -109,7 +190,7 @@ namespace DoAn_NT106.Client
             ShowLoginForm();
         }
 
-        // ✅ PHƯƠNG THỨC MỚI: KHỞI TẠO VÀ KẾT NỐI FORM
+        // ✅ PHƯƠNG THỨC: KHỞI TẠO VÀ KẾT NỐI FORM
         private void InitializeAndConnectForms()
         {
             // Tạo form đăng nhập

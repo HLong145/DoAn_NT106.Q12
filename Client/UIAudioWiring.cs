@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Windows.Forms;
 
@@ -17,6 +17,25 @@ namespace DoAn_NT106
             _scanTimer.Tick += (s, e) => ScanOpenForms();
             _scanTimer.Start();
             ScanOpenForms();
+        }
+
+        public static void Stop()
+        {
+            try
+            {
+                if (_scanTimer != null)
+                {
+                    _scanTimer.Stop();
+                    _scanTimer.Dispose();
+                    _scanTimer = null;
+                    Console.WriteLine("🛑 UIAudioWiring timer stopped and disposed");
+                }
+                _wiredControls.Clear();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ Error stopping UIAudioWiring: {ex.Message}");
+            }
         }
 
         private static void ScanOpenForms()
