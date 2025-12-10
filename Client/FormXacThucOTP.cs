@@ -44,6 +44,7 @@ namespace DoAn_NT106
             tb_otp3.TextChanged += (s, e) => { if (tb_otp3.Text.Length == 1) tb_otp4.Focus(); };
             tb_otp4.TextChanged += (s, e) => { if (tb_otp4.Text.Length == 1) tb_otp5.Focus(); };
             tb_otp5.TextChanged += (s, e) => { if (tb_otp5.Text.Length == 1) tb_otp6.Focus(); };
+            tb_otp6.TextChanged += (s, e) => { if (tb_otp6.Text.Length == 1) tb_otp1.Focus(); }; // Quay lại ô đầu tiên sau ô cuối cùng
 
             // Chỉ cho phép nhập số
             tb_otp1.KeyPress += OtpBox_KeyPress;
@@ -134,27 +135,21 @@ namespace DoAn_NT106
         // ✅ RESEND OTP - ASYNC
         private async void btn_resend_Click(object sender, EventArgs e)
         {
-            string newOtp = null;
+            var response = await tcpClient.GenerateOtpAsync(_username);
 
-           
-                var response = await tcpClient.GenerateOtpAsync(_username);
+            if (!response.Success)
+            {
+                MessageBox.Show("Unable to generate new OTP. Please try again!",
+                    "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
 
-                if (response.Success)
-                {
-                    newOtp = response.GetDataValue("otp");
-                }
-                else
-                {
-                    MessageBox.Show("Unable to generate new OTP. Please try again!",
-                        "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return;
-                }
-          
+            // Không hiển thị OTP cho người dùng. Thông báo rằng mã mới đã được gửi.
             ResetOtpTextBoxes();
-            MessageBox.Show($"Your new OTP is: {newOtp}\n(This is shown for testing only)",
+            MessageBox.Show("A new OTP has been sent to your email.",
                 "New OTP", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
-            // Reset timer
+            // Đặt lại bộ đếm thời gian
             remainingSeconds = 300;
             lbl_timer.ForeColor = Color.White;
             btn_verify.Enabled = true;

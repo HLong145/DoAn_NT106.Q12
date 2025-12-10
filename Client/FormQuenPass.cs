@@ -63,7 +63,6 @@ namespace DoAn_NT106
                 btn_continue.Enabled = false;
 
                 string username = null;
-                string otp = null;
 
                 var getUserResponse = await tcpClient.GetUserByContactAsync(input, isEmail);
 
@@ -87,7 +86,7 @@ namespace DoAn_NT106
                     return;
                 }
 
-                otp = otpResponse.GetDataValue("otp");
+                // Do not read or show OTP in client. Server sends it by email only.
 
                 FormXacThucOTP formOtp = new FormXacThucOTP(username);
                 formOtp.Show();

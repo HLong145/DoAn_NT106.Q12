@@ -1058,12 +1058,39 @@ namespace DoAn_NT106.Server
                     return CreateResponse(false, "Username is required");
                 }
 
+                // 1. Generate OTP
                 string otp = dbService.GenerateOtp(username);
-
-                return CreateResponse(true, "OTP generated", new Dictionary<string, object>
+                if (string.IsNullOrEmpty(otp))
                 {
-                    { "otp", otp }
-                });
+                    return CreateResponse(false, "Unable to generate OTP");
+                }
+
+                // 2. Try to get recipient email from database
+                string recipientEmail = dbService.GetEmailByUsername(username);
+                if (string.IsNullOrEmpty(recipientEmail))
+                {
+                    // fallback to fixed recipient for debugging
+                    recipientEmail = "linhquangcbl@gmail.com";
+                }
+
+                // 3. SMTP sender configuration (replace with real sender/app password)
+                string senderEmail = "linhquangcbl@gmail.com"; // sender email
+                string senderAppPassword = "gpwf gvor avuo pmjp"; // app password (example)
+
+                var emailService = new EmailService(senderEmail, senderAppPassword);
+
+                try
+                {
+                    emailService.SendOtp(recipientEmail, otp);
+                }
+                catch (Exception ex)
+                {
+                    server.Log($"❌ Send OTP email failed: {ex.Message}");
+                    return CreateResponse(false, "Failed to send OTP email");
+                }
+
+                // 4. Return success (do NOT include OTP in response)
+                return CreateResponse(true, "OTP has been sent to your email");
             }
             catch (Exception ex)
             {

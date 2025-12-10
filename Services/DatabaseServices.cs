@@ -188,6 +188,31 @@ namespace DoAn_NT106.Services
             }
         }
 
+        // Lấy email theo username
+        public string GetEmailByUsername(string username)
+        {
+            try
+            {
+                using (var connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    string query = "SELECT EMAIL FROM PLAYERS WHERE USERNAME = @Username";
+
+                    using (var command = new SqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@Username", username);
+                        var result = command.ExecuteScalar();
+                        return result?.ToString();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ GetEmailByUsername error: {ex.Message}");
+                return null;
+            }
+        }
+
         // ✅ RESET PASSWORD - BẢN ĐÃ SỬA
         public bool ResetPassword(string username, string newPassword)
         {
