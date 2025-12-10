@@ -2442,39 +2442,63 @@ namespace DoAn_NT106
         /// </summary>
         private void HandleRoundEndByDeath()
         {
+            // Stop round
+            _roundInProgress = false;
+            _roundTimer?.Stop();
+
+            // Save battle duration
+            _totalBattleSeconds += (DateTime.Now - _roundStartTime).TotalSeconds;
+
+            // Save mana of this round for next round
+            _player1ManaCarryover = player1State.Mana;
+            _player2ManaCarryover = player2State.Mana;
+
             int winner = 0;
 
-            if (player1State.IsDead)
+            // Determine round winner
+            if (player1State.IsDead && !player2State.IsDead)
             {
+                _player2Wins++;
                 winner = 2;
-                player2RoundsWon++;
                 player2ConsecutiveWins++;
                 player1ConsecutiveWins = 0;
+
                 Console.WriteLine($"[ROUND END] Player 2 wins! Consecutive: {player2ConsecutiveWins}");
             }
-            else if (player2State.IsDead)
+            else if (player2State.IsDead && !player1State.IsDead)
             {
+                _player1Wins++;
                 winner = 1;
-                player1RoundsWon++;
                 player1ConsecutiveWins++;
                 player2ConsecutiveWins = 0;
+
                 Console.WriteLine($"[ROUND END] Player 1 wins! Consecutive: {player1ConsecutiveWins}");
-            }
-
-            Console.WriteLine($"[STATS] Round {currentRound} ended");
-            Console.WriteLine($"[STATS] P1: Attacks={player1State.AttackCount}, Parry={player1ParryCount}, Skill={player1SkillCount}, Combo={player1ComboCount}");
-            Console.WriteLine($"[STATS] P2: Attacks={player2State.AttackCount}, Parry={player2ParryCount}, Skill={player2SkillCount}, Combo={player2ComboCount}");
-
-            if (player1RoundsWon >= 2 || player2RoundsWon >= 2)
-            {
-                matchEnded = true;
-                HandleMatchEnd(winner);
             }
             else
             {
-                currentRound++;
-                StartNextRound();
+                Console.WriteLine("[ROUND END] Tie round detected");
             }
+
+            // Debug stats
+            Console.WriteLine($"[STATS] Round {_roundNumber} ended");
+            Console.WriteLine($"P1: Attacks={player1State.AttackCount}, Parry={player1ParryCount}, Skill={player1SkillCount}, Combo={player1ComboCount}");
+            Console.WriteLine($"P2: Attacks={player2State.AttackCount}, Parry={player2ParryCount}, Skill={player2SkillCount}, Combo={player2ComboCount}");
+
+            // Check match end
+            if (_player1Wins >= 2 || _player2Wins >= 2)
+            {
+                // Use your custom MatchEnd handler
+                HandleMatchEnd(winner);
+
+                // Also stop main game timer if needed
+                gameTimer.Stop();
+                matchEnded = true;
+                return;
+            }
+
+            // Start next round
+            _roundNumber++;
+            StartNextRound();
         }
 
         /// <summary>
@@ -2482,23 +2506,63 @@ namespace DoAn_NT106
         /// </summary>
         private void StartNextRound()
         {
+            // Reset round timer
+            _roundTimeRemainingMs = 3 * 60 * 1000;
+            UpdateRoundCenterText();
+
+            // Reset round statistics
             ResetRoundStats();
 
+            // Restore HP/Stamina
             player1State.Health = 100;
-            player2State.Health = 100;
             player1State.Stamina = 100;
+            player1State.Mana = _player1ManaCarryover;
+
+            player2State.Health = 100;
             player2State.Stamina = 100;
-            player1State.Mana = 100;
-            player2State.Mana = 100;
+            player2State.Mana = _player2ManaCarryover;
 
+            resourceSystem?.UpdateBars();
+
+            // Reset combat states
+            player1State.IsStunned = false;
+            player1State.IsAttacking = false;
+            player1State.IsParrying = false;
+            player1State.IsSkillActive = false;
+            player1State.IsCharging = false;
+            player1State.IsDashing = false;
+
+            player2State.IsStunned = false;
+            player2State.IsAttacking = false;
+            player2State.IsParrying = false;
+            player2State.IsSkillActive = false;
+            player2State.IsCharging = false;
+            player2State.IsDashing = false;
+
+            // Reset animations to idle
+            player1State.ResetToIdle();
+            player2State.ResetToIdle();
+
+            // Reset position
             player1State.X = 150;
-            player2State.X = 700;
-            physicsSystem.ResetToGround(player1State);
-            physicsSystem.ResetToGround(player2State);
+            player1State.Y = groundLevel - PLAYER_HEIGHT;
 
-            gameTimer.Start();
+            player2State.X = 900;
+            player2State.Y = groundLevel - PLAYER_HEIGHT;
 
-            Console.WriteLine($"[ROUND {currentRound}] Started!");
+            physicsSystem?.ResetToGround(player1State);
+            physicsSystem?.ResetToGround(player2State);
+
+            // Cleanup effects & projectiles
+            try { effectManager?.Cleanup(); } catch { }
+            try { projectileManager?.Cleanup(); } catch { }
+
+            // Start round intro animation
+            DisplayRoundStartAnimation();
+
+            this.Invalidate();
+
+            Console.WriteLine($"[ROUND {_roundNumber}] Started!");
         }
 
         /// <summary>
