@@ -530,6 +530,22 @@ namespace DoAn_NT106
         private string player1CharacterType = "girlknight";
         private string player2CharacterType = "girlknight";
 
+        // Battle Statistics for XP calculation
+        private int player1ParryCount = 0;
+        private int player2ParryCount = 0;
+        private int player1SkillCount = 0;
+        private int player2SkillCount = 0;
+        private int player1ComboCount = 0;
+        private int player2ComboCount = 0;
+
+        // Round tracking
+        private int player1ConsecutiveWins = 0;
+        private int player2ConsecutiveWins = 0;
+        private int currentRound = 1;
+        private int player1RoundsWon = 0;
+        private int player2RoundsWon = 0;
+        private bool matchEnded = false;
+
         public BattleForm(string username, string token, string opponent, string player1Character, string player2Character)
         {
             InitializeComponent();
@@ -895,6 +911,18 @@ namespace DoAn_NT106
 
             // Initialize round system
             InitializeRoundSystem();
+            // ✅ THÊM: Initialize round system
+            currentRound = 1;
+            player1RoundsWon = 0;
+            player2RoundsWon = 0;
+            player1ConsecutiveWins = 0;
+            player2ConsecutiveWins = 0;
+            matchEnded = false;
+
+            // Reset statistics
+            ResetRoundStats();
+
+            Console.WriteLine("[SETUP] Round system initialized");
         }
 
         // In BattleForm.cs - GameTimer_Tick() - VERSION CLEAN
@@ -1104,15 +1132,17 @@ namespace DoAn_NT106
                 case Keys.U:
                     if (player1State.CanParry)
                     {
-                        // ✅ MIGRATED TO CombatSystem
                         combatSystem.StartParry(1);
+                        player1ParryCount++; // ✅ THÊM
+                        Console.WriteLine($"[STATS] Player1 Parry Count: {player1ParryCount}");
                     }
                     break;
                 case Keys.I:
                     if (player1State.CanAttack)
                     {
-                        // ✅ MIGRATED TO CombatSystem
                         combatSystem.ToggleSkill(1);
+                        player1SkillCount++; // ✅ THÊM
+                        Console.WriteLine($"[STATS] Player1 Skill Count: {player1SkillCount}");
                     }
                     break;
                 case Keys.Escape:
@@ -1165,15 +1195,17 @@ namespace DoAn_NT106
                 case Keys.NumPad5:
                     if (player2State.CanParry)
                     {
-                        // ✅ MIGRATED TO CombatSystem
                         combatSystem.StartParry(2);
+                        player2ParryCount++; // ✅ THÊM
+                        Console.WriteLine($"[STATS] Player2 Parry Count: {player2ParryCount}");
                     }
                     break;
                 case Keys.NumPad4:
                     if (player2State.CanAttack)
                     {
-                        // ✅ MIGRATED TO CombatSystem
                         combatSystem.ToggleSkill(2);
+                        player2SkillCount++; // ✅ THÊM
+                        Console.WriteLine($"[STATS] Player2 Skill Count: {player2SkillCount}");
                     }
                     break;
             }
@@ -1649,13 +1681,28 @@ namespace DoAn_NT106
         private void ExecuteAttackWithHitbox(int playerNum, string attackType, int damage, int staminaCost)
         {
             Console.WriteLine($"[BattleForm] Player {playerNum} attempts {attackType}");
-            combatSystem.ExecuteAttack(playerNum, attackType);
+
+            // Execute attack and get hit result
+            bool hitSuccess = combatSystem.ExecuteAttack(playerNum, attackType);
+
+            // ✅ THÊM: Track combo hits
+            if (hitSuccess)
+            {
+                if (playerNum == 1)
+                {
+                    player1ComboCount++;
+                    Console.WriteLine($"[STATS] Player1 Combo Count: {player1ComboCount}");
+                }
+                else
+                {
+                    player2ComboCount++;
+                    Console.WriteLine($"[STATS] Player2 Combo Count: {player2ComboCount}");
+                }
+            }
 
             // COUNT ATTACK
             if (playerNum == 1) player1State.AttackCount++;
             else player2State.AttackCount++;
-
-            combatSystem.ExecuteAttack(playerNum, attackType);
         }
         private void OnFrameChanged(object sender, EventArgs e)
         {
@@ -2316,6 +2363,163 @@ namespace DoAn_NT106
             player2Stunned = player2State.IsStunned;
             player1CurrentAnimation = player1State.CurrentAnimation;
             player2CurrentAnimation = player2State.CurrentAnimation;
+        }
+
+        // ===== ✅ BATTLE STATISTICS METHODS =====
+
+        /// <summary>
+        /// Class để lưu trữ thống kê trận đấu
+        /// </summary>
+        public class BattleStats
+        {
+            public string PlayerName { get; set; }
+            public int AttackCount { get; set; }
+            public int ParryCount { get; set; }
+            public int SkillCount { get; set; }
+            public int ComboCount { get; set; }
+            public int ConsecutiveWins { get; set; }
+            public int RoundsWon { get; set; }
+            public bool MatchWon { get; set; }
+
+            public int GetBattleScore()
+            {
+                return (ParryCount * 10) + (ComboCount * 5) + (SkillCount * 20);
+            }
+        }
+
+        /// <summary>
+        /// Lấy thống kê trận đấu của người chơi
+        /// </summary>
+        public BattleStats GetPlayerStats(int playerNum)
+        {
+            if (playerNum == 1)
+            {
+                return new BattleStats
+                {
+                    PlayerName = username,
+                    AttackCount = player1State.AttackCount,
+                    ParryCount = player1ParryCount,
+                    SkillCount = player1SkillCount,
+                    ComboCount = player1ComboCount,
+                    ConsecutiveWins = player1ConsecutiveWins >= 2 ? 2 : 0,
+                    RoundsWon = player1RoundsWon,
+                    MatchWon = player1RoundsWon >= 2
+                };
+            }
+            else
+            {
+                return new BattleStats
+                {
+                    PlayerName = opponent,
+                    AttackCount = player2State.AttackCount,
+                    ParryCount = player2ParryCount,
+                    SkillCount = player2SkillCount,
+                    ComboCount = player2ComboCount,
+                    ConsecutiveWins = player2ConsecutiveWins >= 2 ? 2 : 0,
+                    RoundsWon = player2RoundsWon,
+                    MatchWon = player2RoundsWon >= 2
+                };
+            }
+        }
+
+        /// <summary>
+        /// Reset statistics khi bắt đầu hiệp mới
+        /// </summary>
+        private void ResetRoundStats()
+        {
+            player1State.AttackCount = 0;
+            player2State.AttackCount = 0;
+            player1ParryCount = 0;
+            player2ParryCount = 0;
+            player1SkillCount = 0;
+            player2SkillCount = 0;
+            player1ComboCount = 0;
+            player2ComboCount = 0;
+        }
+
+        /// <summary>
+        /// Xử lý kết thúc hiệp
+        /// </summary>
+        private void HandleRoundEndByDeath()
+        {
+            int winner = 0;
+
+            if (player1State.IsDead)
+            {
+                winner = 2;
+                player2RoundsWon++;
+                player2ConsecutiveWins++;
+                player1ConsecutiveWins = 0;
+                Console.WriteLine($"[ROUND END] Player 2 wins! Consecutive: {player2ConsecutiveWins}");
+            }
+            else if (player2State.IsDead)
+            {
+                winner = 1;
+                player1RoundsWon++;
+                player1ConsecutiveWins++;
+                player2ConsecutiveWins = 0;
+                Console.WriteLine($"[ROUND END] Player 1 wins! Consecutive: {player1ConsecutiveWins}");
+            }
+
+            Console.WriteLine($"[STATS] Round {currentRound} ended");
+            Console.WriteLine($"[STATS] P1: Attacks={player1State.AttackCount}, Parry={player1ParryCount}, Skill={player1SkillCount}, Combo={player1ComboCount}");
+            Console.WriteLine($"[STATS] P2: Attacks={player2State.AttackCount}, Parry={player2ParryCount}, Skill={player2SkillCount}, Combo={player2ComboCount}");
+
+            if (player1RoundsWon >= 2 || player2RoundsWon >= 2)
+            {
+                matchEnded = true;
+                HandleMatchEnd(winner);
+            }
+            else
+            {
+                currentRound++;
+                StartNextRound();
+            }
+        }
+
+        /// <summary>
+        /// Bắt đầu hiệp tiếp theo
+        /// </summary>
+        private void StartNextRound()
+        {
+            ResetRoundStats();
+
+            player1State.Health = 100;
+            player2State.Health = 100;
+            player1State.Stamina = 100;
+            player2State.Stamina = 100;
+            player1State.Mana = 100;
+            player2State.Mana = 100;
+
+            player1State.X = 150;
+            player2State.X = 700;
+            physicsSystem.ResetToGround(player1State);
+            physicsSystem.ResetToGround(player2State);
+
+            gameTimer.Start();
+
+            Console.WriteLine($"[ROUND {currentRound}] Started!");
+        }
+
+        /// <summary>
+        /// Xử lý kết thúc trận đấu
+        /// </summary>
+        private void HandleMatchEnd(int winner)
+        {
+            gameTimer.Stop();
+
+            var p1Stats = GetPlayerStats(1);
+            var p2Stats = GetPlayerStats(2);
+
+            Console.WriteLine("====== MATCH ENDED ======");
+            Console.WriteLine($"Winner: Player {winner}");
+            Console.WriteLine($"Player 1 Final Stats: Rounds Won={p1Stats.RoundsWon}, ConsecutiveWins={p1Stats.ConsecutiveWins}");
+            Console.WriteLine($"  Attacks={p1Stats.AttackCount}, Parry={p1Stats.ParryCount}, Skill={p1Stats.SkillCount}, Combo={p1Stats.ComboCount}");
+            Console.WriteLine($"  Battle Score={p1Stats.GetBattleScore()}");
+            Console.WriteLine($"Player 2 Final Stats: Rounds Won={p2Stats.RoundsWon}, ConsecutiveWins={p2Stats.ConsecutiveWins}");
+            Console.WriteLine($"  Attacks={p2Stats.AttackCount}, Parry={p2Stats.ParryCount}, Skill={p2Stats.SkillCount}, Combo={p2Stats.ComboCount}");
+            Console.WriteLine($"  Battle Score={p2Stats.GetBattleScore()}");
+            Console.WriteLine("=========================");
         }
     }
 }
