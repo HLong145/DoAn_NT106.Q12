@@ -53,7 +53,7 @@ namespace DoAn_NT106.Server
 
                 using var message = new MailMessage(senderEmail, toEmail)
                 {
-                    Subject = "🔐 Mã OTP Xác Thực - Khôi Phục Mật Khẩu",
+                    Subject = "🔐 OTP Code - Password Reset",
                     Body = htmlBody,
                     IsBodyHtml = true
                 };
@@ -75,17 +75,17 @@ namespace DoAn_NT106.Server
         }
 
         /// <summary>
-        /// Tạo template HTML đẹp cho email OTP
+        /// Generate beautiful HTML template for OTP email
         /// </summary>
         private string GenerateOtpEmailTemplate(string otp)
         {
             return $@"
 <!DOCTYPE html>
-<html lang='vi'>
+<html lang='en'>
 <head>
     <meta charset='UTF-8'>
     <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-    <title>Mã OTP Xác Thực</title>
+    <title>OTP Verification Code</title>
     <style>
         * {{
             margin: 0;
@@ -293,41 +293,41 @@ namespace DoAn_NT106.Server
         <!-- Header -->
         <div class='header'>
             <div class='header-icon'>🔐</div>
-            <h1>Xác Thực Tài Khoản</h1>
-            <p>Mã OTP của bạn đã sẵn sàng</p>
+            <h1>Account Verification</h1>
+            <p>Your OTP code is ready</p>
         </div>
 
         <!-- Content -->
         <div class='content'>
             <!-- Greeting -->
             <div class='greeting'>
-                Xin chào,<br><br>
-                Bạn đã yêu cầu lấy lại mật khẩu cho tài khoản của mình. Vui lòng sử dụng mã OTP bên dưới để xác thực và tiếp tục quá trình khôi phục mật khẩu.
+                Hello,<br><br>
+                You have requested to reset the password for your account. Please use the OTP code below to verify your identity and continue with the password recovery process.
             </div>
 
             <!-- OTP Section -->
             <div class='otp-section'>
-                <div class='otp-label'>Mã OTP của bạn</div>
+                <div class='otp-label'>Your OTP Code</div>
                 <div class='otp-code'>{otp}</div>
-                <div class='otp-subtext'>✓ Mã này có hiệu lực trong 5 phút</div>
+                <div class='otp-subtext'>✓ This code is valid for 5 minutes</div>
             </div>
 
             <!-- Info Box -->
             <div class='info-box'>
-                <div class='info-box-title'>⏰ Thông tin quan trọng</div>
+                <div class='info-box-title'>⏰ Important Information</div>
                 <div class='info-box-content'>
-                    Mã OTP này chỉ có thể sử dụng một lần duy nhất. Nếu bạn không yêu cầu điều này, vui lòng bỏ qua email này.
+                    This OTP code can only be used once. If you did not request this, please ignore this email.
                 </div>
             </div>
 
             <!-- Security Tips -->
             <div class='security-tips'>
-                <div class='security-tips-title'>🛡️ Lưu ý bảo mật</div>
+                <div class='security-tips-title'>🛡️ Security Notice</div>
                 <div class='security-tips-content'>
                     <ul>
-                        <li>KHÔNG bao giờ chia sẻ mã OTP với bất kỳ ai</li>
-                        <li>Hỗ trợ kỹ thuật sẽ không bao giờ yêu cầu mã OTP của bạn</li>
-                        <li>Luôn kiểm tra URL của trình duyệt trước khi nhập mã</li>
+                        <li>NEVER share your OTP code with anyone</li>
+                        <li>Support staff will never ask for your OTP code</li>
+                        <li>Always check the browser URL before entering the code</li>
                     </ul>
                 </div>
             </div>
@@ -336,10 +336,10 @@ namespace DoAn_NT106.Server
         <!-- Footer -->
         <div class='footer'>
             <div class='footer-text'>
-                © {DateTime.Now.Year} Pixel Game Studio. Tất cả quyền được bảo lưu.<br>
-                <a href='#' class='footer-link'>Chính sách bảo mật</a> | 
-                <a href='#' class='footer-link'>Điều khoản dịch vụ</a><br>
-                <span class='timestamp'>Gửi lúc: {DateTime.Now:HH:mm:ss dd/MM/yyyy}</span>
+                © {DateTime.Now.Year} Pixel Game Studio. All rights reserved.<br>
+                <a href='#' class='footer-link'>Privacy Policy</a> | 
+                <a href='#' class='footer-link'>Terms of Service</a><br>
+                <span class='timestamp'>Sent at: {DateTime.Now:HH:mm:ss dd/MM/yyyy}</span>
             </div>
         </div>
     </div>

@@ -1044,18 +1044,36 @@ namespace DoAn_NT106.Client.BattleSystems
 
                 if (elapsedMs < 1500)
                 {
-                    player.ChargeSpeed += CHARGE_ACCELERATION / (1000f / 16);
-                    player.ChargeSpeed = Math.Min(CHARGE_MAX_SPEED, player.ChargeSpeed);
+                    // ✅ SỬA: Tốc độ tăng gấp đôi
+                    player.ChargeSpeed += (CHARGE_ACCELERATION * 2) / (1000f / 16);
+                    player.ChargeSpeed = Math.Min(CHARGE_MAX_SPEED * 2, player.ChargeSpeed);
                 }
                 else
                 {
-                    player.ChargeSpeed = CHARGE_MAX_SPEED;
+                    // ✅ SỬA: Max speed tăng gấp đôi
+                    player.ChargeSpeed = CHARGE_MAX_SPEED * 2;
                 }
 
                 // ✅ THAY THẾ SafeMovePlayer:
                 int desiredMove = (int)(player.ChargeSpeed * chargeDirection);
                 player.X += desiredMove;
-                ClampPlayerToMap(player);  // Soft clamp
+                
+                // ✅ SỬA: Kiểm tra và dừng skill nếu đụi rìa map
+                ClampPlayerToMap(player);
+                var boundary = GetBoundaryFromHurtbox(player);
+                if ((chargeDirection > 0 && player.X >= boundary.maxX) ||
+                    (chargeDirection < 0 && player.X <= boundary.minX))
+                {
+                    // ✅ Đụi rìa - dừng skill ngay
+                    player.IsCharging = false;
+                    player.ChargeSpeed = 0;
+                    chargeTimer.Stop();
+                    chargeTimer.Dispose();
+                    if (!player.IsAttacking && !player.IsJumping)
+                        player.ResetToIdle();
+                    showHitEffectCallback?.Invoke("Hit Wall!", Color.Red);
+                    return;
+                }
 
                 // ✅ Hitbox = Goatman's HURTBOX + extend forward toward facing
                 Rectangle baseHurtbox = GetPlayerHurtbox(player);
@@ -1087,7 +1105,8 @@ namespace DoAn_NT106.Client.BattleSystems
                 if (chargeHitbox.IntersectsWith(targetHurtbox))
                 {
                     // ❌ No GM_impact effect on charge collision (impact only for kick)
-                    ApplyDamage(playerNum == 1 ? 2 : 1, 25, false);
+                    // ✅ SỬA: Damage tăng từ 25 → 30
+                    ApplyDamage(playerNum == 1 ? 2 : 1, 30, false);
                     showHitEffectCallback?.Invoke("Charged!", Color.Gold);
                     // ✅ Goatman charge uses kick sound on hit
                     try { DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.KickGM); } catch { }

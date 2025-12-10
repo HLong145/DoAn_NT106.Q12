@@ -341,16 +341,23 @@ namespace DoAn_NT106
             _roundTimeRemainingMs = 3 * 60 * 1000;
             UpdateRoundCenterText();
 
-            // Reset resources to full
-            player1State.Health = 100;
+            // ✅ SỬA: Reset HP theo character type (không phải mặc định 100)
+            int maxHP1 = GetMaxHealthForCharacter(player1State.CharacterType);
+            int maxHP2 = GetMaxHealthForCharacter(player2State.CharacterType);
+
+            player1State.Health = maxHP1;
             player1State.Stamina = 100;
             // ✅ SỬA: Sử dụng mana từ hiệp trước (carryover)
             player1State.Mana = _player1ManaCarryover;
 
-            player2State.Health = 100;
+            player2State.Health = maxHP2;
             player2State.Stamina = 100;
             // ✅ SỬA: Sử dụng mana từ hiệp trước (carryover)
             player2State.Mana = _player2ManaCarryover;
+
+            // ✅ THÊM: Update HealthBar Maximum values
+            resourceSystem.HealthBar1.Maximum = maxHP1;
+            resourceSystem.HealthBar2.Maximum = maxHP2;
 
             resourceSystem?.UpdateBars();
 
@@ -388,6 +395,20 @@ namespace DoAn_NT106
             // Start round countdown animation
             DisplayRoundStartAnimation();
             this.Invalidate();
+        }
+
+        // ✅ THÊM: Helper function to get max health for character
+        private int GetMaxHealthForCharacter(string characterType)
+        {
+            return characterType?.ToLower() switch
+            {
+                "goatman" => 130,
+                "bringerofdeath" => 90,
+                "warrior" => 80,
+                "girlknight" => 100,
+                "knightgirl" => 100,
+                _ => 100
+            };
         }
 
         /// <summary>Ends the match and shows winner dialog</summary>
