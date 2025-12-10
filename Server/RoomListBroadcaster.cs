@@ -116,7 +116,7 @@ namespace DoAn_NT106.Server
                     }
                 };
 
-                string json = JsonSerializer.Serialize(broadcast, jsonOptions);
+                string json = JsonSerializer.Serialize(broadcast);
                 Log($"📤 Broadcasting: {json.Substring(0, Math.Min(200, json.Length))}...");
 
                 // Gửi cho từng client đang lắng nghe

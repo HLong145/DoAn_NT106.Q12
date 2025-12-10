@@ -25,9 +25,7 @@ namespace DoAn_NT106.Client
 
         public bool IsConnected => isConnected && TcpClient.IsConnected;
 
-        // ===========================
-        // CONSTRUCTOR
-        // ===========================
+        #region Constructor
         public RoomListClient()
         {
             // Subscribe vào broadcast của PersistentTcpClient
@@ -39,9 +37,9 @@ namespace DoAn_NT106.Client
             // Ignore address/port - dùng PersistentTcpClient singleton
         }
 
-        // ===========================
-        // CONNECT AND SUBSCRIBE
-        // ===========================
+        #endregion
+
+        #region Connect, subscribe and handle broadcasts
         public async Task<bool> ConnectAndSubscribeAsync(string username, string token)
         {
             try
@@ -96,9 +94,7 @@ namespace DoAn_NT106.Client
             }
         }
 
-        // ===========================
-        // HANDLE BROADCASTS
-        // ===========================
+      
         private void HandleBroadcast(string action, JsonElement data)
         {
             if (!isConnected || isDisposed) return;
@@ -124,9 +120,7 @@ namespace DoAn_NT106.Client
             }
         }
 
-        // ===========================
-        // PARSE ROOMS FROM JSON
-        // ===========================
+      
         private List<RoomListInfo> ParseRoomsFromJson(JsonElement roomsArray)
         {
             var rooms = new List<RoomListInfo>();
@@ -153,9 +147,9 @@ namespace DoAn_NT106.Client
             return rooms;
         }
 
-        // ===========================
-        // HELPER METHODS
-        // ===========================
+        #endregion
+
+        #region Helper methods
         private string GetStringProperty(JsonElement el, string name)
         {
             return el.TryGetProperty(name, out var prop) ? prop.GetString() ?? "" : "";
@@ -171,9 +165,8 @@ namespace DoAn_NT106.Client
             return el.TryGetProperty(name, out var prop) ? prop.GetInt32() : 0;
         }
 
-        // ===========================
-        // DISCONNECT / UNSUBSCRIBE
-        // ===========================
+        #endregion
+
         public void Disconnect()
         {
             if (isDisposed) return;
@@ -198,10 +191,6 @@ namespace DoAn_NT106.Client
             // KHÔNG disconnect PersistentTcpClient vì nó dùng chung
         }
     }
-
-    // ===========================
-    // DATA CLASS
-    // ===========================
     public class RoomListInfo
     {
         public string RoomCode { get; set; }
