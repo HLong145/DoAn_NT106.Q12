@@ -540,6 +540,18 @@
 
         #endregion
 
+        // ✅ ADD: These event handler methods that are referenced in the Designer
+        private void pnl_Main_Paint(object sender, PaintEventArgs e)
+        {
+            // Paint event for main panel (optional, can be empty)
+        }
+
+        private void btn_ViewStats_Click(object sender, EventArgs e)
+        {
+            LoadXPDetails();
+            pnl_XPDetails.VerticalScroll.Value = 0;
+        }
+
         // Add this method to the partial class TinhXP in your Designer file or (preferably) in the main code file (TinhXP.cs)
         private void Timer_XPAnimation_Tick(object sender, EventArgs e)
         {

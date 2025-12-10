@@ -304,15 +304,23 @@ namespace DoAn_NT106
 
             // Determine winner by HP
             if (player1State.Health < player2State.Health)
+            {
                 _player2Wins++;
+                player2ConsecutiveWins++;
+                player1ConsecutiveWins = 0;
+            }
             else if (player2State.Health < player1State.Health)
+            {
                 _player1Wins++;
+                player1ConsecutiveWins++;
+                player2ConsecutiveWins = 0;
+            }
             // Equal HP = tie, no win awarded
 
             // Check if match ends (first to 2 wins)
             if (_player1Wins >= 2 || _player2Wins >= 2)
             {
-                EndMatch(_player1Wins >= 2 ? username : opponent);
+                HandleMatchEnd(_player1Wins >= 2 ? 1 : 2);
                 return;
             }
 
@@ -321,57 +329,73 @@ namespace DoAn_NT106
             StartNextRound();
         }
 
+        /// <summary>Bắt đầu hiệp tiếp theo</summary>
+        private void StartNextRound()
+        {
+            // Reset round timer
+            _roundTimeRemainingMs = 3 * 60 * 1000;
+            UpdateRoundCenterText();
+
+            // Reset round statistics
+            ResetRoundStats();
+
+            // Restore HP/Stamina
+            player1State.Health = 100;
+            player1State.Stamina = 100;
+            player1State.Mana = _player1ManaCarryover;
+
+            player2State.Health = 100;
+            player2State.Stamina = 100;
+            player2State.Mana = _player2ManaCarryover;
+
+            resourceSystem?.UpdateBars();
+
+            // Reset combat states
+            player1State.IsStunned = false;
+            player1State.IsAttacking = false;
+            player1State.IsParrying = false;
+            player1State.IsSkillActive = false;
+            player1State.IsCharging = false;
+            player1State.IsDashing = false;
+
+            player2State.IsStunned = false;
+            player2State.IsAttacking = false;
+            player2State.IsParrying = false;
+            player2State.IsSkillActive = false;
+            player2State.IsCharging = false;
+            player2State.IsDashing = false;
+
+            // Reset animations to idle
+            player1State.ResetToIdle();
+            player2State.ResetToIdle();
+
+            // Reset position
+            player1State.X = 150;
+            player1State.Y = groundLevel - PLAYER_HEIGHT;
+
+            player2State.X = 900;
+            player2State.Y = groundLevel - PLAYER_HEIGHT;
+
+            physicsSystem?.ResetToGround(player1State);
+            physicsSystem?.ResetToGround(player2State);
+
+            // Cleanup effects & projectiles
+            try { effectManager?.Cleanup(); } catch { }
+            try { projectileManager?.Cleanup(); } catch { }
+
+            // Start round intro animation
+            DisplayRoundStartAnimation();
+
+            this.Invalidate();
+
+            Console.WriteLine($"[ROUND {_roundNumber}] Started!");
+        }
 
         /// <summary>Ends the match and shows winner dialog</summary>
         private void EndMatch(string winner)
         {
-            _roundInProgress = false;
-            try { _roundTimer?.Stop(); } catch { }
-            try { gameTimer?.Stop(); } catch { }
-            try { walkAnimationTimer?.Stop(); } catch { }
-
-            // Người thua
-            string loser = (winner == username) ? opponent : username;
-
-            // Tổng thời gian trận
-            TimeSpan matchTime = TimeSpan.FromSeconds(_totalBattleSeconds);
-
-            // TRUE nếu người chơi (username) thắng
-            bool playerIsWinner = (winner == username);
-
-            // Tạo MatchResult THEO ĐÚNG CLASS CŨ
-            var matchResult = new MatchResult
-            {
-                PlayerUsername = username,
-                OpponentUsername = opponent,
-                PlayerIsWinner = playerIsWinner,
-
-                MatchTime = matchTime,
-                PlayerWins = _player1Wins,
-                OpponentWins = _player2Wins,
-
-                ParryCount = parryCount,
-                ComboCount = comboCount,
-                SkillCount = skillCount
-            };
-
-            // Mở form tính XP
-            var xpForm = new DoAn_NT106.Client.TinhXP(matchResult);
-            xpForm.StartPosition = FormStartPosition.CenterScreen;
-            xpForm.Show();
-
-            // Đóng BattleForm
-            this.Close();
-
-            // Bật nhạc lại
-            try
-            {
-                DoAn_NT106.SoundManager.PlayMusic(
-                    DoAn_NT106.Client.BackgroundMusic.ThemeMusic,
-                    loop: true
-                );
-            }
-            catch { }
+            // ✅ SỬA: Dùng HandleMatchEnd thay vì code trùng lặp
+            HandleMatchEnd(winner == username ? 1 : 2);
         }
     }
 }

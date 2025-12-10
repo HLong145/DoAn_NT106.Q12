@@ -34,6 +34,9 @@ namespace DoAn_NT106.Client
             this.AutoScroll = true;       
             this.AutoScrollMinSize = new Size(0, 1200); 
             _data = data ?? throw new ArgumentNullException(nameof(data));
+            
+            // ✅ THÊM: Subscribe nút Continue
+            btn_Continue.Click += btn_Continue_Click;
         }
 
         private void TinhXP_Load(object sender, EventArgs e)
@@ -62,14 +65,19 @@ namespace DoAn_NT106.Client
 
             if (_data.PlayerIsWinner)
             {
-                lbl_ResultValue.Text = "WIN";
-                lbl_ResultValue.ForeColor = Color.LimeGreen;
+                lbl_ResultValue.Text = "🏆 WIN 🏆";
+                lbl_ResultValue.ForeColor = Color.Gold;
             }
             else
             {
-                lbl_ResultValue.Text = "LOSE";
-                lbl_ResultValue.ForeColor = Color.Red;
+                lbl_ResultValue.Text = "❌ LOSE";
+                lbl_ResultValue.ForeColor = Color.FromArgb(255, 100, 100);
             }
+
+            Console.WriteLine($"[TinhXP] Player: {_data.PlayerUsername} vs {_data.OpponentUsername}");
+            Console.WriteLine($"[TinhXP] Match Result: {(lbl_ResultValue.Text)} ({_data.PlayerWins}:{_data.OpponentWins})");
+            Console.WriteLine($"[TinhXP] Stats - Parry:{_data.ParryCount}, Combo:{_data.ComboCount}, Skill:{_data.SkillCount}");
+            Console.WriteLine($"[TinhXP] XP Before: {_xpBefore}, Level: {_oldLevel}");
 
             // ===========================================
             // ============ TÍNH XP THEO BẢNG BẠN GỬI =============
@@ -83,18 +91,29 @@ namespace DoAn_NT106.Client
             else
                 _xpEarned += 40;
 
-            // 2. Không thua hiệp nào
-            if (_data.PlayerIsWinner && _data.OpponentWins == 0)
+            // 2. Không thua hiệp nào (perfect round)
+            if (_data.PlayerWins >= 2 && _data.OpponentWins == 0)
                 _xpEarned += 50;
 
-            // 3. Action XP
-            // (DÙNG ĐÚNG BẢNG BẠN CHỤP)
-            _xpEarned += _data.ParryCount * 10;
-            _xpEarned += _data.ComboCount * 5;
-            _xpEarned += _data.SkillCount * 20;
+            // 3. Action XP (tính theo chi tiết)
+            int parryXP = _data.ParryCount * 10;
+            int comboXP = _data.ComboCount * 5;
+            int skillXP = _data.SkillCount * 20;
+
+            _xpEarned += parryXP;
+            _xpEarned += comboXP;
+            _xpEarned += skillXP;
 
             // tổng XP để cộng vào TotalXP trong DB
             _totalXpGained = _xpEarned;
+
+            Console.WriteLine($"[TinhXP] XP Calculation:");
+            Console.WriteLine($"  - Win/Loss XP: {(_data.PlayerIsWinner ? 100 : 40)}");
+            Console.WriteLine($"  - Perfect Victory XP: {(_data.PlayerWins >= 2 && _data.OpponentWins == 0 ? 50 : 0)}");
+            Console.WriteLine($"  - Parry XP: {parryXP} ({_data.ParryCount} × 10)");
+            Console.WriteLine($"  - Combo XP: {comboXP} ({_data.ComboCount} × 5)");
+            Console.WriteLine($"  - Skill XP: {skillXP} ({_data.SkillCount} × 20)");
+            Console.WriteLine($"  - TOTAL XP: {_xpEarned}");
 
             // ===========================================
             // ============ TÍNH LEVEL UP ================
@@ -115,23 +134,120 @@ namespace DoAn_NT106.Client
             // ========== UPDATE UI ==========
             lbl_XPEarnedValue.Text = $"+{_xpEarned} XP";
             lbl_XPBefore.Text = $"XP Before Match: {_xpBefore} XP";
-            lbl_XPGained.Text = $"XP Gained: +{_xpEarned} XP";
+            lbl_XPGained.Text = $"✅ XP Gained: +{_xpEarned} XP";
             lbl_XPAfter.Text = $"XP After Match: {_xpAfter} XP";
 
-            lbl_XPProgress.Text = $"Level {_oldLevel} → Level {_newLevel}";
+            if (_oldLevel < _newLevel)
+            {
+                lbl_XPProgress.Text = $"Level {_oldLevel} → Level {_newLevel} ⭐ LEVEL UP!";
+                lbl_XPProgress.ForeColor = Color.Gold;
+            }
+            else
+            {
+                lbl_XPProgress.Text = $"Level {_oldLevel} (no level up)";
+            }
+
             lbl_XPProgressValue.Text = $"{_xpAfter} / {XP_PER_LEVEL} XP";
 
-            UpdateXPBarInstant(_xpAfter, XP_PER_LEVEL);
+            // ========== UPDATE XP BAR ==========
+            int xpPercent = (_xpAfter * 100) / XP_PER_LEVEL;
+            pnl_XPBarFill.Width = (xpPercent * pnl_XPBarContainer.Width) / 100;
+            lbl_XPPercent.Text = $"{xpPercent}%";
+
+            Console.WriteLine($"[TinhXP] Level Progress: {_oldLevel} → {_newLevel}, XP: {_xpAfter} / {XP_PER_LEVEL} ({xpPercent}%)");
+
+            // ✅ THÊM: Hiển thị chi tiết breakdown
+            LoadXPDetailBreakdown();
         }
 
-        // ============================== HIỂN THỊ CHI TIẾT XP ==============================
+        // ✅ THÊM: Hiển thị chi tiết breakdown XP
+        private void LoadXPDetailBreakdown()
+        {
+            pnl_XPDetails.Controls.Clear();
+
+            int yPos = 5;
+            
+            AddDetailLabel("=== XP BREAKDOWN ===", Color.Gold, 11, yPos);
+            yPos += 25;
+
+            // Result XP
+            if (_data.PlayerIsWinner)
+            {
+                AddDetailLabel("🏆 Match Win", Color.LimeGreen, 10, yPos);
+                AddDetailLabel("+100 XP", Color.White, 10, yPos);
+                yPos += 20;
+            }
+            else
+            {
+                AddDetailLabel("❌ Match Loss", Color.FromArgb(255, 100, 100), 10, yPos);
+                AddDetailLabel("+40 XP", Color.White, 10, yPos);
+                yPos += 20;
+            }
+
+            // Perfect round bonus
+            if (_data.PlayerWins >= 2 && _data.OpponentWins == 0)
+            {
+                AddDetailLabel("💎 Perfect Victory (No rounds lost)", Color.Cyan, 10, yPos);
+                AddDetailLabel("+50 XP", Color.White, 10, yPos);
+                yPos += 20;
+            }
+
+            // Actions
+            yPos += 5;
+            AddDetailLabel("--- ACTION BONUSES ---", Color.Orange, 10, yPos);
+            yPos += 20;
+
+            if (_data.ParryCount > 0)
+            {
+                AddDetailLabel($"🛡️ Parry × {_data.ParryCount}", Color.LightBlue, 10, yPos);
+                AddDetailLabel($"+{_data.ParryCount * 10} XP", Color.White, 10, yPos);
+                yPos += 20;
+            }
+
+            if (_data.ComboCount > 0)
+            {
+                AddDetailLabel($"⚔️ Combo Hit × {_data.ComboCount}", Color.FromArgb(255, 165, 0), 10, yPos);
+                AddDetailLabel($"+{_data.ComboCount * 5} XP", Color.White, 10, yPos);
+                yPos += 20;
+            }
+
+            if (_data.SkillCount > 0)
+            {
+                AddDetailLabel($"✨ Skill × {_data.SkillCount}", Color.Magenta, 10, yPos);
+                AddDetailLabel($"+{_data.SkillCount * 20} XP", Color.White, 10, yPos);
+                yPos += 20;
+            }
+
+            yPos += 10;
+            AddDetailLabel("================", Color.Gold, 11, yPos);
+            yPos += 20;
+            AddDetailLabel($"TOTAL: +{_xpEarned} XP", Color.Gold, 12, yPos);
+        }
+
+        // ✅ THÊM: Helper để thêm label
+        private void AddDetailLabel(string text, Color color, int fontSize, int yPos)
+        {
+            var lbl = new Label
+            {
+                Text = text,
+                ForeColor = color,
+                Font = new Font("Courier New", fontSize, FontStyle.Bold),
+                AutoSize = false,
+                Height = 20,
+                Width = pnl_XPDetails.Width - 10,
+                Location = new Point(5, yPos),
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+            pnl_XPDetails.Controls.Add(lbl);
+        }
+
         private void LoadXPDetails()
         {
             pnl_XPDetails.Controls.Clear();
 
             AddXPDetail("Match Result", _data.PlayerIsWinner ? "+100 XP" : "+40 XP");
 
-            if (_data.PlayerIsWinner && _data.OpponentWins == 0)
+            if (_data.PlayerWins >= 2 && _data.OpponentWins == 0)
                 AddXPDetail("No round lost", "+50 XP");
 
             if (_data.ParryCount > 0)
@@ -162,47 +278,24 @@ namespace DoAn_NT106.Client
             pnl_XPDetails.Controls.Add(lbl);
         }
 
-        // ====== UPDATE XP BAR ======
-        private void UpdateXPBarInstant(int xp, int max)
-        {
-            double pct = max == 0 ? 0 : (double)xp / max;
-            int w = (int)(pct * pnl_XPBarContainer.Width);
-
-            pnl_XPBarFill.Width = w;
-            lbl_XPPercent.Text = $"{Math.Round(pct * 100)}%";
-        }
-
-        private void pnl_Main_Paint(object sender, PaintEventArgs e)
-        {
-
-        }
-
         private void btn_Continue_Click(object sender, EventArgs e)
         {
             // Disable button to prevent double click
             btn_Continue.Enabled = false;
 
+            // ✅ Update XP in database
             bool ok = _db.UpdatePlayerXp(_data.PlayerUsername, _newLevel, _xpAfter, _totalXpGained);
             if (!ok)
             {
                 MessageBox.Show("Failed to update XP in database. Check connection.", "DB Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            else
-            {
-                // Optionally: show a success toast or sound
+                btn_Continue.Enabled = true; // Re-enable button so user can retry
+                return;
             }
 
-            // close summary and return user to main/menu (or close app)
+            Console.WriteLine($"[TinhXP] ✅ Updated XP in database: {_data.PlayerUsername} -> Level {_newLevel}, XP {_xpAfter}");
+
+            // ✅ Close this form to return to room/menu
             this.Close();
-
-        }
-
-        private void btn_ViewStats_Click(object sender, EventArgs e)
-        {
-            LoadXPDetails();
-
-            // Optional: scroll to top
-            pnl_XPDetails.VerticalScroll.Value = 0;
         }
     }
 }

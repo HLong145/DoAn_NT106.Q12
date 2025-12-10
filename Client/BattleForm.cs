@@ -929,6 +929,9 @@ namespace DoAn_NT106
 
         private void GameTimer_Tick(object sender, EventArgs e)
         {
+            // ✅ THÊM CHECK: Nếu trận đã kết thúc, không xử lý gì thêm
+            if (matchEnded) return;
+
             // ===== MOVEMENT LOGIC =====
             player1State.IsWalking = false;
             player2State.IsWalking = false;
@@ -1077,9 +1080,8 @@ namespace DoAn_NT106
             // ===== CHECK ROUND END (by HP depletion) =====
             if (player1State.IsDead || player2State.IsDead)
             {
-                gameTimer.Stop();
-                walkAnimationTimer.Stop();
                 HandleRoundEndByDeath();
+                return; // ✅ THÊM: Thoát ngay sau khi xử lý
             }
 
             this.Invalidate();
@@ -2292,10 +2294,11 @@ namespace DoAn_NT106
             bool hit = attackBox.IntersectsWith(hurtBox);
 
             // ✅ THÊM DEBUG
-            Console.WriteLine($"[CHECK HIT] Result: {(hit ? "✅ HIT" : "❌ MISS")}");
+            Console.WriteLine($"[CHECK HIT] Result: {(hit ? "HIT" : "MISS")}");
 
             return hit;
         }
+
         private void CheckFireballHit()
         {
             if (!fireballActive) return;
@@ -2401,7 +2404,7 @@ namespace DoAn_NT106
                     ParryCount = player1ParryCount,
                     SkillCount = player1SkillCount,
                     ComboCount = player1ComboCount,
-                    ConsecutiveWins = player1ConsecutiveWins >= 2 ? 2 : 0,
+                    ConsecutiveWins = player1RoundsWon >= 2 ? 2 : 0,
                     RoundsWon = player1RoundsWon,
                     MatchWon = player1RoundsWon >= 2
                 };
@@ -2415,7 +2418,7 @@ namespace DoAn_NT106
                     ParryCount = player2ParryCount,
                     SkillCount = player2SkillCount,
                     ComboCount = player2ComboCount,
-                    ConsecutiveWins = player2ConsecutiveWins >= 2 ? 2 : 0,
+                    ConsecutiveWins = player2RoundsWon >= 2 ? 2 : 0,
                     RoundsWon = player2RoundsWon,
                     MatchWon = player2RoundsWon >= 2
                 };
@@ -2442,14 +2445,18 @@ namespace DoAn_NT106
         /// </summary>
         private void HandleRoundEndByDeath()
         {
-            // Stop round
-            _roundInProgress = false;
-            _roundTimer?.Stop();
+            // ✅ THÊM: Tránh gọi nhiều lần
+            if (matchEnded || !_roundInProgress && !gameTimer.Enabled)
+                return;
 
-            // Save battle duration
+            _roundInProgress = false;
+            gameTimer.Stop();
+            walkAnimationTimer.Stop();
+            try { _roundTimer?.Stop(); } catch { }
+
             _totalBattleSeconds += (DateTime.Now - _roundStartTime).TotalSeconds;
 
-            // Save mana of this round for next round
+            // ✅ THÊM: Lưu mana hiện tại trước khi qua hiệp
             _player1ManaCarryover = player1State.Mana;
             _player2ManaCarryover = player2State.Mana;
 
@@ -2477,92 +2484,27 @@ namespace DoAn_NT106
             else
             {
                 Console.WriteLine("[ROUND END] Tie round detected");
+                // Tie round - advance to next without increasing wins
             }
 
             // Debug stats
-            Console.WriteLine($"[STATS] Round {_roundNumber} ended");
+            Console.WriteLine($"[STATS] Round ended with Score: {_player1Wins}-{_player2Wins}");
             Console.WriteLine($"P1: Attacks={player1State.AttackCount}, Parry={player1ParryCount}, Skill={player1SkillCount}, Combo={player1ComboCount}");
             Console.WriteLine($"P2: Attacks={player2State.AttackCount}, Parry={player2ParryCount}, Skill={player2SkillCount}, Combo={player2ComboCount}");
 
-            // Check match end
+            // Check match end (first to 2 wins)
             if (_player1Wins >= 2 || _player2Wins >= 2)
             {
                 // Use your custom MatchEnd handler
                 HandleMatchEnd(winner);
-
-                // Also stop main game timer if needed
-                gameTimer.Stop();
                 matchEnded = true;
                 return;
             }
 
-            // Start next round
+            // Otherwise start next round
             _roundNumber++;
+            // ✅ CALL StartNextRound() which is in BattleFormRoundSystem.cs partial
             StartNextRound();
-        }
-
-        /// <summary>
-        /// Bắt đầu hiệp tiếp theo
-        /// </summary>
-        private void StartNextRound()
-        {
-            // Reset round timer
-            _roundTimeRemainingMs = 3 * 60 * 1000;
-            UpdateRoundCenterText();
-
-            // Reset round statistics
-            ResetRoundStats();
-
-            // Restore HP/Stamina
-            player1State.Health = 100;
-            player1State.Stamina = 100;
-            player1State.Mana = _player1ManaCarryover;
-
-            player2State.Health = 100;
-            player2State.Stamina = 100;
-            player2State.Mana = _player2ManaCarryover;
-
-            resourceSystem?.UpdateBars();
-
-            // Reset combat states
-            player1State.IsStunned = false;
-            player1State.IsAttacking = false;
-            player1State.IsParrying = false;
-            player1State.IsSkillActive = false;
-            player1State.IsCharging = false;
-            player1State.IsDashing = false;
-
-            player2State.IsStunned = false;
-            player2State.IsAttacking = false;
-            player2State.IsParrying = false;
-            player2State.IsSkillActive = false;
-            player2State.IsCharging = false;
-            player2State.IsDashing = false;
-
-            // Reset animations to idle
-            player1State.ResetToIdle();
-            player2State.ResetToIdle();
-
-            // Reset position
-            player1State.X = 150;
-            player1State.Y = groundLevel - PLAYER_HEIGHT;
-
-            player2State.X = 900;
-            player2State.Y = groundLevel - PLAYER_HEIGHT;
-
-            physicsSystem?.ResetToGround(player1State);
-            physicsSystem?.ResetToGround(player2State);
-
-            // Cleanup effects & projectiles
-            try { effectManager?.Cleanup(); } catch { }
-            try { projectileManager?.Cleanup(); } catch { }
-
-            // Start round intro animation
-            DisplayRoundStartAnimation();
-
-            this.Invalidate();
-
-            Console.WriteLine($"[ROUND {_roundNumber}] Started!");
         }
 
         /// <summary>
@@ -2570,20 +2512,69 @@ namespace DoAn_NT106
         /// </summary>
         private void HandleMatchEnd(int winner)
         {
-            gameTimer.Stop();
+            // ✅ THÊM: Stop all timers safely
+            try { gameTimer?.Stop(); } catch { }
+            try { walkAnimationTimer?.Stop(); } catch { }
+            try { _roundTimer?.Stop(); } catch { }
+            try { _roundStartTimer?.Stop(); } catch { }
 
             var p1Stats = GetPlayerStats(1);
             var p2Stats = GetPlayerStats(2);
 
             Console.WriteLine("====== MATCH ENDED ======");
             Console.WriteLine($"Winner: Player {winner}");
-            Console.WriteLine($"Player 1 Final Stats: Rounds Won={p1Stats.RoundsWon}, ConsecutiveWins={p1Stats.ConsecutiveWins}");
-            Console.WriteLine($"  Attacks={p1Stats.AttackCount}, Parry={p1Stats.ParryCount}, Skill={p1Stats.SkillCount}, Combo={p1Stats.ComboCount}");
-            Console.WriteLine($"  Battle Score={p1Stats.GetBattleScore()}");
-            Console.WriteLine($"Player 2 Final Stats: Rounds Won={p2Stats.RoundsWon}, ConsecutiveWins={p2Stats.ConsecutiveWins}");
-            Console.WriteLine($"  Attacks={p2Stats.AttackCount}, Parry={p2Stats.ParryCount}, Skill={p2Stats.SkillCount}, Combo={p2Stats.ComboCount}");
-            Console.WriteLine($"  Battle Score={p2Stats.GetBattleScore()}");
+            Console.WriteLine($"Final Score: {_player1Wins}-{_player2Wins}");
+            Console.WriteLine($"Player 1: Attacks={p1Stats.AttackCount}, Parry={p1Stats.ParryCount}, Skill={p1Stats.SkillCount}, Combo={p1Stats.ComboCount}");
+            Console.WriteLine($"Player 2: Attacks={p2Stats.AttackCount}, Parry={p2Stats.ParryCount}, Skill={p2Stats.SkillCount}, Combo={p2Stats.ComboCount}");
             Console.WriteLine("=========================");
+
+            // ✅ Tạo MatchResult với đủ thông tin
+            bool playerIsWinner = (winner == 1); // 1 = player1 (username), 2 = player2 (opponent)
+            
+            // ✅ SỬA: Lấy đúng số hiệp thắng từ _player1Wins, _player2Wins
+            var matchResult = new MatchResult
+            {
+                PlayerUsername = username,
+                OpponentUsername = opponent,
+                PlayerIsWinner = playerIsWinner,
+                MatchTime = TimeSpan.FromSeconds(_totalBattleSeconds),
+                PlayerWins = _player1Wins,           // ✅ ĐÚNG: Số hiệp thắng của Player 1
+                OpponentWins = _player2Wins,         // ✅ ĐÚNG: Số hiệp thắng của Player 2
+                ParryCount = player1ParryCount,       // ✅ Parry count từ Player 1
+                ComboCount = player1ComboCount,       // ✅ Combo count từ Player 1
+                SkillCount = player1SkillCount        // ✅ Skill count từ Player 1
+            };
+
+            Console.WriteLine($"[MatchEnd] Creating MatchResult: Winner={playerIsWinner}, P1Wins={_player1Wins}, P2Wins={_player2Wins}");
+            Console.WriteLine($"[MatchEnd] Stats - Parry:{player1ParryCount}, Combo:{player1ComboCount}, Skill:{player1SkillCount}");
+
+            // ✅ Mở form tính XP
+            try
+            {
+                var xpForm = new DoAn_NT106.Client.TinhXP(matchResult);
+                xpForm.StartPosition = FormStartPosition.CenterScreen;
+                xpForm.ShowDialog(); // ✅ SỬA: Dùng ShowDialog() để chờ form đóng
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ERROR] Failed to open TinhXP form: {ex.Message}");
+                MessageBox.Show($"Error opening XP screen: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+
+            // ✅ RESUME: Theme music trước khi đóng
+            try
+            {
+                DoAn_NT106.SoundManager.PlayMusic(
+                    DoAn_NT106.Client.BackgroundMusic.ThemeMusic,
+                    loop: true
+                );
+            }
+            catch { }
+
+            Console.WriteLine("🎵 Theme music resumed");
+
+            // ✅ Đóng BattleForm
+            this.Close();
         }
     }
 }
