@@ -173,6 +173,7 @@
             btn_ViewStats.Size = new Size(170, 40);
             btn_ViewStats.TabIndex = 17;
             btn_ViewStats.Text = "VIEW STATS";
+            btn_ViewStats.Click += btn_ViewStats_Click;
             // 
             // pictureBox3
             // 
@@ -525,7 +526,6 @@
             Name = "TinhXP";
             StartPosition = FormStartPosition.CenterScreen;
             Text = "Match Summary";
-            Load += TinhXP_Load;
             pnl_Main.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)pictureBox3).EndInit();
             ((System.ComponentModel.ISupportInitialize)pictureBox2).EndInit();
@@ -554,10 +554,6 @@
 
         // Add this event handler method to your partial class TinhXP
         // Add this method to your partial class TinhXP
-        private void TinhXP_Load(object sender, EventArgs e)
-        {
-            // TODO: Add logic to initialize the form when it loads.
-        }
 
         private PictureBox pictureBox2;
         private PictureBox pictureBox1;

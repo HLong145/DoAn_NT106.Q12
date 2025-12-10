@@ -2,9 +2,10 @@
 // This file contains the round system implementation for BattleForm
 // File: Client\BattleFormRoundSystem.cs
 
+using DoAn_NT106.Client;
 using System;
-using System.Windows.Forms;
 using System.Drawing;
+using System.Windows.Forms;
 
 namespace DoAn_NT106
 {
@@ -19,6 +20,11 @@ namespace DoAn_NT106
         private Label _lblRoundCenter; // centered between HP/Stamina/Mana bars
         private bool _roundInProgress = false;
 
+        // === TOTAL MATCH TIME TRACKER ===
+        private DateTime _roundStartTime;
+        private double _totalBattleSeconds = 0;
+
+
         // Round countdown timer for showing "ROUND X" at start
         private System.Windows.Forms.Timer _roundStartTimer;
         private int _roundStartCountdownMs = 0;
@@ -28,11 +34,16 @@ namespace DoAn_NT106
         private int _player1ManaCarryover = 0;
         private int _player2ManaCarryover = 0;
 
+        // Add these fields to the BattleForm class (near other round stats)
+        private int parryCount = 0;
+        private int comboCount = 0;
+        private int skillCount = 0;
+
         /// <summary>Gets formatted round info text with round number, timer, and scores</summary>
         private string GetRoundCenterText()
         {
             var remaining = TimeSpan.FromMilliseconds(Math.Max(0, _roundTimeRemainingMs));
-            
+
             // ✅ Đảm bảo có giá trị cho player names
             string p1Name = !string.IsNullOrEmpty(username) ? username.ToUpper() : "PLAYER 1";
             string p2Name = !string.IsNullOrEmpty(opponent) ? opponent.ToUpper() : "PLAYER 2";
@@ -83,11 +94,11 @@ namespace DoAn_NT106
         {
             if (_lblRoundCenter == null) return;
             int screenWidth = this.ClientSize.Width;
-            
+
             // Positioned at top, centered horizontally (ngang với các thanh HP/Stamina/Mana)
             int centerX = (screenWidth / 2) - (_lblRoundCenter.Width / 2);
             int topY = 10; // Ngang với các thanh bars
-            
+
             _lblRoundCenter.Location = new Point(centerX, topY);
         }
 
@@ -116,7 +127,7 @@ namespace DoAn_NT106
             }
             else
             {
-                UpdateRoundCenterText(); 
+                UpdateRoundCenterText();
             }
             PositionRoundCenterLabel();
 
@@ -157,7 +168,7 @@ namespace DoAn_NT106
             {
                 delayTimer.Stop();
                 delayTimer.Dispose();
-                
+
                 // Kiểm tra form đã sẵn sàng chưa
                 if (this.ClientSize.Width > 100 && this.ClientSize.Height > 100)
                 {
@@ -166,30 +177,30 @@ namespace DoAn_NT106
                     UpdateRoundCenterText();
                     PositionRoundCenterLabel();
                     _lblRoundCenter?.BringToFront();
-                    
+
                     // Hiển thị ROUND animation
                     DisplayRoundStartAnimation();
                 }
             };
             delayTimer.Start();
         }
-        
+
         /// <summary>Display the "ROUND X" animation at the start of a round</summary>
         private void DisplayRoundStartAnimation()
         {
             if (_lblRoundStart == null) return;
-            
+
             // Đảm bảo form đã có kích thước đúng
             int screenWidth = this.ClientSize.Width;
             int screenHeight = this.ClientSize.Height;
-            
+
             // Fallback nếu form chưa sẵn sàng
             if (screenWidth < 100 || screenHeight < 100)
             {
                 screenWidth = 1920;
                 screenHeight = 1080;
             }
-            
+
             _roundStartCountdownMs = 1000; // 1 seconds
             _lblRoundStart.Text = $"ROUND {_roundNumber}";
             // ✅ Play round announcement sound (Stop only sound effects, NOT music)
@@ -198,14 +209,14 @@ namespace DoAn_NT106
                 // ✅ IMPORTANT: Stop only sound effects, NOT background music!
                 // This allows round announcement to play over the current music
                 Console.WriteLine($"[RoundSystem] About to play Round {_roundNumber} sound");
-                
+
                 // Play generic sound for round announcement or use ButtonClick as fallback
                 try
                 {
                     if (_roundNumber == 1) DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.Round1);
                     else if (_roundNumber == 2) DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.Round2);
                     else if (_roundNumber == 3) DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.Round3);
-                    
+
                     Console.WriteLine($"[RoundSystem] ✅ Round {_roundNumber} sound initiated successfully");
                 }
                 catch (Exception roundSoundEx)
@@ -216,7 +227,7 @@ namespace DoAn_NT106
                 }
             }
             catch (Exception ex) { Console.WriteLine($"[RoundSystem] Error playing round sound: {ex.Message}"); }
-            
+
             // ✅ Đo kích thước thực tế của label
             using (var g = _lblRoundStart.CreateGraphics())
             {
@@ -227,22 +238,22 @@ namespace DoAn_NT106
                     (screenHeight - (int)size.Height) / 2 - 50
                 );
             }
-            
+
             _lblRoundStart.Visible = true;
             _lblRoundStart.BringToFront();
             gameTimer?.Stop(); // Lock input during countdown
-            
+
             if (_roundStartTimer != null && !_roundStartTimer.Enabled)
                 _roundStartTimer.Start();
-            
+
             if (_roundTimer != null && !_roundTimer.Enabled)
                 _roundTimer.Start();
-            
+
             _roundInProgress = false; // Lock gameplay during countdown
-            
+
             // ✅ Cập nhật lại center text với tên player
             UpdateRoundCenterText();
-            
+
             Console.WriteLine($"[RoundSystem] Displaying ROUND {_roundNumber} at center");
         }
 
@@ -264,12 +275,15 @@ namespace DoAn_NT106
         private void RoundStartTimer_Tick(object sender, EventArgs e)
         {
             _roundStartCountdownMs -= 100;
-            
+
             if (_roundStartCountdownMs <= 0)
             {
                 _roundStartTimer?.Stop();
                 _lblRoundStart.Visible = false;
-                
+
+                // BẮT ĐẦU HIỆP -> LƯU THỜI GIAN
+                _roundStartTime = DateTime.Now;
+
                 // Enable gameplay
                 _roundInProgress = true;
                 gameTimer?.Start();
@@ -281,6 +295,8 @@ namespace DoAn_NT106
         {
             _roundInProgress = false;
             _roundTimer?.Stop();
+
+            _totalBattleSeconds += (DateTime.Now - _roundStartTime).TotalSeconds;
 
             // ✅ THÊM: Lưu mana hiện tại trước khi qua hiệp
             _player1ManaCarryover = player1State.Mana;
@@ -310,6 +326,8 @@ namespace DoAn_NT106
         {
             _roundInProgress = false;
             _roundTimer?.Stop();
+
+            _totalBattleSeconds += (DateTime.Now - _roundStartTime).TotalSeconds;
 
             // ✅ THÊM: Lưu mana hiện tại trước khi qua hiệp
             _player1ManaCarryover = player1State.Mana;
@@ -374,10 +392,10 @@ namespace DoAn_NT106
             // Reset positions - ✅ SỬA: X = 150 và 900, force reset Y position
             player1State.X = 150;
             player1State.Y = groundLevel - PLAYER_HEIGHT;
-            
+
             player2State.X = 900;
             player2State.Y = groundLevel - PLAYER_HEIGHT;
-            
+
             physicsSystem?.ResetToGround(player1State);
             physicsSystem?.ResetToGround(player2State);
 
@@ -398,20 +416,48 @@ namespace DoAn_NT106
             try { gameTimer?.Stop(); } catch { }
             try { walkAnimationTimer?.Stop(); } catch { }
 
-            string result = $"🎉 {winner} WINS THE MATCH!\n\n" +
-                            $"{username}: {_player1Wins} wins\n" +
-                            $"{opponent}: {_player2Wins} wins";
+            // Người thua
+            string loser = (winner == username) ? opponent : username;
 
-            MessageBox.Show(
-                result,
-                "MATCH FINISHED",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Exclamation
-            );
+            // Tổng thời gian trận
+            TimeSpan matchTime = TimeSpan.FromSeconds(_totalBattleSeconds);
 
-            BtnBack_Click(null, EventArgs.Empty);
-            // ✅ Resume theme music when returning to MainForm
-            try { DoAn_NT106.SoundManager.PlayMusic(DoAn_NT106.Client.BackgroundMusic.ThemeMusic, loop: true); } catch { }
+            // TRUE nếu người chơi (username) thắng
+            bool playerIsWinner = (winner == username);
+
+            // Tạo MatchResult THEO ĐÚNG CLASS CŨ
+            var matchResult = new MatchResult
+            {
+                PlayerUsername = username,
+                OpponentUsername = opponent,
+                PlayerIsWinner = playerIsWinner,
+
+                MatchTime = matchTime,
+                PlayerWins = _player1Wins,
+                OpponentWins = _player2Wins,
+
+                ParryCount = parryCount,
+                ComboCount = comboCount,
+                SkillCount = skillCount
+            };
+
+            // Mở form tính XP
+            var xpForm = new DoAn_NT106.Client.TinhXP(matchResult);
+            xpForm.StartPosition = FormStartPosition.CenterScreen;
+            xpForm.Show();
+
+            // Đóng BattleForm
+            this.Close();
+
+            // Bật nhạc lại
+            try
+            {
+                DoAn_NT106.SoundManager.PlayMusic(
+                    DoAn_NT106.Client.BackgroundMusic.ThemeMusic,
+                    loop: true
+                );
+            }
+            catch { }
         }
     }
 }

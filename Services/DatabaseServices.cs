@@ -422,7 +422,68 @@ namespace DoAn_NT106.Services
             }
         }
 
-       
+        // --- thêm vào class DatabaseService ---
+        public (int Id, int Level, int XP, int TotalXP)? GetPlayerXpInfo(string username)
+        {
+            try
+            {
+                using (var conn = new SqlConnection(connectionString))
+                using (var cmd = new SqlCommand("SELECT ID, USER_LEVEL, XP, TOTAL_XP FROM PLAYERS WHERE USERNAME = @u", conn))
+                {
+                    cmd.Parameters.AddWithValue("@u", username);
+                    conn.Open();
+                    using (var r = cmd.ExecuteReader())
+                    {
+                        if (r.Read())
+                        {
+                            int id = Convert.ToInt32(r["ID"]);
+                            int lvl = Convert.ToInt32(r["USER_LEVEL"]);
+                            int xp = Convert.ToInt32(r["XP"]);
+                            int tot = Convert.ToInt32(r["TOTAL_XP"]);
+                            return (id, lvl, xp, tot);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ GetPlayerXpInfo ERROR ({username}): {ex.Message}");
+            }
+            return null;
+        }
+
+        public bool UpdatePlayerXp(string username, int newLevel, int newXp, int gainedXp)
+        {
+            try
+            {
+                using (var conn = new SqlConnection(connectionString))
+                {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction())
+                    using (var cmd = new SqlCommand(@"
+                UPDATE PLAYERS 
+                SET USER_LEVEL = @lvl, XP = @xp, TOTAL_XP = TOTAL_XP + @gained
+                WHERE USERNAME = @u", conn, trans))
+                    {
+                        cmd.Parameters.AddWithValue("@lvl", newLevel);
+                        cmd.Parameters.AddWithValue("@xp", newXp);
+                        cmd.Parameters.AddWithValue("@gained", gainedXp);
+                        cmd.Parameters.AddWithValue("@u", username);
+
+                        int rows = cmd.ExecuteNonQuery();
+                        trans.Commit();
+                        return rows > 0;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ UpdatePlayerXp ERROR ({username}): {ex.Message}");
+                return false;
+            }
+        }
+
+
 
         #region ROOM MANAGEMENT
         /// <summary>
