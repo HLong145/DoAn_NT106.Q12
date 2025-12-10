@@ -478,6 +478,8 @@ namespace DoAn_NT106.Server
 
                     case "LOBBY_CHAT_SEND":
                         return HandleLobbyChatSend(request);
+                    case "LOBBY_START_GAME":
+                        return HandleLobbyStartGame(request);
 
                     //Các case liên quan đến broadcast danh sách phòng
                     case "ROOM_LIST_SUBSCRIBE":
@@ -635,6 +637,29 @@ namespace DoAn_NT106.Server
             catch (Exception ex)
             {
                 return CreateResponse(false, $"Start game error: {ex.Message}");
+            }
+        }
+
+        private string HandleLobbyStartGame(Request request)
+        {
+            try
+            {
+                var roomCode = request.Data?["roomCode"]?.ToString();
+                var username = request.Data?["username"]?.ToString();
+
+                if (string.IsNullOrEmpty(roomCode) || string.IsNullOrEmpty(username))
+                {
+                    return CreateResponse(false, "Room code and username are required");
+                }
+
+                var result = lobbyManager.StartGame(roomCode, username);
+
+                return CreateResponse(result.Success, result.Message);
+            }
+            catch (Exception ex)
+            {
+                server.Log($"❌ HandleLobbyStartGame error: {ex.Message}");
+                return CreateResponse(false, $"Error: {ex.Message}");
             }
         }
 

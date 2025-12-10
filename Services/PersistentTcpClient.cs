@@ -357,6 +357,8 @@ namespace DoAn_NT106.Services
 
         public Task<ServerResponse> LobbySendChatAsync(string roomCode, string username, string message)
             => SendRequestAsync("LOBBY_CHAT_SEND", new Dictionary<string, object> { { "roomCode", roomCode }, { "username", username }, { "message", message } });
+        public Task<ServerResponse> LobbyStartGameAsync(string roomCode, string username)
+    => SendRequestAsync("LOBBY_START_GAME", new Dictionary<string, object> { { "roomCode", roomCode }, { "username", username } });
 
         // ===========================
         // API METHODS - GLOBAL CHAT

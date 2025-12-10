@@ -212,7 +212,7 @@ namespace DoAn_NT106.Server
                     if (bothReady)
                     {
                         Log($"🚀 Both players ready in lobby {roomCode}!");
-                        BroadcastStartGame(lobby);
+                        BroadcastBothReady(lobby);
                     }
 
                     return (true, "Ready status updated", bothReady);
@@ -222,6 +222,46 @@ namespace DoAn_NT106.Server
             {
                 Log($"❌ SetReady error: {ex.Message}");
                 return (false, ex.Message, false);
+            }
+        }
+        // ===========================
+        // START GAME (by host)
+        // ===========================
+        public (bool Success, string Message) StartGame(string roomCode, string username)
+        {
+            try
+            {
+                if (!lobbies.TryGetValue(roomCode, out var lobby))
+                    return (false, "Lobby not found");
+
+                lock (lobby.Lock)
+                {
+                    // Chỉ Player 1 (host) mới được start
+                    if (lobby.Player1Username != username)
+                    {
+                        return (false, "Only the host can start the game");
+                    }
+
+                    // Kiểm tra cả 2 đã ready
+                    bool bothReady = lobby.Player1Ready && lobby.Player2Ready &&
+                                    !string.IsNullOrEmpty(lobby.Player1Username) &&
+                                    !string.IsNullOrEmpty(lobby.Player2Username);
+
+                    if (!bothReady)
+                    {
+                        return (false, "Both players must be ready");
+                    }
+
+                    Log($"🎮 Host {username} starting game in lobby {roomCode}");
+                    BroadcastStartGame(lobby);
+
+                    return (true, "Game started");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"❌ StartGame error: {ex.Message}");
+                return (false, ex.Message);
             }
         }
 
@@ -405,6 +445,29 @@ namespace DoAn_NT106.Server
                 Log($"⚠️ SafeSend error: {ex.Message}");
             }
         }
+
+        private void BroadcastBothReady(LobbyData lobby)
+        {
+            var broadcast = new
+            {
+                Action = "LOBBY_BOTH_READY",
+                Data = new
+                {
+                    roomCode = lobby.RoomCode,
+                    bothReady = true
+                }
+            };
+
+            string json = JsonSerializer.Serialize(broadcast);
+
+            if (lobby.Player1Client != null)
+                SafeSend(lobby.Player1Client, json);
+
+            if (lobby.Player2Client != null)
+                SafeSend(lobby.Player2Client, json);
+        }
+
+
     }
 
     // ===========================

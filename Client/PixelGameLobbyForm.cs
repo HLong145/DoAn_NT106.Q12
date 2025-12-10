@@ -25,6 +25,8 @@ namespace PixelGameLobby
         private bool opponentReady = false;
         private bool isLeaving = false;
         private bool hasLeft = false;
+        private bool bothPlayersReady = false;
+        private bool isHost = false;  // Player 1 = host
 
         // TCP Client - dùng singleton
         private PersistentTcpClient TcpClient => PersistentTcpClient.Instance;
@@ -154,6 +156,10 @@ namespace PixelGameLobby
             notReadyButton.Text = "NOT READY";
             notReadyButton.BackColor = notReadyColor;
 
+            //start game button initial state
+            startGameButton.Enabled = false;
+            startGameButton.BackColor = Color.Gray;
+
             // Update displays
             UpdatePlayersDisplay();
             UpdateChatDisplay();
@@ -230,7 +236,9 @@ namespace PixelGameLobby
                 case "LOBBY_CHAT_MESSAGE":
                     HandleChatMessage(data);
                     break;
-
+                case "LOBBY_BOTH_READY":
+                    HandleBothReady(data);
+                    break;
                 case "LOBBY_START_GAME":
                     HandleStartGame(data);
                     break;
@@ -302,7 +310,35 @@ namespace PixelGameLobby
                     players[1].Status = "Not Ready";
                 }
 
-                // Update UI
+                // Xác định xem user hiện tại có phải host không
+                isHost = (player1 == username);
+
+                // Kiểm tra both ready
+                bool newBothReady = player1Ready && player2Ready &&
+                                   !string.IsNullOrEmpty(player1) &&
+                                   !string.IsNullOrEmpty(player2);
+
+                // Cập nhật trạng thái nút Start
+                if (newBothReady)
+                {
+                    bothPlayersReady = true;
+                    if (isHost)
+                    {
+                        startGameButton.Enabled = true;
+                        startGameButton.BackColor = Color.Green;
+                    }
+                    else
+                    {
+                        startGameButton.Enabled = false;
+                    }
+                }
+                else
+                {
+                    bothPlayersReady = false;
+                    startGameButton.Enabled = false;
+                    startGameButton.BackColor = Color.Gray;
+                }
+
                 UpdatePlayersDisplay();
                 UpdateReadyButton();
 
@@ -407,6 +443,37 @@ namespace PixelGameLobby
             catch (Exception ex)
             {
                 Console.WriteLine($"[GameLobby] HandleChatMessage error: {ex.Message}");
+            }
+        }
+
+        private void HandleBothReady(JsonElement data)
+        {
+            try
+            {
+                string msgRoomCode = GetStringOrNull(data, "roomCode");
+                if (!string.IsNullOrEmpty(msgRoomCode) && msgRoomCode != roomCode)
+                    return;
+
+                bothPlayersReady = true;
+                Console.WriteLine("[GameLobby] Both players are ready!");
+
+                AddSystemMessage("✅ Both players are ready!");
+
+                // Chỉ enable nút Start cho host (Player 1)
+                if (isHost)
+                {
+                    AddSystemMessage("🎮 You are the host. Press START GAME to begin!");
+                    startGameButton.Enabled = true;
+                    startGameButton.BackColor = Color.Green;
+                }
+                else
+                {
+                    AddSystemMessage("⏳ Waiting for host to start the game...");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GameLobby] HandleBothReady error: {ex.Message}");
             }
         }
 
@@ -618,12 +685,48 @@ namespace PixelGameLobby
             }
         }
 
-        private void startGameButton_Click(object sender, EventArgs e)
+        private async void startGameButton_Click(object sender, EventArgs e)
         {
-            MessageBox.Show("Game will start automatically when both players are ready!",
-                "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
+            // Kiểm tra điều kiện
+            if (!isHost)
+            {
+                MessageBox.Show("Only the host can start the game!", "Info",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
 
+            if (!bothPlayersReady)
+            {
+                MessageBox.Show("Both players must be ready to start!", "Info",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            try
+            {
+                startGameButton.Enabled = false;
+                startGameButton.Text = "STARTING...";
+
+                // Gọi API để start game
+                var response = await PersistentTcpClient.Instance.LobbyStartGameAsync(roomCode, username);
+
+                if (!response.Success)
+                {
+                    MessageBox.Show($"Failed to start game: {response.Message}", "Error",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    startGameButton.Enabled = true;
+                    startGameButton.Text = "START GAME";
+                }
+                // Nếu success, server sẽ broadcast LOBBY_START_GAME và HandleStartGame sẽ xử lý
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error: {ex.Message}", "Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                startGameButton.Enabled = true;
+                startGameButton.Text = "START GAME";
+            }
+        }
         private async void leaveRoomButton_Click(object sender, EventArgs e)
         {
             if (hasLeft) return;
