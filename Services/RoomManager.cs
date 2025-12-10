@@ -7,20 +7,34 @@ using DoAn_NT106.Services;
 
 namespace DoAn_NT106.Server
 {
+    #region Class definition
+
     public class RoomManager
     {
-        // Memory cache để quản lý real-time connections
+        #endregion
+
+        #region Fields
+
         private ConcurrentDictionary<string, GameRoom> activeRooms = new ConcurrentDictionary<string, GameRoom>();
+
         private Random random = new Random();
         private DatabaseService dbService;
-
-        // ✅ THÊM MỚI: Timer để cleanup room trống
         private System.Timers.Timer cleanupTimer;
-        private const int CLEANUP_INTERVAL_MS = 10000; // Check mỗi 10 giây
-        private const int EMPTY_ROOM_TIMEOUT_SECONDS = 30; // Xóa room trống sau 30 giây
+
+        private const int CLEANUP_INTERVAL_MS = 10000;
+        private const int EMPTY_ROOM_TIMEOUT_SECONDS = 30;
+
+        #endregion
+
+        #region Events and dependencies
 
         public event Action<string> OnLog;
+
         public RoomListBroadcaster RoomListBroadcaster { get; set; }
+
+        #endregion
+
+        #region Constructor
 
         public RoomManager()
         {
@@ -29,7 +43,7 @@ namespace DoAn_NT106.Server
             // Load rooms từ database khi khởi động
             LoadRoomsFromDatabase();
 
-            // ✅ SỬA: Timer cleanup mỗi 10 giây thay vì 1 giờ
+            //Timer cleanup mỗi 10 giây thay vì 1 giờ
             cleanupTimer = new System.Timers.Timer(CLEANUP_INTERVAL_MS);
             cleanupTimer.Elapsed += CleanupEmptyRooms;
             cleanupTimer.AutoReset = true;
@@ -38,9 +52,9 @@ namespace DoAn_NT106.Server
             Log($"✅ RoomManager initialized (cleanup interval: {CLEANUP_INTERVAL_MS}ms, timeout: {EMPTY_ROOM_TIMEOUT_SECONDS}s)");
         }
 
-        // ===========================
-        // ✅ THÊM MỚI: Cleanup Empty Rooms Timer
-        // ===========================
+        #endregion
+
+        #region Cleanup timers
         private void CleanupEmptyRooms(object sender, ElapsedEventArgs e)
         {
             try
@@ -57,7 +71,6 @@ namespace DoAn_NT106.Server
                         string.IsNullOrEmpty(room.Player2Username))
                     {
                         var emptyDuration = (now - room.LastActivity).TotalSeconds;
-
                         if (emptyDuration >= EMPTY_ROOM_TIMEOUT_SECONDS)
                         {
                             roomsToDelete.Add(kvp.Key);
@@ -87,18 +100,15 @@ namespace DoAn_NT106.Server
             }
         }
 
-        // Cleanup inactive rooms (giữ lại cho backward compatibility)
-        private void CleanupInactiveRooms()
-        {
-            // Đã được thay thế bởi CleanupEmptyRooms
-        }
+        #endregion
+
+        #region Load rooms from database
 
         private void LoadRoomsFromDatabase()
         {
             try
             {
                 Log($"🔄 Loading rooms from database...");
-
                 var rooms = dbService.GetAvailableRooms();
                 Log($"📊 Database returned {rooms?.Count ?? 0} rooms");
 
@@ -130,7 +140,7 @@ namespace DoAn_NT106.Server
 
                         if (activeRooms.TryAdd(dbRoom.RoomCode, room))
                         {
-                            Log($"   ✅ Loaded room: {dbRoom.RoomCode} ({dbRoom.RoomName})");
+                            Log($" ✅ Loaded room: {dbRoom.RoomCode} ({dbRoom.RoomName})");
                         }
                     }
                 }
@@ -143,9 +153,10 @@ namespace DoAn_NT106.Server
             }
         }
 
-        // ===========================
-        // ✅ SỬA: TẠO PHÒNG MỚI - KHÔNG TỰ ĐỘNG ADD PLAYER
-        // ===========================
+        #endregion
+
+        #region Room creation
+
         public (bool Success, string Message, string RoomCode) CreateRoom(
             string roomName,
             string password,
@@ -160,22 +171,22 @@ namespace DoAn_NT106.Server
                     return (false, "Failed to generate unique room code", null);
                 }
 
-                // ✅ SỬA: Gọi CreateRoomEmpty thay vì CreateRoom với player
+                // Gọi CreateRoomEmpty 
                 var dbResult = dbService.CreateRoomEmpty(roomCode, roomName, password);
                 if (!dbResult.Success)
                 {
                     return (false, dbResult.Message, null);
                 }
 
-                // ✅ SỬA: Tạo room TRỐNG trong memory
+                // Tạo room TRỐNG trong memory
                 var room = new GameRoom
                 {
                     RoomCode = roomCode,
                     RoomName = roomName,
                     Password = password,
                     Status = "waiting",
-                    Player1Username = null,  // ✅ KHÔNG set player
-                    Player1Client = null,    // ✅ KHÔNG set client
+                    Player1Username = null,
+                    Player1Client = null,
                     Player2Username = null,
                     Player2Client = null,
                     CreatedAt = DateTime.Now,
@@ -203,6 +214,7 @@ namespace DoAn_NT106.Server
 
         private string GenerateUniqueRoomCode()
         {
+            // Thử sinh tối đa 100 lần để tránh trùng mã phòng
             for (int i = 0; i < 100; i++)
             {
                 string code = random.Next(100000, 999999).ToString();
@@ -211,12 +223,14 @@ namespace DoAn_NT106.Server
                     return code;
                 }
             }
+
             return null;
         }
 
-        // ===========================
-        // THAM GIA PHÒNG (với database)
-        // ===========================
+        #endregion
+
+        #region Join room
+
         public (bool Success, string Message, GameRoom Room) JoinRoom(
             string roomCode,
             string password,
@@ -228,7 +242,7 @@ namespace DoAn_NT106.Server
                 // Kiểm tra room tồn tại trong memory
                 if (!activeRooms.TryGetValue(roomCode, out GameRoom room))
                 {
-                    // Thử load từ database
+                    // Thử load từ database nếu chưa có trong memory
                     var dbRoom = dbService.GetRoomByCode(roomCode);
                     if (dbRoom == null)
                     {
@@ -246,22 +260,20 @@ namespace DoAn_NT106.Server
                         CreatedAt = dbRoom.CreatedAt,
                         LastActivity = DateTime.Now
                     };
+
                     activeRooms.TryAdd(roomCode, room);
                 }
 
-                // Kiểm tra password
                 if (!string.IsNullOrEmpty(room.Password) && room.Password != password)
                 {
                     return (false, "Incorrect password", null);
                 }
 
-                // Kiểm tra đã ở trong room chưa
                 if (room.Player1Username == username || room.Player2Username == username)
                 {
                     return (false, "You are already in this room", null);
                 }
 
-                // Kiểm tra room đầy
                 if (!string.IsNullOrEmpty(room.Player1Username) && !string.IsNullOrEmpty(room.Player2Username))
                 {
                     return (false, "Room is full", null);
@@ -298,7 +310,7 @@ namespace DoAn_NT106.Server
                     Data = new { username = username }
                 });
 
-                // Broadcast room list (room có thể đã đầy)
+                // Broadcast room list 
                 RoomListBroadcaster?.BroadcastRoomList();
 
                 return (true, "Joined room successfully", room);
@@ -310,16 +322,16 @@ namespace DoAn_NT106.Server
             }
         }
 
-        // ===========================
-        // RỜI PHÒNG (với database)
-        // ===========================
+        #endregion
+
+        #region Leave room
         public void LeaveRoom(string roomCode, string username)
         {
             try
             {
                 Log($"📤 LeaveRoom called: {username} from {roomCode}");
 
-                // Cập nhật database
+                // Cập nhật database 
                 dbService.LeaveRoom(roomCode, username);
 
                 if (!activeRooms.TryGetValue(roomCode, out GameRoom room))
@@ -347,7 +359,7 @@ namespace DoAn_NT106.Server
                 room.LastActivity = DateTime.Now;
                 room.Status = "waiting";
 
-                // ✅ SỬA: Nếu phòng trống, KHÔNG xóa ngay, để timer cleanup sau 30s
+                // Nếu phòng trống, KHÔNG xóa ngay, để timer cleanup sau 30s
                 if (string.IsNullOrEmpty(room.Player1Username) &&
                     string.IsNullOrEmpty(room.Player2Username))
                 {
@@ -355,7 +367,7 @@ namespace DoAn_NT106.Server
                 }
                 else
                 {
-                    // Thông báo cho người còn lại
+                    // Thông báo cho người còn lại trong room
                     BroadcastToRoom(roomCode, new
                     {
                         Action = "PLAYER_LEFT",
@@ -372,9 +384,9 @@ namespace DoAn_NT106.Server
             }
         }
 
-        // ===========================
-        // LẤY DANH SÁCH PHÒNG (từ memory cache)
-        // ===========================
+        #endregion
+
+        #region Room listing
         public List<RoomInfo> GetAvailableRooms()
         {
             try
@@ -385,7 +397,7 @@ namespace DoAn_NT106.Server
                 {
                     var room = kvp.Value;
 
-                    // ✅ SỬA: Hiển thị cả room trống (0 player) và room có 1 người
+                    // Hiển thị cả room trống (0 player) và room có 1 người
                     if (room.Status?.ToLower() == "waiting" || room.Status?.ToLower() == "ready")
                     {
                         int playerCount = 0;
@@ -408,7 +420,6 @@ namespace DoAn_NT106.Server
                 }
 
                 Log($"📋 GetAvailableRooms: Found {rooms.Count} rooms (Total in cache: {activeRooms.Count})");
-
                 return rooms;
             }
             catch (Exception ex)
@@ -418,9 +429,9 @@ namespace DoAn_NT106.Server
             }
         }
 
-        // ===========================
-        // BẮT ĐẦU GAME
-        // ===========================
+        #endregion
+
+        #region Gameplay control
         public bool StartGame(string roomCode)
         {
             if (!activeRooms.TryGetValue(roomCode, out GameRoom room))
@@ -435,10 +446,10 @@ namespace DoAn_NT106.Server
             room.Status = "playing";
             room.LastActivity = DateTime.Now;
 
-            // Cập nhật database
+            // Cập nhật database trạng thái phòng
             dbService.UpdateRoomStatus(roomCode, "PLAYING");
 
-            // Khởi tạo game state
+            // Khởi tạo game state ban đầu
             room.GameState = new GameState
             {
                 Player1Health = 100,
@@ -459,9 +470,6 @@ namespace DoAn_NT106.Server
             return true;
         }
 
-        // ===========================
-        // CẬP NHẬT GAME STATE
-        // ===========================
         public void UpdateGameState(string roomCode, string username, GameAction action)
         {
             if (!activeRooms.TryGetValue(roomCode, out GameRoom room))
@@ -470,7 +478,7 @@ namespace DoAn_NT106.Server
             if (room.GameState == null)
                 return;
 
-            // Update position và action
+            // Update position và action cho đúng player
             if (username == room.Player1Username)
             {
                 room.GameState.Player1X = action.X;
@@ -486,7 +494,7 @@ namespace DoAn_NT106.Server
 
             room.GameState.LastUpdate = DateTime.Now;
 
-            // Broadcast game state
+            // Broadcast game state cho cả 2 client
             BroadcastGameState(roomCode);
         }
 
@@ -506,13 +514,15 @@ namespace DoAn_NT106.Server
             room.Player2Client?.SendMessage(json);
         }
 
+        #endregion
+
+        #region Broadcast helpers
         public void BroadcastToRoom(string roomCode, object message)
         {
             if (!activeRooms.TryGetValue(roomCode, out GameRoom room))
                 return;
 
             string json = System.Text.Json.JsonSerializer.Serialize(message);
-
             room.Player1Client?.SendMessage(json);
             room.Player2Client?.SendMessage(json);
         }
@@ -523,15 +533,18 @@ namespace DoAn_NT106.Server
             return room;
         }
 
+        #endregion
+
+        #region Logging
+
         private void Log(string message)
         {
             OnLog?.Invoke(message);
         }
-    }
 
-    // ===========================
-    // DATA CLASSES (giữ nguyên)
-    // ===========================
+        #endregion
+    }
+    #region Data classes
     public class GameRoom
     {
         public string RoomCode { get; set; }
@@ -548,6 +561,7 @@ namespace DoAn_NT106.Server
         public string Player2Character { get; set; }
 
         public GameState GameState { get; set; }
+
         public DateTime CreatedAt { get; set; }
         public DateTime LastActivity { get; set; }
     }
@@ -560,15 +574,19 @@ namespace DoAn_NT106.Server
         public int Player2Stamina { get; set; }
         public int Player1Mana { get; set; }
         public int Player2Mana { get; set; }
+
         public int Player1X { get; set; }
         public int Player1Y { get; set; }
         public int Player2X { get; set; }
         public int Player2Y { get; set; }
+
         public string Player1Action { get; set; }
         public string Player2Action { get; set; }
+
         public int CurrentRound { get; set; }
         public int Player1Wins { get; set; }
         public int Player2Wins { get; set; }
+
         public DateTime LastUpdate { get; set; }
     }
 
@@ -588,4 +606,6 @@ namespace DoAn_NT106.Server
         public int PlayerCount { get; set; }
         public string Status { get; set; }
     }
+
+    #endregion
 }

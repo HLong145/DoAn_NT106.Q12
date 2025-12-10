@@ -1,4 +1,5 @@
 ﻿using DoAn_NT106.Services;
+
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -7,25 +8,42 @@ using System.Text.Json;
 
 namespace DoAn_NT106.Server
 {
+    #region Class Definition
+
     public class GlobalChatManager
     {
+        #region Fields and Constants
+
         private ConcurrentDictionary<string, ClientHandler> onlineUsers = new ConcurrentDictionary<string, ClientHandler>();
+
+        // Lịch sử tin nhắn global chat
         private List<GlobalChatMessage> chatHistory = new List<GlobalChatMessage>();
+
         private readonly object historyLock = new object();
+
         private DatabaseService dbService;
+
         private const int MAX_HISTORY = 100;
 
+        #endregion
+
+        #region Events
+
         public event Action<string> OnLog;
+
+        #endregion
+
+        #region Constructor
 
         public GlobalChatManager(DatabaseService dbService = null)
         {
             this.dbService = dbService ?? new DatabaseService();
         }
 
-        // ===========================
-        // QUẢN LÝ USER ONLINE
-        // ===========================
+        #endregion
 
+        #region Online Users Management
+        // User join vào global chat
         public (bool Success, string Message, int OnlineCount) JoinGlobalChat(string username, ClientHandler client)
         {
             try
@@ -36,9 +54,10 @@ namespace DoAn_NT106.Server
                 onlineUsers.AddOrUpdate(username, client, (key, oldClient) => client);
 
                 int onlineCount = onlineUsers.Count;
+
                 Log($"✅ {username} joined Global Chat. Online: {onlineCount}");
 
-                // ✅ Broadcast thông báo user join
+                // Broadcast thông báo user join
                 BroadcastSystemMessage($"{username} joined chat", excludeUser: username);
 
                 return (true, "Joined Global Chat", onlineCount);
@@ -50,6 +69,7 @@ namespace DoAn_NT106.Server
             }
         }
 
+        // User rời khỏi global chat
         public (bool Success, int OnlineCount) LeaveGlobalChat(string username)
         {
             try
@@ -57,6 +77,7 @@ namespace DoAn_NT106.Server
                 if (onlineUsers.TryRemove(username, out _))
                 {
                     int onlineCount = onlineUsers.Count;
+
                     Log($"👋 {username} left Global Chat. Online: {onlineCount}");
 
                     // Broadcast thông báo user leave
@@ -64,6 +85,7 @@ namespace DoAn_NT106.Server
 
                     return (true, onlineCount);
                 }
+
                 return (false, onlineUsers.Count);
             }
             catch (Exception ex)
@@ -72,14 +94,17 @@ namespace DoAn_NT106.Server
                 return (false, onlineUsers.Count);
             }
         }
-
         public int GetOnlineCount() => onlineUsers.Count;
+
+
+        // Lấy danh sách username đang online
         public List<string> GetOnlineUsers() => onlineUsers.Keys.ToList();
 
-        // ===========================
-        // XỬ LÝ CHAT MESSAGE
-        // ===========================
+        #endregion
 
+
+        #region Chat Message Handling       
+        // Gửi tin nhắn global chat
         public (bool Success, string Message) SendChatMessage(string username, string message)
         {
             try
@@ -90,6 +115,7 @@ namespace DoAn_NT106.Server
                 if (string.IsNullOrEmpty(message))
                     return (false, "Message is required");
 
+                // Giới hạn độ dài message để tránh spam / quá tải
                 if (message.Length > 1000)
                     message = message.Substring(0, 1000);
 
@@ -99,6 +125,7 @@ namespace DoAn_NT106.Server
                     return (false, "User not in Global Chat");
                 }
 
+                // Lưu message xuống database
                 try
                 {
                     var dbResult = dbService.SaveGlobalChatMessage(username, message);
@@ -120,8 +147,10 @@ namespace DoAn_NT106.Server
                     Timestamp = DateTime.Now,
                     Type = "user"
                 };
-
+                
+                
                 AddToHistory(chatMessage);
+
                 BroadcastChatMessage(chatMessage);
 
                 Log($"💬 [{username}]: {message.Substring(0, Math.Min(50, message.Length))}...");
@@ -135,10 +164,11 @@ namespace DoAn_NT106.Server
             }
         }
 
-        // ===========================
-        // BROADCAST METHODS
-        // ===========================
+        #endregion
 
+        #region Broadcast Methods        
+        
+        // Gửi tin nhắn system message đến tất cả user
         private void BroadcastSystemMessage(string message, string excludeUser = null)
         {
             var chatMessage = new GlobalChatMessage
@@ -150,10 +180,13 @@ namespace DoAn_NT106.Server
                 Type = "system"
             };
 
+            // Lưu vào lịch sử
             AddToHistory(chatMessage);
+
             BroadcastChatMessage(chatMessage, excludeUser);
         }
 
+        // Broadcast một tin nhắn chat cụ thể đến các user
         private void BroadcastChatMessage(GlobalChatMessage chatMessage, string excludeUser = null)
         {
             int onlineCount = onlineUsers.Count;
@@ -168,14 +201,16 @@ namespace DoAn_NT106.Server
                     message = chatMessage.Message,
                     timestamp = chatMessage.Timestamp.ToString("HH:mm:ss"),
                     type = chatMessage.Type,
-                    onlineCount = onlineCount  // ✅ Luôn kèm online count
+                    onlineCount = onlineCount
                 }
             };
 
             string json = JsonSerializer.Serialize(broadcast);
+
             Log($"📤 Broadcasting chat to {onlineUsers.Count} users: {json.Substring(0, Math.Min(100, json.Length))}...");
 
             int sentCount = 0;
+
             foreach (var kvp in onlineUsers.ToArray())
             {
                 if (excludeUser != null && kvp.Key == excludeUser)
@@ -189,6 +224,7 @@ namespace DoAn_NT106.Server
                 catch (Exception ex)
                 {
                     Log($"⚠️ Failed to send to {kvp.Key}: {ex.Message}");
+
                     // Remove disconnected user
                     onlineUsers.TryRemove(kvp.Key, out _);
                 }
@@ -197,6 +233,8 @@ namespace DoAn_NT106.Server
             Log($"📤 Sent chat message to {sentCount}/{onlineUsers.Count} users");
         }
 
+
+        // Broadcast số lượng user online
         public void BroadcastOnlineCount()
         {
             int count = onlineUsers.Count;
@@ -211,9 +249,11 @@ namespace DoAn_NT106.Server
             };
 
             string json = JsonSerializer.Serialize(broadcast);
+
             Log($"📤 Broadcasting online count ({count}) to {onlineUsers.Count} users");
 
             int sentCount = 0;
+
             foreach (var kvp in onlineUsers.ToArray())
             {
                 try
@@ -230,17 +270,19 @@ namespace DoAn_NT106.Server
             Log($"📤 Sent online count to {sentCount} users");
         }
 
-        // ===========================
-        // CHAT HISTORY
-        // ===========================
+        #endregion
+
+        #region Chat History
 
         private void AddToHistory(GlobalChatMessage message)
         {
             lock (historyLock)
             {
                 chatHistory.Add(message);
+
                 if (chatHistory.Count > MAX_HISTORY)
                 {
+                    // Xóa message cũ nhất để giữ kích thước danh sách
                     chatHistory.RemoveAt(0);
                 }
             }
@@ -254,27 +296,49 @@ namespace DoAn_NT106.Server
             }
         }
 
+        #endregion
+
+
+        #region Disconnected User Handling
+
+        // khi một client bị disconnect,tìm username tương ứng và remove
         public void RemoveDisconnectedUser(ClientHandler client)
         {
             var username = onlineUsers.FirstOrDefault(x => x.Value == client).Key;
+
             if (!string.IsNullOrEmpty(username))
             {
                 LeaveGlobalChat(username);
             }
         }
 
+        #endregion
+
+        #region Logging
+
         private void Log(string message)
         {
             OnLog?.Invoke($"[GlobalChat] {message}");
         }
+
+        #endregion
+
+        #region Nested Types
+
+        public class GlobalChatMessage
+        {
+            public string Id { get; set; }
+            public string Username { get; set; }
+
+            public string Message { get; set; }
+
+            public DateTime Timestamp { get; set; }
+
+            public string Type { get; set; }
+        }
+
+        #endregion
     }
 
-    public class GlobalChatMessage
-    {
-        public string Id { get; set; }
-        public string Username { get; set; }
-        public string Message { get; set; }
-        public DateTime Timestamp { get; set; }
-        public string Type { get; set; }
-    }
+    #endregion
 }
