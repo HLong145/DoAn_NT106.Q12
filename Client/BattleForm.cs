@@ -249,145 +249,6 @@ namespace DoAn_NT106
             public List<int> HitFrames { get; set; } // Các frame gây sát thương
             public int Duration => (int)((TotalFrames / (float)FPS) * 1000); // ms
         }
-
-        private Dictionary<string, Dictionary<string, AttackAnimationConfig>> characterAnimationConfigs = new Dictionary<string, Dictionary<string, AttackAnimationConfig>>
-        {
-            ["goatman"] = new Dictionary<string, AttackAnimationConfig>
-            {
-                ["attack1"] = new AttackAnimationConfig
-                {
-                    FPS = 11,
-                    TotalFrames = 6,
-                    HitFrames = new List<int> { 4 }
-                },
-                ["attack2"] = new AttackAnimationConfig
-                {
-                    FPS = 9,
-                    TotalFrames = 5,
-                    HitFrames = new List<int> { 4 }
-                },
-                ["punch"] = new AttackAnimationConfig
-                {
-                    FPS = 10,
-                    TotalFrames = 5,
-                    HitFrames = new List<int> { 3 }
-                },
-                ["kick"] = new AttackAnimationConfig
-                {
-                    FPS = 8,
-                    TotalFrames = 5,
-                    HitFrames = new List<int> { 3 }
-                }
-                ,
-                 ["skill"] = new AttackAnimationConfig
-                 {
-                     FPS = 12,
-                     TotalFrames = 8,
-                     HitFrames = new List<int> { 3, 4, 5, 6 } // Đâm liên tục khi charge
-                 }
-            },
-            ["bringerofdeath"] = new Dictionary<string, AttackAnimationConfig>
-            {
-                ["attack1"] = new AttackAnimationConfig
-                {
-                    FPS = 8,
-                    TotalFrames = 10,
-                    HitFrames = new List<int> { 6 }
-                },
-                ["attack2"] = new AttackAnimationConfig
-                {
-                    FPS = 18,
-                    TotalFrames = 10,
-                    HitFrames = new List<int> { 6 }
-                },
-                ["punch"] = new AttackAnimationConfig
-                {
-                    FPS = 10,
-                    TotalFrames = 8,
-                    HitFrames = new List<int> { 5 }
-                },
-                ["kick"] = new AttackAnimationConfig
-                {
-                    FPS = 10,
-                    TotalFrames = 8,
-                    HitFrames = new List<int> { 5 }
-                },
-                ["skill"] = new AttackAnimationConfig
-                {
-                    FPS = 10,
-                    TotalFrames = 13,
-                    HitFrames = new List<int> { 8 } // Cast spell ở frame 8
-                }
-            },
-            ["girlknight"] = new Dictionary<string, AttackAnimationConfig>
-            {
-                ["attack1"] = new AttackAnimationConfig
-                {
-                    FPS = 6,
-                    TotalFrames = 6,
-                    HitFrames = new List<int> { 3 }
-                },
-                ["attack2"] = new AttackAnimationConfig
-                {
-                    FPS = 6,
-                    TotalFrames = 9,
-                    HitFrames = new List<int> { 6 }
-                },
-                ["punch"] = new AttackAnimationConfig
-                {
-                    FPS = 8,
-                    TotalFrames = 5,
-                    HitFrames = new List<int> { 3 }
-                },
-                ["kick"] = new AttackAnimationConfig
-                {
-                    FPS = 8,
-                    TotalFrames = 9,
-                    HitFrames = new List<int> { 3 }
-                },
-                ["skill"] = new AttackAnimationConfig
-                {
-                    FPS = 10,
-                    TotalFrames = 5,
-                    HitFrames = new List<int> { } // Xử lý riêng bởi timer (hit ở 0.5s và 1s)
-                }
-            },
-            ["warrior"] = new Dictionary<string, AttackAnimationConfig>
-            {
-                ["attack1"] = new AttackAnimationConfig
-                {
-                    FPS = 12,
-                    TotalFrames = 12,
-                    HitFrames = new List<int> { 6, 10 } // Đánh 2 lần
-                },
-                ["attack2"] = new AttackAnimationConfig
-                {
-                    FPS = 10,
-                    TotalFrames = 10,
-                    HitFrames = new List<int> { 4 } // Frame 4 sau khi lướt
-                },
-                ["punch"] = new AttackAnimationConfig
-                {
-                    FPS = 10,
-                    TotalFrames = 6,
-                    HitFrames = new List<int> { 4 }
-                },
-                ["kick"] = new AttackAnimationConfig
-                {
-                    FPS = 10,
-                    TotalFrames = 6,
-                    HitFrames = new List<int> { 4 }
-                }
-                 ,
-                ["skill"] = new AttackAnimationConfig
-                {
-                    FPS = 7,
-                    TotalFrames = 5,
-                    HitFrames = new List<int> { 3 } // Đánh ở frame 3
-                }
-            }
-        };
-
         // Cấu hình Attack Hitbox cho từng loại tấn công của từng nhân vật
         private Dictionary<string, Dictionary<string, AttackHitboxConfig>> characterAttackConfigs = new Dictionary<string, Dictionary<string, AttackHitboxConfig>>
         {
@@ -705,51 +566,6 @@ namespace DoAn_NT106
                 walkAnimationTimer = new System.Windows.Forms.Timer();
                 walkAnimationTimer.Interval = 100;
                 walkAnimationTimer.Tick += WalkAnimationTimer_Tick;
-
-                // ❌ Remove legacy parry timers in BattleForm (CombatSystem handles parry)
-                // p1ParryTimer = new System.Windows.Forms.Timer();
-                // p1ParryTimer.Interval = parryWindowMs;
-                // p1ParryTimer.Tick += (s, e) =>
-                // {
-                //     p1ParryTimer.Stop();
-                //     player1Parrying = false;
-                //     player1ParryOnCooldown = true;
-                //     // restore previous animation if still valid
-                //     if (!player1Attacking && !player1Jumping)
-                //         player1CurrentAnimation = (_prevAnimPlayer1 == "walk" && (aPressed || dPressed)) ? "walk" : "stand";
-                //     p1ParryCooldownTimer.Start();
-                //     this.Invalidate();
-                // };
-
-                // p1ParryCooldownTimer = new System.Windows.Forms.Timer();
-                // p1ParryCooldownTimer.Interval = parryCooldownMs;
-                // p1ParryCooldownTimer.Tick += (s, e) =>
-                // {
-                //     p1ParryCooldownTimer.Stop();
-                //     player1ParryOnCooldown = false;
-                // };
-
-                // p2ParryTimer = new System.Windows.Forms.Timer();
-                // p2ParryTimer.Interval = parryWindowMs;
-                // p2ParryTimer.Tick += (s, e) =>
-                // {
-                //     p2ParryTimer.Stop();
-                //     player2Parrying = false;
-                //     player2ParryOnCooldown = true;
-                //     if (!player2Attacking && !player2Jumping)
-                //         player2CurrentAnimation = (_prevAnimPlayer2 == "walk" && (leftPressed || rightPressed)) ? "walk" : "stand";
-                //     p2ParryCooldownTimer.Start();
-                //     this.Invalidate();
-                // };
-
-                // p2ParryCooldownTimer = new System.Windows.Forms.Timer();
-                // p2ParryCooldownTimer.Interval = parryCooldownMs;
-                // p2ParryCooldownTimer.Tick += (s, e) =>
-                // {
-                //     p2ParryCooldownTimer.Stop();
-                //     player2ParryOnCooldown = false;
-                // };
-                // Initialize timers
                 player1DashTimer = new System.Windows.Forms.Timer();
                 player2DashTimer = new System.Windows.Forms.Timer();
                 player1SkillTimer = new System.Windows.Forms.Timer();
@@ -1680,53 +1496,6 @@ namespace DoAn_NT106
             fireball = CreateColoredImage(40, 25, Color.Orange);
         }
 
-        private Image ResourceToImage(object res)
-        {
-            if (res == null) return null;
-
-            if (res is Image img)
-            {
-                try
-                {
-                    if (ImageAnimator.CanAnimate(img))
-                        return img;
-                    return new Bitmap(img);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"ResourceToImage(Image) clone error: {ex}");
-                    return null;
-                }
-            }
-
-            if (res is byte[] b && b.Length > 0)
-            {
-                try
-                {
-                    var ms = new System.IO.MemoryStream(b);
-                    var tmp = Image.FromStream(ms);
-                    if (ImageAnimator.CanAnimate(tmp))
-                    {
-                        resourceStreams.Add(ms); // keep stream until form closes
-                        return tmp;
-                    }
-                    else
-                    {
-                        var bmp = new Bitmap(tmp);
-                        tmp.Dispose();
-                        ms.Dispose();
-                        return bmp;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"ResourceToImage(byte[]) -> Image error: {ex}");
-                    return null;
-                }
-            }
-
-            return null;
-        }
 
         private void DrawCharacter(Graphics g, int x, int y, string animation, string facing, CharacterAnimationManager animationManager)
         {
@@ -1855,11 +1624,6 @@ namespace DoAn_NT106
             }
         }
 
-        private void DrawGameUI(Graphics g)
-        {
-            g.FillRectangle(new SolidBrush(Color.FromArgb(180, 0, 0, 0)),
-                0, 0, this.ClientSize.Width, 110);
-        }
 
         private void SetupEventHandlers()
         {
@@ -2024,11 +1788,6 @@ namespace DoAn_NT106
         /// <summary>
         /// Get actual character width for movement boundaries
         /// </summary>
-        private int GetCharacterBoundaryWidth(string characterType)
-        {
-            var actualSize = GetActualCharacterSize(characterType);
-            return actualSize.actualWidth; // Trả về kích thước vẽ thực tế
-        }
 
         private void ShowHitEffect(string message, Color color)
         {
@@ -2056,29 +1815,6 @@ namespace DoAn_NT106
             removeTimer.Start();
         }
         // Phương thức tính hitbox theo cấu hình nhân vật
-        private Rectangle GetPlayerHitbox(int playerX, int playerY, string characterType, string facing)
-        {
-            if (!characterHurtboxConfigs.ContainsKey(characterType))
-            {
-                return new Rectangle(playerX, playerY, PLAYER_WIDTH, PLAYER_HEIGHT);
-            }
-
-            var config = characterHurtboxConfigs[characterType];
-
-            int hitboxWidth = (int)(PLAYER_WIDTH * config.WidthPercent);
-            int hitboxHeight = (int)(PLAYER_HEIGHT * config.HeightPercent);
-
-            // Căn giữa hitbox, KHÔNG phụ thuộc vào facing
-            int offsetX = (PLAYER_WIDTH - hitboxWidth) / 2;  // ⭐ THAY ĐỔI DUY NHẤT
-            int offsetY = (int)(PLAYER_HEIGHT * config.OffsetYPercent);
-
-            return new Rectangle(
-                playerX + offsetX,
-                playerY + offsetY,
-                hitboxWidth,
-                hitboxHeight
-            );
-        }
 
         // Overload để lấy hitbox từ PlayerState
         private Rectangle GetPlayerHitbox(PlayerState player)
@@ -2189,27 +1925,7 @@ namespace DoAn_NT106
             Console.WriteLine($"[GetAttackHitbox] {attacker.CharacterType}.{attackType}: X={finalAttackX}, Y={finalAttackY}, W={attackRangeValue}, H={attackHeightValue}");
             return new Rectangle(finalAttackX, finalAttackY, attackRangeValue, attackHeightValue);
         }
-        // ✅ THÊM: Kiểm tra va chạm giữa attack hitbox và hurtbox
-        private bool CheckAttackHit(PlayerState attacker, PlayerState defender, string attackType)
-        {
-            // Lấy vùng tấn công của attacker
-            Rectangle attackBox = GetAttackHitbox(attacker, attackType);
 
-            // Lấy vùng nhận sát thương của defender
-            Rectangle hurtBox = GetPlayerHitbox(defender);
-
-            // ✅ THÊM DEBUG
-            Console.WriteLine($"[CHECK HIT] Attack Box: ({attackBox.X}, {attackBox.Y}, {attackBox.Width}x{attackBox.Height})");
-            Console.WriteLine($"[CHECK HIT] Hurt Box: ({hurtBox.X}, {hurtBox.Y}, {hurtBox.Width}x{hurtBox.Height})");
-
-            // Kiểm tra va chạm
-            bool hit = attackBox.IntersectsWith(hurtBox);
-
-            // ✅ THÊM DEBUG
-            Console.WriteLine($"[CHECK HIT] Result: {(hit ? "✅ HIT" : "❌ MISS")}");
-
-            return hit;
-        }
 
         private void CheckFireballHit()
         {
