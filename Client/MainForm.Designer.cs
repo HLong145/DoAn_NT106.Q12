@@ -99,14 +99,15 @@ namespace DoAn_NT106
             // 
             // lblUserName
             // 
-            lblUserName.AutoSize = true;
+            lblUserName.AutoSize = false;
             lblUserName.BackColor = Color.Transparent;
             lblUserName.Font = new Font("Courier New", 22.2F, FontStyle.Bold, GraphicsUnit.Point, 0);
             lblUserName.ForeColor = Color.FromArgb(64, 0, 0);
-            lblUserName.Location = new Point(5, 365);
+            // center within sidebar and place below avatar
+            lblUserName.Location = new Point(10, 300);
             lblUserName.Margin = new Padding(4, 0, 4, 0);
             lblUserName.Name = "lblUserName";
-            lblUserName.Size = new Size(326, 41);
+            lblUserName.Size = new Size(314, 50);
             lblUserName.TabIndex = 2;
             lblUserName.Text = "HERO NAME HERE";
             lblUserName.TextAlign = ContentAlignment.MiddleCenter;

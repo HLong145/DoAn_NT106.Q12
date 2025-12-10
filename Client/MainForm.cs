@@ -47,6 +47,23 @@ namespace DoAn_NT106
                 // center horizontally inside panelSidebar
                 pbAvatar.Left = Math.Max(8, (panelSidebar.ClientSize.Width - pbAvatar.Width) / 2);
                 pbAvatar.Top = 20;
+                // center username label under avatar
+                try
+                {
+                    lblUserName.Size = new Size(Math.Min(314, panelSidebar.ClientSize.Width - 20), lblUserName.Height);
+                    lblUserName.Left = (panelSidebar.ClientSize.Width - lblUserName.Width) / 2;
+                    lblUserName.Top = pbAvatar.Bottom + 12;
+                }
+                catch { }
+                // keep username centered if sidebar resizes
+                panelSidebar.SizeChanged += (s, e) =>
+                {
+                    try
+                    {
+                        lblUserName.Left = (panelSidebar.ClientSize.Width - lblUserName.Width) / 2;
+                    }
+                    catch { }
+                };
             }
             catch { }
 
@@ -55,10 +72,10 @@ namespace DoAn_NT106
             // Hint label (created in Designer) - ensure initial state
             try
             {
-                lblAvatarHint.Text = "Click to change avatar";
+                lblAvatarHint.Text = ""; // empty by default
                 lblAvatarHint.ForeColor = Color.LightGoldenrodYellow;
                 lblAvatarHint.BackColor = Color.Transparent;
-                lblAvatarHint.Font = new Font("Courier New", 10, FontStyle.Italic);
+                lblAvatarHint.Font = new Font("Courier New", 9, FontStyle.Italic);
                 lblAvatarHint.Visible = false;
             }
             catch { }
