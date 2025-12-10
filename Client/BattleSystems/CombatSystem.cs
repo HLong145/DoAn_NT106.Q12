@@ -1166,8 +1166,12 @@ namespace DoAn_NT106.Client.BattleSystems
             showHitEffectCallback?.Invoke($"-{damage}", Color.Red);
             effectManager.ShowHitEffectAtPosition(target.CharacterType, target.X, target.Y, invalidateCallback);
             
-            target.IsStunned = true;
-            CancelAttack(targetPlayer);
+            // ✅ SỬA: Nếu đang charging thì KHÔNG interrupt, chỉ hiển thị stun nhưng skill vẫn chạy
+            if (!target.IsCharging)
+            {
+                target.IsStunned = true;
+                CancelAttack(targetPlayer);
+            }
             
             if (wasAttacking)
             {
@@ -1181,13 +1185,17 @@ namespace DoAn_NT106.Client.BattleSystems
             }
             else if (wasCharging)
             {
-                Console.WriteLine($"?? Player{targetPlayer} charge INTERRUPTED by damage!");
-                showHitEffectCallback?.Invoke("Interrupted!", Color.Orange);
+                Console.WriteLine($"?? Player{targetPlayer} charge CONTINUES despite damage!");
+                showHitEffectCallback?.Invoke("Charging!", Color.Gold);
             }
 
-            target.CurrentAnimation = "hurt";
-            CharacterAnimationManager targetAnimMgr = targetPlayer == 1 ? player1AnimManager : player2AnimManager;
-            targetAnimMgr.ResetAnimationToFirstFrame("hurt");
+            // ✅ SỬA: Chỉ chuyển sang animation hurt nếu không đang charge
+            if (!target.IsCharging)
+            {
+                target.CurrentAnimation = "hurt";
+                CharacterAnimationManager targetAnimMgr = targetPlayer == 1 ? player1AnimManager : player2AnimManager;
+                targetAnimMgr.ResetAnimationToFirstFrame("hurt");
+            }
 
             if (knockback)
             {
@@ -1199,17 +1207,21 @@ namespace DoAn_NT106.Client.BattleSystems
             }
             invalidateCallback?.Invoke();
 
-            var restoreTimer = new Timer { Interval = HIT_STUN_DURATION_MS };
-            restoreTimer.Tick += (s, e) =>
+            // ✅ SỬA: Chỉ set stun timer nếu không charging
+            if (!target.IsCharging)
             {
-                restoreTimer.Stop();
-                restoreTimer.Dispose();
-                target.IsStunned = false;
-                if (!target.IsAttacking && !target.IsJumping && target.CurrentAnimation == "hurt")
-                    target.ResetToIdle();
-                invalidateCallback?.Invoke();
-            };
-            restoreTimer.Start();
+                var restoreTimer = new Timer { Interval = HIT_STUN_DURATION_MS };
+                restoreTimer.Tick += (s, e) =>
+                {
+                    restoreTimer.Stop();
+                    restoreTimer.Dispose();
+                    target.IsStunned = false;
+                    if (!target.IsAttacking && !target.IsJumping && target.CurrentAnimation == "hurt")
+                        target.ResetToIdle();
+                    invalidateCallback?.Invoke();
+                };
+                restoreTimer.Start();
+            }
         }
 
         private void ApplyKnockback(PlayerState target, int direction, int distance)
@@ -1289,7 +1301,8 @@ namespace DoAn_NT106.Client.BattleSystems
             PlayerState player = playerNum == 1 ? player1 : player2;
             player.IsAttacking = false;
             player.IsSkillActive = false;
-            player.IsCharging = false;
+            // ✅ SỬA: KHÔNG hủy IsCharging - để Goatman tiếp tục ủi khi nhận sát thương
+            // player.IsCharging = false;
             
             // ✅ THÊM: Hủy animation hiện tại nếu là attack
             CharacterAnimationManager animMgr = playerNum == 1 ? player1AnimManager : player2AnimManager;
