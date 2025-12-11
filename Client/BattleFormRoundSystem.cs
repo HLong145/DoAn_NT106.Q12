@@ -532,9 +532,19 @@ namespace DoAn_NT106
 
             // Award win to survivor
             if (player1State.IsDead && !player2State.IsDead)
+            {
                 _player2Wins++;
+                player2RoundsWon++;
+                player2ConsecutiveWins++;
+                player1ConsecutiveWins = 0;
+            }
             else if (player2State.IsDead && !player1State.IsDead)
+            {
                 _player1Wins++;
+                player1RoundsWon++;
+                player1ConsecutiveWins++;
+                player2ConsecutiveWins = 0;
+            }
             // Both dead = tie, no win awarded
 
             // Check if match ends
