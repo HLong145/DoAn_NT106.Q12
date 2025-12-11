@@ -97,7 +97,7 @@ namespace DoAn_NT106.Services
 
         #region Constructor
 
-        public PersistentTcpClient(string address = "127.0.0.1", int port = 8080)
+        public PersistentTcpClient(string address = "116.100.187.137", int port = 8080)
         {
             serverAddress = address;
             serverPort = port;
