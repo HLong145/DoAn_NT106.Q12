@@ -62,6 +62,41 @@ namespace DoAn_NT106.Client
             {
                 lbl_XPEarnedValue.Text = _calculatedXp.ToString();
             }
+
+            // Cập nhật thông tin người chơi thắng/thua
+            if (lbl_PlayerValue != null)
+            {
+                lbl_PlayerValue.Text = _result.PlayerUsername ?? "PLAYER";
+            }
+
+            if (lbl_ResultValue != null)
+            {
+                if (_result.PlayerIsWinner)
+                {
+                    lbl_ResultValue.Text = "WIN";
+                    lbl_ResultValue.ForeColor = Color.LimeGreen;
+                }
+                else
+                {
+                    lbl_ResultValue.Text = "LOSE";
+                    lbl_ResultValue.ForeColor = Color.Red;
+                }
+            }
+
+            // Thời gian tổng trận đấu: lấy từ MatchResult.MatchTime nếu có
+            if (lbl_TimeValue != null)
+            {
+                TimeSpan time = _result.MatchTime;
+                if (time <= TimeSpan.Zero)
+                {
+                    // Nếu chưa gán từ BattleForm, để 00:00
+                    lbl_TimeValue.Text = "00:00";
+                }
+                else
+                {
+                    lbl_TimeValue.Text = string.Format("{0:00}:{1:00}", (int)time.TotalMinutes, time.Seconds);
+                }
+            }
         }
         private void btn_Continue_Click(object sender, EventArgs e)
         {

@@ -26,6 +26,9 @@ namespace DoAn_NT106
         private int _roundStartCountdownMs = 0;
         private Label _lblRoundStart; // Large "ROUND X" label
 
+        // Thời gian bắt đầu trận để tính tổng thời gian thi đấu
+        private DateTime _matchStartTime = DateTime.UtcNow;
+
         // ✅ THÊM: Lưu mana giữa các hiệp
         private int _player1ManaCarryover = 0;
         private int _player2ManaCarryover = 0;
@@ -654,13 +657,25 @@ namespace DoAn_NT106
             // Xác định người chơi hiện tại có phải là winner không
             bool player1IsWinner = string.Equals(winner, username, StringComparison.OrdinalIgnoreCase);
 
+            // Tính tổng thời gian trận đấu
+            TimeSpan totalMatchTime;
+            try
+            {
+                totalMatchTime = DateTime.UtcNow - _matchStartTime;
+                if (totalMatchTime < TimeSpan.Zero) totalMatchTime = TimeSpan.Zero;
+            }
+            catch
+            {
+                totalMatchTime = TimeSpan.Zero;
+            }
+
             // Tạo MatchResult để truyền sang form TinhXP
             var result = new DoAn_NT106.Client.MatchResult
             {
                 PlayerUsername = username,
                 OpponentUsername = opponent,
                 PlayerIsWinner = player1IsWinner,
-                MatchTime = TimeSpan.Zero, // Nếu bạn có thời gian trận thì gán thật ở đây
+                MatchTime = totalMatchTime,
                 PlayerWins = _player1Wins,
                 OpponentWins = _player2Wins,
                 ParryCount = player1IsWinner ? player1ParryCount : player2ParryCount,
