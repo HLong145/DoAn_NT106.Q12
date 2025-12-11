@@ -39,7 +39,9 @@ namespace DoAn_NT106
             BackColor = Color.FromArgb(30, 30, 50);
             ClientSize = new Size(1000, 750);
             DoubleBuffered = true;
-            FormBorderStyle = FormBorderStyle.FixedDialog;
+            // remove outer window border and close button
+            FormBorderStyle = FormBorderStyle.None;
+            ControlBox = false;
             Margin = new Padding(3, 4, 3, 4);
             Name = "BattleForm";
             StartPosition = FormStartPosition.CenterScreen;

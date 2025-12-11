@@ -21,9 +21,10 @@
             // 
             AutoScaleMode = AutoScaleMode.None;
             ClientSize = new Size(1199, 671);
-            FormBorderStyle = FormBorderStyle.FixedDialog;
-            MaximizeBox = false;
-            MinimizeBox = false;
+            // remove outer window border and close button
+            FormBorderStyle = FormBorderStyle.None;
+            ControlBox = false;
+            // Keep title visible inside form via label in designer code if needed
             Name = "AvatarSelectorForm";
             StartPosition = FormStartPosition.CenterParent;
             Text = "Chọn Avatar";

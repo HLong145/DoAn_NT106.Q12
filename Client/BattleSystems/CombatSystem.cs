@@ -272,11 +272,11 @@ namespace DoAn_NT106.Client.BattleSystems
                 if (!attacker.ConsumeStamina(staminaCost))
                 {
                     showHitEffectCallback?.Invoke("No Stamina!", Color.Gray);
-                    Console.WriteLine($"❌ Player{playerNum} không đủ stamina! Need {staminaCost}, have {attacker.Stamina}");
+                    // debug removed
                     return;
                 }
 
-                Console.WriteLine($"✅ Player{playerNum} consumed {staminaCost} stamina, remaining: {attacker.Stamina}");
+                // debug removed
             }
 
             // ✅ Play attack sound
@@ -309,7 +309,7 @@ namespace DoAn_NT106.Client.BattleSystems
         private void ExecutePunchAttack(int playerNum, PlayerState attacker, PlayerState defender, CharacterAnimationManager animMgr)
         {
             string charType = attacker.CharacterType;
-            Console.WriteLine($"[ExecutePunch] START - Player={playerNum}, Char={charType}");
+            // debug removed
 
             if (charType == "warrior")
             {
@@ -322,36 +322,28 @@ namespace DoAn_NT106.Client.BattleSystems
                 int hitFrame6 = GetFrameTiming("warrior", "punch", 6);
                 int hitFrame10 = GetFrameTiming("warrior", "punch", 10);
 
-                Console.WriteLine($"[ExecutePunch] Warrior hit timings: Frame6={hitFrame6}ms, Frame10={hitFrame10}ms");
+                // debug removed
 
                 var hitTimer1 = new Timer { Interval = hitFrame6 };
                 hitTimer1.Tick += (s, e) =>
                 {
-                    hitTimer1.Stop();
+                hitTimer1.Stop();
                     hitTimer1.Dispose();
 
-                    Console.WriteLine($"[ExecutePunch] ⏰ HIT TIMER 1 FIRED at {hitFrame6}ms");
+                    // perform hit check
+                    Rectangle attackBox1 = getAttackHitboxCallback(attacker, "punch");
+                    Rectangle hurtBox1 = getPlayerHurtboxCallback(defender);
+                    bool hit1 = attackBox1.IntersectsWith(hurtBox1);
 
-                    // Luôn kiểm tra collision với hitbox của punch
-                    Rectangle attackBox = getAttackHitboxCallback(attacker, "punch");
-                    Rectangle hurtBox = getPlayerHurtboxCallback(defender);
-
-                    Console.WriteLine($"[ExecutePunch] Attack Box: X={attackBox.X}, Y={attackBox.Y}, W={attackBox.Width}, H={attackBox.Height}");
-                    Console.WriteLine($"[ExecutePunch] Hurt Box:   X={hurtBox.X}, Y={hurtBox.Y}, W={hurtBox.Width}, H={hurtBox.Height}");
-
-                    bool hit = attackBox.IntersectsWith(hurtBox);
-                    Console.WriteLine($"[ExecutePunch] Collision: {(hit ? "✅ HIT!" : "❌ MISS")}");
-
-                    if (hit)
+                    if (hit1)
                     {
-                        Console.WriteLine($"[ExecutePunch] 💥 APPLYING DAMAGE 7 to Player {(playerNum == 1 ? 2 : 1)}");
                         ApplyDamage(playerNum == 1 ? 2 : 1, 7); // ✅ SỬA: 10 -> 7
                         attacker.RegenerateManaOnHitLand(); // ✅ THÊM: Hồi mana khi đánh trúng
                         showHitEffectCallback?.Invoke("Strike!", Color.Yellow);
                     }
                 };
                 hitTimer1.Start();
-                Console.WriteLine($"[ExecutePunch] Timer 1 STARTED");
+                // timer started
 
                 var hitTimer2 = new Timer { Interval = hitFrame10 };
                 hitTimer2.Tick += (s, e) =>
@@ -359,7 +351,7 @@ namespace DoAn_NT106.Client.BattleSystems
                     hitTimer2.Stop();
                     hitTimer2.Dispose();
 
-                    Console.WriteLine($"[ExecutePunch] ⏰ HIT TIMER 2 FIRED at {hitFrame10}ms");
+                // hit timer fired
 
                     // Không chặn bởi IsStunned/hurt để đảm bảo frame hit vẫn check
                     Rectangle attackBox = getAttackHitboxCallback(attacker, "punch");
@@ -375,12 +367,12 @@ namespace DoAn_NT106.Client.BattleSystems
                     }
                 };
                 hitTimer2.Start();
-                Console.WriteLine($"[ExecutePunch] Timer 2 STARTED");
+                // timer started
             }
             else if (charType == "goatman")
             {
                 int hitDelay = GetFrameTiming("goatman", "punch", 4);
-                Console.WriteLine($"[ExecutePunch] Goatman hit at {hitDelay}ms");
+                // debug removed
 
                 var hitTimer = new Timer { Interval = hitDelay };
                 hitTimer.Tick += (s, e) =>
@@ -388,7 +380,7 @@ namespace DoAn_NT106.Client.BattleSystems
                     hitTimer.Stop();
                     hitTimer.Dispose();
 
-                    Console.WriteLine($"[ExecutePunch] ⏰ Goatman HIT TIMER FIRED");
+                    // hit timer fired
 
                     Rectangle attackBox = getAttackHitboxCallback(attacker, "punch");
                     Rectangle hurtBox = getPlayerHurtboxCallback(defender);
@@ -407,7 +399,7 @@ namespace DoAn_NT106.Client.BattleSystems
             else if (charType == "girlknight")
             {
                 int hitDelay = GetFrameTiming("girlknight", "punch", 3);
-                Console.WriteLine($"[ExecutePunch] GirlKnight hit at {hitDelay}ms");
+                // debug removed
 
                 var hitTimer = new Timer { Interval = hitDelay };
                 hitTimer.Tick += (s, e) =>
@@ -415,7 +407,7 @@ namespace DoAn_NT106.Client.BattleSystems
                     hitTimer.Stop();
                     hitTimer.Dispose();
 
-                    Console.WriteLine($"[ExecutePunch] ⏰ GirlKnight HIT TIMER FIRED");
+                    // hit timer fired
 
                     Rectangle attackBox = getAttackHitboxCallback(attacker, "punch");
                     Rectangle hurtBox = getPlayerHurtboxCallback(defender);
@@ -435,7 +427,7 @@ namespace DoAn_NT106.Client.BattleSystems
             else if (charType == "bringerofdeath")
             {
                 int hitDelay = GetFrameTiming("bringerofdeath", "punch", 6);
-                Console.WriteLine($"[ExecutePunch] Bringer hit at {hitDelay}ms");
+                // debug removed
 
                 var hitTimer = new Timer { Interval = hitDelay };
                 hitTimer.Tick += (s, e) =>
@@ -443,7 +435,7 @@ namespace DoAn_NT106.Client.BattleSystems
                     hitTimer.Stop();
                     hitTimer.Dispose();
 
-                    Console.WriteLine($"[ExecutePunch] ⏰ Bringer HIT TIMER FIRED");
+                    // hit timer fired
 
                     Rectangle attackBox = getAttackHitboxCallback(attacker, "punch");
                     Rectangle hurtBox = getPlayerHurtboxCallback(defender);
@@ -462,7 +454,7 @@ namespace DoAn_NT106.Client.BattleSystems
             }
 
             int duration = animMgr.GetAnimationDuration("punch");
-            Console.WriteLine($"[ExecutePunch] Animation duration: {duration}ms");
+            // debug removed
             ResetAttackAnimation(duration, playerNum);
         }
         private void ExecuteKickAttack(int playerNum, PlayerState attacker, PlayerState defender, CharacterAnimationManager animMgr)

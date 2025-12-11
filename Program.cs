@@ -23,6 +23,9 @@ namespace DoAn_NT106
                 UIAudioWiring.Start();
                 Console.WriteLine("🎵 UIAudioWiring started - all buttons will play sound");
 
+                // Start UI styling enforcer (remove borders and control boxes at runtime)
+                UIStyling.Start();
+
                 if (args.Length > 0 && args[0].Equals("--login", StringComparison.OrdinalIgnoreCase))
                 {
                     // Process này chỉ dùng cho client login/register
@@ -73,6 +76,9 @@ namespace DoAn_NT106
 
                 // ✅ Stop UI Audio wiring
                 UIAudioWiring.Stop();
+
+                // Stop UI styling helper
+                UIStyling.Stop();
 
                 Console.WriteLine("✅ Cleanup complete");
             }

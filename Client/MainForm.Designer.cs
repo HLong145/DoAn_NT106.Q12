@@ -26,6 +26,7 @@ namespace DoAn_NT106
             lblUserName = new Label();
             btn_play = new Btn_Pixel();
             btnLogout = new Btn_Pixel();
+            btnMusic = new Btn_Pixel();
             panelMainContent = new Panel();
             label5 = new Label();
             label4 = new Label();
@@ -65,6 +66,7 @@ namespace DoAn_NT106
             panelSidebar.Controls.Add(lblUserName);
             panelSidebar.Controls.Add(btn_play);
             panelSidebar.Controls.Add(btnLogout);
+            panelSidebar.Controls.Add(btnMusic);
             panelSidebar.Dock = DockStyle.Left;
             panelSidebar.Location = new Point(0, 0);
             panelSidebar.Margin = new Padding(4, 5, 4, 5);
@@ -99,11 +101,9 @@ namespace DoAn_NT106
             // 
             // lblUserName
             // 
-            lblUserName.AutoSize = false;
             lblUserName.BackColor = Color.Transparent;
             lblUserName.Font = new Font("Courier New", 22.2F, FontStyle.Bold, GraphicsUnit.Point, 0);
             lblUserName.ForeColor = Color.FromArgb(64, 0, 0);
-            // center within sidebar and place below avatar
             lblUserName.Location = new Point(10, 300);
             lblUserName.Margin = new Padding(4, 0, 4, 0);
             lblUserName.Name = "lblUserName";
@@ -131,7 +131,7 @@ namespace DoAn_NT106
             btnLogout.FlatStyle = FlatStyle.Flat;
             btnLogout.Font = new Font("Courier New", 12F, FontStyle.Bold);
             btnLogout.ForeColor = Color.White;
-            btnLogout.Location = new Point(29, 620);
+            btnLogout.Location = new Point(29, 598);
             btnLogout.Name = "btnLogout";
             btnLogout.Size = new Size(267, 69);
             btnLogout.TabIndex = 9;
@@ -139,23 +139,17 @@ namespace DoAn_NT106
             btnLogout.Click += btnLogout_Click;
             // 
             // btnMusic
-            //
-            btnMusic = new Btn_Pixel();
-
+            // 
             btnMusic.BtnColor = Color.FromArgb(139, 69, 19);
             btnMusic.FlatStyle = FlatStyle.Flat;
-            // Giảm kích thước font để phù hợp với kích thước nút nhỏ hơn
             btnMusic.Font = new Font("Courier New", 12F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnMusic.ForeColor = Color.White;
-            // Đặt vị trí bên dưới nút Logout và giảm kích thước nút
-            btnMusic.Location = new Point(29, 700);
+            btnMusic.Location = new Point(29, 695);
             btnMusic.Name = "btnMusic";
-            btnMusic.Size = new Size(267, 50);
+            btnMusic.Size = new Size(268, 50);
             btnMusic.TabIndex = 10;
             btnMusic.Text = "Music: On";
             btnMusic.Click += BtnMusic_Click;
-            // Actually add btnMusic to the sidebar after it is initialized
-            panelSidebar.Controls.Add(btnMusic);
             // 
             // panelMainContent
             // 
@@ -244,9 +238,9 @@ namespace DoAn_NT106
             label1.Location = new Point(141, 272);
             label1.Margin = new Padding(4, 0, 4, 0);
             label1.Name = "label1";
-            label1.Size = new Size(672, 76);
+            label1.Size = new Size(752, 76);
             label1.TabIndex = 12;
-            label1.Text = "CHOOSE YOUR HERO";
+            label1.Text = "CHARACTER SHOWCASE";
             // 
             // pictureBox7
             // 

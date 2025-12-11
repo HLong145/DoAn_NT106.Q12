@@ -33,7 +33,7 @@ namespace DoAn_NT106
             // mainPanel
             // 
             mainPanel.BackColor = Color.FromArgb(101, 67, 51);
-            mainPanel.BorderStyle = BorderStyle.FixedSingle;
+            mainPanel.BorderStyle = BorderStyle.None;
             mainPanel.Controls.Add(pictureBox5);
             mainPanel.Controls.Add(lblTitle);
             mainPanel.Controls.Add(cmbMaps);
@@ -44,7 +44,7 @@ namespace DoAn_NT106
             mainPanel.Name = "mainPanel";
             mainPanel.Size = new Size(580, 480);
             mainPanel.TabIndex = 0;
-            mainPanel.Paint += Panel_Paint;
+            // panel border paint removed
             // 
             // lblTitle
             // 
@@ -128,9 +128,9 @@ namespace DoAn_NT106
             ClientSize = new Size(600, 500);
             Controls.Add(mainPanel);
             Font = new Font("Courier New", 12F, FontStyle.Bold);
-            FormBorderStyle = FormBorderStyle.FixedDialog;
-            MaximizeBox = false;
-            MinimizeBox = false;
+            // remove outer window border and close button
+            FormBorderStyle = FormBorderStyle.None;
+            ControlBox = false;
             Name = "MapSelectForm";
             StartPosition = FormStartPosition.CenterParent;
             Text = "⚔️ Choose Battleground ⚔️";

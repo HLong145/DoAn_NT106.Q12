@@ -63,7 +63,7 @@ namespace DoAn_NT106.Client.BattleSystems
                     if (spellAnimation != null && ImageAnimator.CanAnimate(spellAnimation))
                     {
                         ImageAnimator.Animate(spellAnimation, frameChangedHandler);
-                        Console.WriteLine("✓ Spell animation loaded");
+            // debug removed
                     }
                 }
                 catch (Exception ex)
@@ -81,7 +81,7 @@ namespace DoAn_NT106.Client.BattleSystems
                         if (ImageAnimator.CanAnimate(warriorSkillEffect))
                         {
                             ImageAnimator.Animate(warriorSkillEffect, frameChangedHandler);
-                            Console.WriteLine("✓ Warrior effect loaded");
+                        // debug removed
                         }
                     }
                     else
@@ -184,7 +184,7 @@ namespace DoAn_NT106.Client.BattleSystems
             }
             catch { }
 
-            Console.WriteLine($"✓ Spell spawned (adjusted) at CX={centerX}, CY={centerY}");
+            // debug removed
 
             spellDamageTimer?.Stop();
             spellDamageTimer?.Dispose();
@@ -208,7 +208,7 @@ namespace DoAn_NT106.Client.BattleSystems
                     Rectangle spellHitRect = new Rectangle(narrowX, narrowY, SPELL_HITBOX_WIDTH, SPELL_HITBOX_HEIGHT);
 
                     bool hit = !currentHb.IsEmpty && spellHitRect.IntersectsWith(currentHb);
-                    Console.WriteLine($"[Spell Damage] Hit={(hit ? "YES" : "NO")}, SpellHitRect=({spellHitRect.X},{spellHitRect.Y},{spellHitRect.Width}x{spellHitRect.Height}), TargetHb=({currentHb.X},{currentHb.Y},{currentHb.Width}x{currentHb.Height})");
+                    // debug removed
 
                     if (hit)
                     {
@@ -243,7 +243,7 @@ namespace DoAn_NT106.Client.BattleSystems
                 CreatedAt = DateTime.UtcNow
             });
 
-            Console.WriteLine($"✓ Warrior projectile at X={x}, Y={y} by player {owner}, dir={(direction > 0 ? "right" : "left")}");
+            // debug removed
         }
 
         public void UpdateFireball(Func<int, int, int, int, Rectangle> getPlayerHurtbox,
@@ -317,18 +317,7 @@ namespace DoAn_NT106.Client.BattleSystems
                         SPELL_WIDTH,
                         SPELL_HEIGHT);
 
-                    // Debug: draw spell drawn rect
-                    using (var pen = new Pen(Color.Purple, 2))
-                    {
-                        g.DrawRectangle(pen, spellScreenX - offsetX, SpellY - offsetY, SPELL_WIDTH, SPELL_HEIGHT);
-                    }
-                    // Debug: draw narrow hitbox (shifted 40px to the left)
-                    using (var pen2 = new Pen(Color.Magenta, 2))
-                    {
-                        int narrowX = SpellX - viewportX + (50 - 10) + 20 - 50 - (SPELL_HITBOX_WIDTH / 2);
-                        int narrowY = SpellY + 100 - (SPELL_HITBOX_HEIGHT / 2);
-                        g.DrawRectangle(pen2, narrowX, narrowY, SPELL_HITBOX_WIDTH, SPELL_HITBOX_HEIGHT);
-                    }
+                    // debug drawing removed
                 }
             }
 
@@ -354,10 +343,7 @@ namespace DoAn_NT106.Client.BattleSystems
                         }
                     }
 
-                    using (var pen = new Pen(Color.Gold, 2))
-                    {
-                        g.DrawRectangle(pen, projScreenX, proj.Y, PROJECTILE_WIDTH, PROJECTILE_HEIGHT);
-                    }
+                    // debug drawing removed
                 }
             }
         }

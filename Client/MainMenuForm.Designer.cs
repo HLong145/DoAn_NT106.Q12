@@ -17,32 +17,30 @@
         {
             mainPanel = new Pnl_Pixel();
             lblTitle = new Label();
+            pictureBox5 = new PictureBox();
+            pictureBox2 = new PictureBox();
+            pictureBox1 = new PictureBox();
             btnContinue = new Btn_Pixel();
             btnBackToLobby = new Btn_Pixel();
-            pictureBox1 = new PictureBox();
-            pictureBox2 = new PictureBox();
-            pictureBox5 = new PictureBox();
             mainPanel.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)pictureBox1).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)pictureBox2).BeginInit();
             ((System.ComponentModel.ISupportInitialize)pictureBox5).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)pictureBox2).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)pictureBox1).BeginInit();
             SuspendLayout();
             // 
             // mainPanel
             // 
             mainPanel.BackColor = Color.FromArgb(101, 67, 51);
-            mainPanel.BorderStyle = BorderStyle.FixedSingle;
-            mainPanel.Controls.Add(pictureBox5);
-            mainPanel.Controls.Add(pictureBox2);
             mainPanel.Controls.Add(pictureBox1);
+            mainPanel.Controls.Add(pictureBox5);
             mainPanel.Controls.Add(lblTitle);
+            mainPanel.Controls.Add(pictureBox2);
             mainPanel.Controls.Add(btnContinue);
             mainPanel.Controls.Add(btnBackToLobby);
             mainPanel.Location = new Point(10, 10);
             mainPanel.Name = "mainPanel";
             mainPanel.Size = new Size(480, 258);
             mainPanel.TabIndex = 0;
-            mainPanel.Paint += Panel_Paint;
             // 
             // lblTitle
             // 
@@ -55,6 +53,39 @@
             lblTitle.TabIndex = 0;
             lblTitle.Text = "⏸️ PAUSED ⏸️";
             lblTitle.TextAlign = ContentAlignment.MiddleCenter;
+            // 
+            // pictureBox5
+            // 
+            pictureBox5.BackColor = Color.Transparent;
+            pictureBox5.Image = Properties.Resources.moon;
+            pictureBox5.Location = new Point(-29, -1);
+            pictureBox5.Name = "pictureBox5";
+            pictureBox5.Size = new Size(118, 73);
+            pictureBox5.SizeMode = PictureBoxSizeMode.Zoom;
+            pictureBox5.TabIndex = 11;
+            pictureBox5.TabStop = false;
+            // 
+            // pictureBox2
+            // 
+            pictureBox2.BackColor = Color.Transparent;
+            pictureBox2.Image = Properties.Resources.mây;
+            pictureBox2.Location = new Point(-29, 191);
+            pictureBox2.Name = "pictureBox2";
+            pictureBox2.Size = new Size(153, 80);
+            pictureBox2.SizeMode = PictureBoxSizeMode.Zoom;
+            pictureBox2.TabIndex = 10;
+            pictureBox2.TabStop = false;
+            // 
+            // pictureBox1
+            // 
+            pictureBox1.BackColor = Color.Transparent;
+            pictureBox1.Image = Properties.Resources.mây;
+            pictureBox1.Location = new Point(390, 45);
+            pictureBox1.Name = "pictureBox1";
+            pictureBox1.Size = new Size(153, 80);
+            pictureBox1.SizeMode = PictureBoxSizeMode.Zoom;
+            pictureBox1.TabIndex = 9;
+            pictureBox1.TabStop = false;
             // 
             // btnContinue
             // 
@@ -84,57 +115,27 @@
             btnBackToLobby.UseVisualStyleBackColor = true;
             btnBackToLobby.Click += BtnBackToLobby_Click;
             // 
-            // pictureBox1
-            // 
-            pictureBox1.BackColor = Color.Transparent;
-            pictureBox1.Image = Properties.Resources.mây;
-            pictureBox1.Location = new Point(390, 45);
-            pictureBox1.Name = "pictureBox1";
-            pictureBox1.Size = new Size(153, 80);
-            pictureBox1.SizeMode = PictureBoxSizeMode.Zoom;
-            pictureBox1.TabIndex = 9;
-            pictureBox1.TabStop = false;
-            // 
-            // pictureBox2
-            // 
-            pictureBox2.BackColor = Color.Transparent;
-            pictureBox2.Image = Properties.Resources.mây;
-            pictureBox2.Location = new Point(-29, 191);
-            pictureBox2.Name = "pictureBox2";
-            pictureBox2.Size = new Size(153, 80);
-            pictureBox2.SizeMode = PictureBoxSizeMode.Zoom;
-            pictureBox2.TabIndex = 10;
-            pictureBox2.TabStop = false;
-            // 
-            // pictureBox5
-            // 
-            pictureBox5.BackColor = Color.Transparent;
-            pictureBox5.Image = Properties.Resources.moon;
-            pictureBox5.Location = new Point(-29, -1);
-            pictureBox5.Name = "pictureBox5";
-            pictureBox5.Size = new Size(118, 73);
-            pictureBox5.SizeMode = PictureBoxSizeMode.Zoom;
-            pictureBox5.TabIndex = 11;
-            pictureBox5.TabStop = false;
-            // 
             // MainMenuForm
             // 
             AutoScaleDimensions = new SizeF(12F, 23F);
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = Color.FromArgb(160, 82, 45);
             ClientSize = new Size(500, 280);
+            ControlBox = false;
+            // remove outer panel border drawing
+            // mainPanel.Paint -= Panel_Paint; (designer keeps method but we won't attach it)
             Controls.Add(mainPanel);
             Font = new Font("Courier New", 12F, FontStyle.Bold);
-            FormBorderStyle = FormBorderStyle.FixedDialog;
+            // remove outer window border but keep dialog style visually
+            FormBorderStyle = FormBorderStyle.None;
             MaximizeBox = false;
             MinimizeBox = false;
             Name = "MainMenuForm";
             StartPosition = FormStartPosition.CenterParent;
-            Text = "⚔️ PAUSE MENU ⚔️";
             mainPanel.ResumeLayout(false);
-            ((System.ComponentModel.ISupportInitialize)pictureBox1).EndInit();
-            ((System.ComponentModel.ISupportInitialize)pictureBox2).EndInit();
             ((System.ComponentModel.ISupportInitialize)pictureBox5).EndInit();
+            ((System.ComponentModel.ISupportInitialize)pictureBox2).EndInit();
+            ((System.ComponentModel.ISupportInitialize)pictureBox1).EndInit();
             ResumeLayout(false);
         }
 

@@ -1215,87 +1215,7 @@ namespace DoAn_NT106
                     e.Graphics.DrawString("★", font, brush, sx, player2State.Y - 35);
                 }
             }
-            // ===== ✅ DEBUG HITBOXES =====
-            // 1. Draw attack hitbox (green) when attacking
-            if (player1State.IsAttacking)
-            {
-                var attackBox = GetAttackHitbox(player1State, player1State.CurrentAnimation);
-                using (var pen = new Pen(Color.Lime, 3))
-                {
-                    e.Graphics.DrawRectangle(pen,
-                        attackBox.X - viewportX,
-                        attackBox.Y,
-                        attackBox.Width,
-                        attackBox.Height);
-                }
-            }
-
-            if (player2State.IsAttacking)
-            {
-                var attackBox = GetAttackHitbox(player2State, player2State.CurrentAnimation);
-                using (var pen = new Pen(Color.Lime, 3))
-                {
-                    e.Graphics.DrawRectangle(pen,
-                        attackBox.X - viewportX,
-                        attackBox.Y,
-                        attackBox.Width,
-                        attackBox.Height);
-                }
-            }
-
-            // 2.  Draw skill hitbox (green) when skill is active
-            if (player1State.IsSkillActive)
-            {
-                if (characterAttackConfigs.ContainsKey(player1CharacterType) &&
-                    characterAttackConfigs[player1CharacterType].ContainsKey("skill"))
-                {
-                    var skillBox = GetAttackHitbox(player1State, "skill");
-                    using (var pen = new Pen(Color.Lime, 3))
-                    {
-                        e.Graphics.DrawRectangle(pen,
-                            skillBox.X - viewportX,
-                            skillBox.Y,
-                            skillBox.Width,
-                            skillBox.Height);
-                    }
-                }
-            }
-
-            if (player2State.IsSkillActive)
-            {
-                if (characterAttackConfigs.ContainsKey(player2CharacterType) &&
-                    characterAttackConfigs[player2CharacterType].ContainsKey("skill"))
-                {
-                    var skillBox = GetAttackHitbox(player2State, "skill");
-                    using (var pen = new Pen(Color.Lime, 3))
-                    {
-                        e.Graphics.DrawRectangle(pen,
-                            skillBox.X - viewportX,
-                            skillBox.Y,
-                            skillBox.Width,
-                            skillBox.Height);
-                    }
-                }
-            }
-
-            // 3. Draw hurtbox (red) always
-            var p1Hurtbox = GetPlayerHitbox(player1State);
-            var p2Hurtbox = GetPlayerHitbox(player2State);
-
-            using (var pen = new Pen(Color.Red, 2))
-            {
-                e.Graphics.DrawRectangle(pen,
-                    p1Hurtbox.X - viewportX,
-                    p1Hurtbox.Y,
-                    p1Hurtbox.Width,
-                    p1Hurtbox.Height);
-
-                e.Graphics.DrawRectangle(pen,
-                    p2Hurtbox.X - viewportX,
-                    p2Hurtbox.Y,
-                    p2Hurtbox.Width,
-                    p2Hurtbox.Height);
-            }
+            // Debug hitbox/hurtbox/skill drawing removed
         }
         private void UpdateCamera()
         {
@@ -1893,7 +1813,7 @@ namespace DoAn_NT106
             }
             // Bringer of Death, Warrior, GirlKnight đều căn giữa tự nhiên
 
-            Console.WriteLine($"[{player.CharacterType}] Hurtbox: PlayerX={player.X}, ActualW={actualWidth}, HitboxW={hitboxWidth}, OffsetX={offsetX}, FinalX={player.X + offsetX}");
+            // hurtbox debug removed
 
             return new Rectangle(
                 player.X + offsetX,
@@ -1953,7 +1873,7 @@ namespace DoAn_NT106
                 finalAttackY = attacker.Y + yOffset + groundAdjustment + offsetY;
                 int bidirectionalWidth = (attackRangeValue * 2) - 20;
                 if (bidirectionalWidth < 0) bidirectionalWidth = 0; // safety
-                Console.WriteLine($"[GetAttackHitbox] GIRLKNIGHT.skill (FORWARD+BACK -10px each side): X={finalAttackX}, Y={finalAttackY}, W={bidirectionalWidth}, H={attackHeightValue}");
+                // debug removed for skill hitbox
                 return new Rectangle(finalAttackX, finalAttackY, bidirectionalWidth, attackHeightValue);
             }
 
@@ -1969,7 +1889,7 @@ namespace DoAn_NT106
                 finalAttackY = attacker.Y + yOffset + groundAdjustment + offsetY;
             }
 
-            Console.WriteLine($"[GetAttackHitbox] {attacker.CharacterType}.{attackType}: X={finalAttackX}, Y={finalAttackY}, W={attackRangeValue}, H={attackHeightValue}");
+            // debug removed for attack hitbox
             return new Rectangle(finalAttackX, finalAttackY, attackRangeValue, attackHeightValue);
         }
 

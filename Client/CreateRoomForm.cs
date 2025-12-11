@@ -147,9 +147,9 @@ namespace DoAn_NT106.Client
             if (sender is Button btn)
             {
                 if (btn == btnCreate)
-                    btn.BackColor = Color.FromArgb(0, 128, 0);       
+                    btn.BackColor = Color.FromArgb(0, 180, 100);       // Green
                 else if (btn == btnCancel)
-                    btn.BackColor = Color.FromArgb(128, 128, 128);   
+                    btn.BackColor = Color.FromArgb(200, 50, 50);   // Red
             }
         }
 
@@ -157,7 +157,7 @@ namespace DoAn_NT106.Client
         {
             if (sender is TextBox txt)
             {
-                txt.BackColor = Color.FromArgb(120, 80, 60);
+                txt.BackColor = Color.FromArgb(255, 192, 128);
             }
         }
 
@@ -165,7 +165,7 @@ namespace DoAn_NT106.Client
         {
             if (sender is TextBox txt)
             {
-                txt.BackColor = Color.FromArgb(101, 67, 51);
+                txt.BackColor = Color.FromArgb(255, 192, 128);
             }
         }
 
