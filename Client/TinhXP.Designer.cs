@@ -433,7 +433,7 @@
             lbl_XPBefore.Padding = new Padding(4, 2, 4, 2);
             lbl_XPBefore.Size = new Size(440, 27);
             lbl_XPBefore.TabIndex = 8;
-            lbl_XPBefore.Text = "XP Before Match:                              1276 XP";
+            lbl_XPBefore.Text = "XP Before Match:\r\n";
             // 
             // lbl_XPGained
             // 
@@ -445,7 +445,7 @@
             lbl_XPGained.Padding = new Padding(4, 2, 4, 2);
             lbl_XPGained.Size = new Size(439, 22);
             lbl_XPGained.TabIndex = 9;
-            lbl_XPGained.Text = "XP Gained:                                    +284 XP";
+            lbl_XPGained.Text = "XP Gained: \r\n";
             // 
             // lbl_XPAfter
             // 
@@ -457,7 +457,7 @@
             lbl_XPAfter.Padding = new Padding(4, 2, 4, 2);
             lbl_XPAfter.Size = new Size(439, 22);
             lbl_XPAfter.TabIndex = 10;
-            lbl_XPAfter.Text = "XP After Match:                               1560 XP";
+            lbl_XPAfter.Text = "XP After Match:       ";
             // 
             // pnl_Divider2
             // 

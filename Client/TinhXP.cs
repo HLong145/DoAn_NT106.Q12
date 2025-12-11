@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using DoAn_NT106.Services;
 
 namespace DoAn_NT106.Client
 {
@@ -15,6 +16,11 @@ namespace DoAn_NT106.Client
         private readonly MatchResult _result;
         private int _calculatedXp;
         private bool _detailsInitialized;
+        private int _levelBefore;
+        private int _levelAfter;
+        private int _xpBefore;
+        private int _xpAfter;
+        private int _xpNeededForNextLevel;
 
         // Giả sử các control này đã có trong Designer:
         // Label lbl_XPEarnedValue;
@@ -54,13 +60,67 @@ namespace DoAn_NT106.Client
                            + (_result.AttackCount * 5)
                            + (_result.SkillCount * 20);
 
-            // 4. Tổng XP
+            // 4. Tổng XP cộng thêm
             _calculatedXp = baseXp + styleScore / 5;
 
-            // Hiển thị tổng XP trên label chính
+            // ====== TÍNH LEVEL / XP TRƯỚC & SAU, CẬP NHẬT DATABASE ======
+            const int xpPerLevel = 1000;
+
+            // Lấy XP hiện tại từ DB (nếu có), mặc định level 1, XP 0
+            _xpBefore = 0;
+            try
+            {
+                if (!string.IsNullOrEmpty(_result.PlayerUsername))
+                {
+                    var db = new DatabaseService();
+                    _xpBefore = db.GetPlayerXp(_result.PlayerUsername); 
+                }
+            }
+            catch
+            {
+                _xpBefore = 0;
+            }
+
+            _xpAfter = _xpBefore + _calculatedXp;
+
+            _levelBefore = Math.Max(1, (_xpBefore / xpPerLevel) + 1);
+            _levelAfter = Math.Max(1, (_xpAfter / xpPerLevel) + 1);
+
+            _xpNeededForNextLevel = _levelAfter * xpPerLevel;
+
+            // Lưu XP mới và TOTAL_XP (tổng XP cần cho level hiện tại) vào DB
+            try
+            {
+                if (!string.IsNullOrEmpty(_result.PlayerUsername))
+                {
+                    var db = new DatabaseService();
+                    db.UpdatePlayerXp(_result.PlayerUsername, _xpAfter, _xpNeededForNextLevel);
+                }
+            }
+            catch { }
+
+            // Hiển thị tổng XP nhận được trên label chính
             if (lbl_XPEarnedValue != null)
             {
-                lbl_XPEarnedValue.Text = _calculatedXp.ToString();
+                lbl_XPEarnedValue.Text = "+" + _calculatedXp + " XP";
+            }
+
+            if (lbl_XPBefore != null)
+            {
+                // Ví dụ: "XP Before Match: 100 XP"
+                lbl_XPBefore.Text = $"XP Before Match: {_xpBefore} XP";
+            }
+
+            if (lbl_XPGained != null)
+            {
+                // Ví dụ: "XP Gained: 100 XP"
+                lbl_XPGained.Text = $"XP Gained: {_calculatedXp} XP";
+            }
+
+            if (lbl_XPAfter != null)
+            {
+                // Ví dụ: "XP After Match: 200 XP"
+                lbl_XPAfter.Text = $"XP After Match: {_xpAfter} XP";
             }
 
             // Cập nhật thông tin người chơi thắng/thua
@@ -96,6 +156,44 @@ namespace DoAn_NT106.Client
                 {
                     lbl_TimeValue.Text = string.Format("{0:00}:{1:00}", (int)time.TotalMinutes, time.Seconds);
                 }
+            }
+
+            // ====== CẬP NHẬT PROGRESS LEVEL / THANH XP ======
+            // lbl_XPProgress: Level X → Level Y hoặc Level X nếu không lên cấp
+            if (lbl_XPProgress != null)
+            {
+                if (_levelAfter > _levelBefore)
+                {
+                    lbl_XPProgress.Text = $"Level {_levelBefore} d Level {_levelAfter}";
+                }
+                else
+                {
+                    lbl_XPProgress.Text = $"Level {_levelAfter}";
+                }
+            }
+
+            // lbl_XPProgressValue: currentXP / neededXP XP
+            if (lbl_XPProgressValue != null)
+            {
+                lbl_XPProgressValue.Text = $"{_xpAfter} / {_xpNeededForNextLevel} XP";
+            }
+
+            // lbl_XPPercent + thanh pnl_XPBarFill: phần trăm dựa trên XP trong level hiện tại
+            int xpInCurrentLevel = _xpAfter % xpPerLevel;
+            float percent = xpPerLevel > 0 ? (xpInCurrentLevel * 100f / xpPerLevel) : 0f;
+
+            if (lbl_XPPercent != null)
+            {
+                lbl_XPPercent.Text = $"{percent:0}%";
+            }
+
+            if (pnl_XPBarFill != null && pnl_XPBarContainer != null)
+            {
+                int maxWidth = pnl_XPBarContainer.Width;
+                int fillWidth = (int)(maxWidth * (percent / 100f));
+                if (fillWidth < 0) fillWidth = 0;
+                if (fillWidth > maxWidth) fillWidth = maxWidth;
+                pnl_XPBarFill.Width = fillWidth;
             }
         }
         private void btn_Continue_Click(object sender, EventArgs e)
@@ -159,9 +257,15 @@ namespace DoAn_NT106.Client
             {
                 BuildDetailsPanel();
                 _detailsInitialized = true;
-            }
 
-            pnl_XPDetails.Visible = !pnl_XPDetails.Visible;
+                // Lần nhấn đầu tiên: sau khi build, hiển thị luôn
+                pnl_XPDetails.Visible = true;
+            }
+            else
+            {
+                // Các lần sau: toggle bình thường
+                pnl_XPDetails.Visible = !pnl_XPDetails.Visible;
+            }
         }
 
         private void BuildDetailsPanel()

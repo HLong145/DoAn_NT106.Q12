@@ -213,6 +213,43 @@ namespace DoAn_NT106.Services
             }
         }
 
+        public int GetPlayerXp(string username)
+        {
+            // Example implementation: adjust table/column names as needed
+            using (var connection = new SqlConnection(connectionString))
+            {
+                connection.Open();
+                using (var command = new SqlCommand("SELECT XP FROM PLAYERS WHERE Username = @Username", connection))
+                {
+                    command.Parameters.AddWithValue("@Username", username);
+                    var result = command.ExecuteScalar();
+                    if (result != null && int.TryParse(result.ToString(), out int xp))
+                    {
+                        return xp;
+                    }
+                    return 0;
+                }
+            }
+        }
+
+        public bool UpdatePlayerXp(string username, int newXp, int totalXpForLevel)
+        {
+            // Example implementation, adjust table/column names as needed
+            using (var connection = new SqlConnection(connectionString))
+            {
+                connection.Open();
+                using (var command = new SqlCommand(
+                    "UPDATE PLAYERS SET XP = @xp, TOTAL_XP = @totalXp WHERE USERNAME = @username", connection))
+                {
+                    command.Parameters.AddWithValue("@xp", newXp);
+                    command.Parameters.AddWithValue("@totalXp", totalXpForLevel);
+                    command.Parameters.AddWithValue("@username", username);
+                    int rows = command.ExecuteNonQuery();
+                    return rows > 0;
+                }
+            }
+        }
+
         // RESET PASSWORD 
         public bool ResetPassword(string username, string newPassword)
         {
