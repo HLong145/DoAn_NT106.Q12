@@ -499,6 +499,7 @@
             btn_Continue.Size = new Size(440, 45);
             btn_Continue.TabIndex = 14;
             btn_Continue.Text = "► CONTINUE ◄";
+            btn_Continue.Click += btn_Continue_Click;
             // 
             // pic_Cloud4
             // 
@@ -544,11 +545,6 @@
         private void pnl_Main_Paint(object sender, PaintEventArgs e)
         {
             // Paint event for main panel (optional, can be empty)
-        }
-
-        private void btn_ViewStats_Click(object sender, EventArgs e)
-        {
-
         }
 
         // Add this method to the partial class TinhXP in your Designer file or (preferably) in the main code file (TinhXP.cs)

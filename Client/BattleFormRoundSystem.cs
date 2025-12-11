@@ -643,7 +643,7 @@ namespace DoAn_NT106
             };
         }
 
-        /// <summary>Ends the match and shows winner dialog</summary>
+        /// <summary>Ends the match and shows XP result form instead of only a dialog</summary>
         private void EndMatch(string winner)
         {
             _roundInProgress = false;
@@ -651,21 +651,44 @@ namespace DoAn_NT106
             try { gameTimer?.Stop(); } catch { }
             try { walkAnimationTimer?.Stop(); } catch { }
 
-            string result = $"🎉 {winner} WINS THE MATCH!\n\n" +
-                            $"{username}: {_player1Wins} wins\n" +
-                            $"{opponent}: {_player2Wins} wins";
+            // Xác định người chơi hiện tại có phải là winner không
+            bool player1IsWinner = string.Equals(winner, username, StringComparison.OrdinalIgnoreCase);
+
+            // Tạo MatchResult để truyền sang form TinhXP
+            var result = new DoAn_NT106.Client.MatchResult
+            {
+                PlayerUsername = username,
+                OpponentUsername = opponent,
+                PlayerIsWinner = player1IsWinner,
+                MatchTime = TimeSpan.Zero, // Nếu bạn có thời gian trận thì gán thật ở đây
+                PlayerWins = _player1Wins,
+                OpponentWins = _player2Wins,
+                ParryCount = player1IsWinner ? player1ParryCount : player2ParryCount,
+                AttackCount = player1IsWinner ? player1State.AttackCount : player2State.AttackCount,
+                SkillCount = player1IsWinner ? player1SkillCount : player2SkillCount
+            };
+
+            // (Tuỳ bạn) vẫn hiện MessageBox thông báo thắng/thua
+            string msg = $"🎉 {winner} WINS THE MATCH!\n\n" +
+                         $"{username}: {_player1Wins} wins\n" +
+                         $"{opponent}: {_player2Wins} wins";
 
             MessageBox.Show(
-                result,
+                msg,
                 "MATCH FINISHED",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Exclamation
             );
 
-            // ✅ CLOSE battle form and return to lobby
+            // Mở form tính XP sau khi nhấn OK
+            using (var xpForm = new DoAn_NT106.Client.TinhXP(result))
+            {
+                xpForm.StartPosition = FormStartPosition.CenterScreen;
+                xpForm.ShowDialog(this);
+            }
+
+            // Đóng BattleForm và bật lại nhạc theme
             this.Close();
-            
-            // ✅ Resume theme music when returning to MainForm
             try { DoAn_NT106.SoundManager.PlayMusic(DoAn_NT106.Client.BackgroundMusic.ThemeMusic, loop: true); } catch { }
         }
 
