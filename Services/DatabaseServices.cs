@@ -12,7 +12,7 @@ namespace DoAn_NT106.Services
     public class DatabaseService
     {
         private readonly string connectionString =
-            "Server=localhost;Port=3306;Database=USERDB;Uid=root;Pwd=123456;";
+            "Server=mainline.proxy.rlwy.net;Port=4330;Database=railway;Uid=root;Pwd=gjtaqRQddaGAkFWFTgWiDMPbyrFqzAql;";
 
         // =============================
         // 1. TEST CONNECTION
