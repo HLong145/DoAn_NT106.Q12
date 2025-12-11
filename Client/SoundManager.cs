@@ -7,6 +7,8 @@ namespace DoAn_NT106
     public static class SoundManager
     {
         private static AudioManager _instance;
+        // Global flag to enable/disable background music (theme + battleground)
+        public static bool MusicEnabled { get; set; } = true;
 
         /// <summary>Initialize the sound manager (call once at game startup)</summary>
         public static void Initialize()
@@ -33,6 +35,7 @@ namespace DoAn_NT106
         /// <summary>Play background music</summary>
         public static void PlayMusic(BackgroundMusic music, bool loop = true)
         {
+            if (!MusicEnabled) return;
             _instance?.PlayBackgroundMusic(music, loop);
         }
 

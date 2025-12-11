@@ -138,6 +138,25 @@ namespace DoAn_NT106
             btnLogout.Text = "LOGOUT";
             btnLogout.Click += btnLogout_Click;
             // 
+            // btnMusic
+            //
+            btnMusic = new Btn_Pixel();
+
+            btnMusic.BtnColor = Color.FromArgb(139, 69, 19);
+            btnMusic.FlatStyle = FlatStyle.Flat;
+            // Giảm kích thước font để phù hợp với kích thước nút nhỏ hơn
+            btnMusic.Font = new Font("Courier New", 12F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            btnMusic.ForeColor = Color.White;
+            // Đặt vị trí bên dưới nút Logout và giảm kích thước nút
+            btnMusic.Location = new Point(29, 700);
+            btnMusic.Name = "btnMusic";
+            btnMusic.Size = new Size(267, 50);
+            btnMusic.TabIndex = 10;
+            btnMusic.Text = "Music: On";
+            btnMusic.Click += BtnMusic_Click;
+            // Actually add btnMusic to the sidebar after it is initialized
+            panelSidebar.Controls.Add(btnMusic);
+            // 
             // panelMainContent
             // 
             panelMainContent.BackgroundImage = Properties.Resources.background2;
@@ -413,5 +432,6 @@ namespace DoAn_NT106
         private Label label3;
         private Label label5;
         private Label label4;
+        private Btn_Pixel btnMusic;
     }
 }

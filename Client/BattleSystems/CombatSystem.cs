@@ -485,13 +485,8 @@ namespace DoAn_NT106.Client.BattleSystems
                     ApplyKnockback(defender, knockbackDir, knockbackDistance);
                     showHitEffectCallback?.Invoke("Heavy Impact!", Color.OrangeRed);
                     // ✅ Delay kick sound 500ms to match requested timing
-                    var sndTimer = new Timer { Interval = 500 };
-                    sndTimer.Tick += (s2, e2) =>
-                    {
-                        try { sndTimer.Stop(); sndTimer.Dispose(); } catch { }
-                        try { DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.KickGM); } catch { }
-                    };
-                    sndTimer.Start();
+                    // Play impact sound immediately and also ensure it can play multiple times
+                    try { DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.KickGM); } catch { }
                 }
             };
             hitTimer.Start();

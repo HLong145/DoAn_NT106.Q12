@@ -34,6 +34,20 @@ namespace DoAn_NT106
             public bool IsStar { get; set; }
         }
 
+        private void BtnMusic_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                bool newState = !SoundManager.MusicEnabled;
+                ToggleMusic(newState);
+                btnMusic.Text = newState ? "Music: On" : "Music: Off";
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Toggle music error: " + ex.Message);
+            }
+        }
+
         public MainForm()
         {
             InitializeComponent();
@@ -108,6 +122,16 @@ namespace DoAn_NT106
             // Audio system initialized
         }
 
+        // Toggle music on/off (controls theme + battleground music). Other sound effects unaffected.
+        private void ToggleMusic(bool enabled)
+        {
+            SoundManager.MusicEnabled = enabled;
+            if (!enabled)
+                SoundManager.StopMusic();
+            else
+                SoundManager.PlayMusic(BackgroundMusic.ThemeMusic, loop: true);
+        }
+
         public MainForm(string username, string token) : this()
         {
             this.username = username;
@@ -122,8 +146,11 @@ namespace DoAn_NT106
                 InitializeRainEffect();
                 
                 // ✅ Play theme music khi MainForm load (logged in)
-                SoundManager.PlayMusic(BackgroundMusic.ThemeMusic, loop: true);
-                Console.WriteLine("🎵 Theme music started");
+                if (SoundManager.MusicEnabled)
+                {
+                    SoundManager.PlayMusic(BackgroundMusic.ThemeMusic, loop: true);
+                    Console.WriteLine("🎵 Theme music started");
+                }
             };
 
             LoadUserAvatar();
@@ -207,6 +234,12 @@ namespace DoAn_NT106
                     particles.RemoveAt(i);
                     CreateNewParticle(); // Tạo hạt mới thay thế
                 }
+            // Ensure music button initial state
+            try
+            {
+                btnMusic.Text = SoundManager.MusicEnabled ? "Music: On" : "Music: Off";
+            }
+            catch { }
             }
         }
 

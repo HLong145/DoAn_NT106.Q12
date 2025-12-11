@@ -4,6 +4,8 @@
 
 using System;
 using System.Windows.Forms;
+using System.Threading.Tasks;
+using System.Reflection;
 using System.Drawing;
 
 namespace DoAn_NT106
@@ -27,6 +29,10 @@ namespace DoAn_NT106
         // ✅ THÊM: Lưu mana giữa các hiệp
         private int _player1ManaCarryover = 0;
         private int _player2ManaCarryover = 0;
+        // ✅ THÊM: Cached audio bytes for round announcements to ensure repeatable playback
+        private byte[] _round1AudioBytes;
+        private byte[] _round2AudioBytes;
+        private byte[] _round3AudioBytes;
 
         /// <summary>Gets formatted round info text with round number, timer, and scores</summary>
         private string GetRoundCenterText()
@@ -168,10 +174,96 @@ namespace DoAn_NT106
                     _lblRoundCenter?.BringToFront();
                     
                     // Hiển thị ROUND animation
+                    // Preload round audio to ensure it can be played immediately and repeatedly
+                    try { PreloadRoundAudioResources(); } catch { }
                     DisplayRoundStartAnimation();
                 }
             };
             delayTimer.Start();
+        }
+
+        // Load embedded round_x resources into memory once so they can be played multiple times
+        private void PreloadRoundAudioResources()
+        {
+            try
+            {
+                if (_round1AudioBytes == null) _round1AudioBytes = GetAudioBytesFromResourceKey("round_1");
+                if (_round2AudioBytes == null) _round2AudioBytes = GetAudioBytesFromResourceKey("round_2");
+                if (_round3AudioBytes == null) _round3AudioBytes = GetAudioBytesFromResourceKey("round_3");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[RoundSystem] PreloadRoundAudioResources error: {ex.Message}");
+            }
+        }
+
+        private byte[] GetAudioBytesFromResourceKey(string key)
+        {
+            try
+            {
+                // Try typed property first
+                try
+                {
+                    var prop = typeof(Properties.Resources).GetProperty(key, System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.IgnoreCase);
+                    if (prop != null)
+                    {
+                        var val = prop.GetValue(null);
+                        if (val is byte[] bb) return bb;
+                        if (val is System.IO.UnmanagedMemoryStream ums)
+                        {
+                            using var ms = new System.IO.MemoryStream();
+                            ums.CopyTo(ms);
+                            return ms.ToArray();
+                        }
+                        if (val is System.IO.Stream s)
+                        {
+                            using var ms = new System.IO.MemoryStream();
+                            s.CopyTo(ms);
+                            return ms.ToArray();
+                        }
+                    }
+                }
+                catch { }
+
+                // Try resource manager stream
+                try
+                {
+                    using var rs = Properties.Resources.ResourceManager.GetStream(key, System.Globalization.CultureInfo.CurrentUICulture);
+                    if (rs != null)
+                    {
+                        using var ms = new System.IO.MemoryStream();
+                        rs.CopyTo(ms);
+                        return ms.ToArray();
+                    }
+                }
+                catch { }
+
+                // Try GetObject fallback
+                try
+                {
+                    var obj = Properties.Resources.ResourceManager.GetObject(key);
+                    if (obj is byte[] b) return b;
+                    if (obj is System.IO.UnmanagedMemoryStream ums2)
+                    {
+                        using var ms2 = new System.IO.MemoryStream();
+                        ums2.CopyTo(ms2);
+                        return ms2.ToArray();
+                    }
+                    if (obj is System.IO.Stream s2)
+                    {
+                        using var ms2 = new System.IO.MemoryStream();
+                        s2.CopyTo(ms2);
+                        return ms2.ToArray();
+                    }
+                }
+                catch { }
+
+                return null;
+            }
+            catch
+            {
+                return null;
+            }
         }
         
         /// <summary>Display the "ROUND X" animation at the start of a round</summary>
@@ -202,15 +294,11 @@ namespace DoAn_NT106
                 // Play generic sound for round announcement or use ButtonClick as fallback
                 try
                 {
-                    if (_roundNumber == 1) DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.Round1);
-                    else if (_roundNumber == 2) DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.Round2);
-                    else if (_roundNumber == 3) DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.Round3);
-                    
-                    Console.WriteLine($"[RoundSystem] ✅ Round {_roundNumber} sound initiated successfully");
+                    // Some builds may not include Round1/2/3 enums/resources; guard with TryPlay
+                    TryPlayRoundSound(_roundNumber);
                 }
                 catch (Exception roundSoundEx)
                 {
-                    // ✅ Fallback: Use ButtonClick sound if Round-specific sounds don't exist
                     Console.WriteLine($"[RoundSystem] Round sound failed, trying fallback ButtonClick: {roundSoundEx.Message}");
                     try { DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.ButtonClick); } catch { }
                 }
@@ -228,6 +316,7 @@ namespace DoAn_NT106
                 );
             }
             
+            
             _lblRoundStart.Visible = true;
             _lblRoundStart.BringToFront();
             gameTimer?.Stop(); // Lock input during countdown
@@ -244,6 +333,125 @@ namespace DoAn_NT106
             UpdateRoundCenterText();
             
             Console.WriteLine($"[RoundSystem] Displaying ROUND {_roundNumber} at center");
+        }
+
+        // Safely attempt to play round announcement sound if enum/value exists
+        private void TryPlayRoundSound(int round)
+        {
+            try
+            {
+                string enumName = round == 1 ? "Round1" : round == 2 ? "Round2" : "Round3";
+
+                // Ensure SoundManager initialized
+                try { DoAn_NT106.SoundManager.Initialize(); } catch { }
+
+                // Try to play embedded resource named round_1 / round_2 / round_3 first
+                try
+                {
+                    string resKey = $"round_{round}"; // matches your resources
+                    var obj = Properties.Resources.ResourceManager.GetObject(resKey);
+                    if (obj != null)
+                    {
+                        Console.WriteLine($"[RoundSystem] Found resource '{resKey}' - playing via NAudio");
+                        try
+                        {
+                            // Play mp3 resource using NAudio to support MP3 (SoundPlayer only supports WAV)
+                            byte[] audioBytes = null;
+                            if (obj is byte[] bb) audioBytes = bb;
+                            else if (obj is System.IO.UnmanagedMemoryStream ums)
+                            {
+                                using var tmp = new System.IO.MemoryStream();
+                                ums.CopyTo(tmp);
+                                audioBytes = tmp.ToArray();
+                            }
+                            else if (obj is System.IO.Stream s0)
+                            {
+                                using var tmp = new System.IO.MemoryStream();
+                                s0.Position = 0;
+                                s0.CopyTo(tmp);
+                                audioBytes = tmp.ToArray();
+                            }
+
+                            if (audioBytes != null && audioBytes.Length > 0)
+                            {
+                                var ms = new System.IO.MemoryStream(audioBytes);
+                                var reader = new NAudio.Wave.Mp3FileReader(ms);
+                                var wo = new NAudio.Wave.WaveOutEvent();
+                                wo.Init(reader);
+                                wo.PlaybackStopped += (s, e) =>
+                                {
+                                    try { wo.Dispose(); } catch { }
+                                    try { reader.Dispose(); } catch { }
+                                    try { ms.Dispose(); } catch { }
+                                };
+                                wo.Play();
+                                return;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[RoundSystem] NAudio play failed: {ex.Message}");
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine($"[RoundSystem] Resource '{resKey}' not found in Resources");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[RoundSystem] Resource play attempt failed: {ex.Message}");
+                }
+
+                // Try play from preloaded bytes first (ensures repeatable playback)
+                try
+                {
+                    byte[] bytesToPlay = round == 1 ? _round1AudioBytes : round == 2 ? _round2AudioBytes : _round3AudioBytes;
+                    if (bytesToPlay != null && bytesToPlay.Length > 0)
+                    {
+                        try
+                        {
+                            var ms = new System.IO.MemoryStream(bytesToPlay);
+                            var reader = new NAudio.Wave.Mp3FileReader(ms);
+                            var wo = new NAudio.Wave.WaveOutEvent();
+                            wo.Init(reader);
+                            wo.PlaybackStopped += (s, e) => { try { wo.Dispose(); } catch { } try { reader.Dispose(); } catch { } try { ms.Dispose(); } catch { } };
+                            wo.Play();
+                            Console.WriteLine($"[RoundSystem] Played round_{round} from preloaded resource (NAudio)");
+                            return;
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[RoundSystem] Failed to play preloaded round_{round}: {ex.Message}");
+                        }
+                    }
+                }
+                catch (Exception ex) { Console.WriteLine($"[RoundSystem] Preloaded play error: {ex.Message}"); }
+
+                // Fallback: try SoundManager mapping
+                try
+                {
+                    var seType = typeof(DoAn_NT106.Client.SoundEffect);
+                    if (Enum.IsDefined(seType, enumName))
+                    {
+                        var val = (DoAn_NT106.Client.SoundEffect)Enum.Parse(seType, enumName);
+                        Console.WriteLine($"[RoundSystem] Playing {enumName} via SoundManager");
+                        DoAn_NT106.SoundManager.PlaySound(val);
+                        return;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[RoundSystem] SoundManager play error: {ex.Message}");
+                }
+
+                // Final fallback system sound
+                try { System.Media.SystemSounds.Exclamation.Play(); } catch { }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[RoundSystem] TryPlayRoundSound error: {ex.Message}");
+            }
         }
 
         /// <summary>Countdown timer tick - updates every 1 second</summary>

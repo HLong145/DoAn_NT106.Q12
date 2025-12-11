@@ -30,7 +30,8 @@ namespace DoAn_NT106
                 ("girlknight", "kick") => SoundEffect.ButtonClick, // Don't play early sound
                 ("bringerofdeath", "kick") => SoundEffect.KickBringer,
                 ("warrior", "kick") => SoundEffect.KickWarrior, // ? Warrior kick: KickWarrior at startup (not ButtonClick)
-                ("goatman", "kick") => SoundEffect.KickGM,
+                // Goatman kick should only play on hit (handled inside ExecuteGoatmanKick)
+                ("goatman", "kick") => SoundEffect.ButtonClick,
 
                 // Dash/Special
                 ("girlknight", "slide" or "dash") => SoundEffect.DashKG,

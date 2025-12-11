@@ -40,6 +40,12 @@
     </EmbeddedResource>
   </ItemGroup>
 
+  <!-- Exclude form-level resx to avoid duplicate resource logical name generation -->
+  <ItemGroup>
+    <EmbeddedResource Remove="Client\BattleForm.resx" />
+    <None Include="Client\BattleForm.resx" />
+  </ItemGroup>
+
   <ItemGroup>
     <None Update="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
