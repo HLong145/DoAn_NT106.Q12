@@ -24,6 +24,8 @@ namespace DoAn_NT106.Client
         public TinhXP(MatchResult result)
         {
             InitializeComponent();
+            this.AutoScroll = true;
+            this.AutoScrollMinSize = Size.Empty;
             _result = result ?? throw new ArgumentNullException(nameof(result));
 
             CalculateAndDisplayXp();
@@ -63,7 +65,55 @@ namespace DoAn_NT106.Client
         }
         private void btn_Continue_Click(object sender, EventArgs e)
         {
+            // Điều hướng tuỳ theo cách vào trận
+            if (_result != null)
+            {
+                switch (_result.ReturnMode)
+                {
+                    case MatchReturnMode.ReturnToGameLobby:
+                        // Quay lại phòng đang join (PixelGameLobbyForm)
+                        if (!string.IsNullOrEmpty(_result.RoomCode) &&
+                            !string.IsNullOrEmpty(_result.PlayerUsername) &&
+                            !string.IsNullOrEmpty(_result.Token))
+                        {
+                            var lobby = new PixelGameLobby.GameLobbyForm(
+                                _result.RoomCode,
+                                _result.PlayerUsername,
+                                _result.Token);
+                            lobby.StartPosition = FormStartPosition.CenterScreen;
+                            lobby.Show();
+                        }
+                        break;
 
+                    case MatchReturnMode.ReturnToJoinRoom:
+                    default:
+                        // Quay lại JoinRoomForm (trường hợp test room hoặc offline)
+                        try
+                        {
+                            // Nếu JoinRoomForm đang mở thì focus lại
+                            var existing = Application.OpenForms
+                                .OfType<PixelGameLobby.JoinRoomForm>()
+                                .FirstOrDefault();
+                            if (existing != null)
+                            {
+                                existing.Show();
+                                existing.BringToFront();
+                            }
+                            else
+                            {
+                                // Tạo JoinRoomForm mới nếu không có
+                                var join = new PixelGameLobby.JoinRoomForm();
+                                join.StartPosition = FormStartPosition.CenterScreen;
+                                join.Show();
+                            }
+                        }
+                        catch { }
+                        break;
+                }
+            }
+
+            // Đóng form tính XP sau khi điều hướng
+            this.Close();
         }
 
         private void btn_ViewStats_Click(object sender, EventArgs e)
@@ -132,6 +182,12 @@ namespace DoAn_NT106.Client
     }
 
     // Giả định: MatchResult đã được định nghĩa trong project (BattleForm dùng để truyền sang đây)
+    public enum MatchReturnMode
+    {
+        ReturnToJoinRoom = 0,
+        ReturnToGameLobby = 1
+    }
+
     public class MatchResult
     {
         public string PlayerUsername { get; set; }
@@ -140,6 +196,13 @@ namespace DoAn_NT106.Client
         public TimeSpan MatchTime { get; set; }
         public int PlayerWins { get; set; }
         public int OpponentWins { get; set; }
+
+        // Thông tin room để quay lại đúng phòng
+        public string RoomCode { get; set; }
+        public string Token { get; set; }
+
+        // Xác định sau khi tính XP sẽ quay về đâu
+        public MatchReturnMode ReturnMode { get; set; } = MatchReturnMode.ReturnToJoinRoom;
 
         // Những field này phải được BattleForm gán đúng trước khi mở TinhXP
         public int ParryCount { get; set; }
