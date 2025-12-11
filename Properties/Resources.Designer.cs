@@ -752,9 +752,9 @@ namespace DoAn_NT106.Properties {
         /// <summary>
         ///   Looks up a localized resource of type System.IO.UnmanagedMemoryStream similar to System.IO.MemoryStream.
         /// </summary>
-        internal static System.IO.UnmanagedMemoryStream parry_KG_warrior_bringer_goatman {
+        internal static System.IO.UnmanagedMemoryStream parry_KG_bringer_goatman {
             get {
-                return ResourceManager.GetStream("parry_KG_warrior_bringer_goatman", resourceCulture);
+                return ResourceManager.GetStream("parry_KG_bringer_goatman", resourceCulture);
             }
         }
         

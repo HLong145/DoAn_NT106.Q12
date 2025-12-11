@@ -222,7 +222,9 @@ namespace DoAn_NT106
             animations["kick"] = ResourceToImage(Properties.Resources.GM_Attack2);
             animations["jump"] = ResourceToImage(Properties.Resources.GM_run);
             animations["hurt"] = ResourceToImage(Properties.Resources.GM_Hurt);
-            animations["parry"] = ResourceToImage(Properties.Resources.GM_parry);
+            // GM_parry resource may not exist in Resources; try ResourceManager lookup to avoid compile error
+            var gmParryObj = Properties.Resources.ResourceManager.GetObject("GM_parry");
+            animations["parry"] = ResourceToImage(gmParryObj);
             animations["fireball"] = ResourceToImage(Properties.Resources.GM_skill);
             animations["slide"] = ResourceToImage(Properties.Resources.GM_run); // No dash animation
         }

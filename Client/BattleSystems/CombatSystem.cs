@@ -161,11 +161,13 @@ namespace DoAn_NT106.Client.BattleSystems
             player.IsParrying = true;
             player.CurrentAnimation = "parry";
             animMgr.ResetAnimationToFirstFrame("parry");
-            // ✅ Play unified parry sound resource for KG/Warrior/Bringer if available
+            // ✅ Play parry sound: warrior uses its own resource, others use shared resource
             try
             {
-                if (player.CharacterType == "warrior" || player.CharacterType == "girlknight" || player.CharacterType == "bringerofdeath" || player.CharacterType == "goatman")
-                    TryPlayParryResource();
+                if (player.CharacterType == "warrior")
+                    TryPlayParryResource("parry_warrior");
+                else if (player.CharacterType == "girlknight" || player.CharacterType == "bringerofdeath" || player.CharacterType == "goatman")
+                    TryPlayParryResource("parry_KG_bringer_goatman");
             }
             catch { }
             parryTimer.Stop();
@@ -175,12 +177,12 @@ namespace DoAn_NT106.Client.BattleSystems
             invalidateCallback?.Invoke();
         }
 
-        // Try to play embedded parry sound resource 'parry_KG_warrior_bringer' using NAudio (supports mp3)
-        private void TryPlayParryResource()
+        // Try to play embedded parry sound resource using NAudio (supports mp3)
+        private void TryPlayParryResource(string resourceKey)
         {
             try
             {
-                var obj = Properties.Resources.ResourceManager.GetObject("parry_KG_warrior_bringer_goatman");
+                var obj = Properties.Resources.ResourceManager.GetObject(resourceKey);
                 byte[] audioBytes = null;
 
                 if (obj is byte[] bb) audioBytes = bb;

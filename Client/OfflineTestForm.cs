@@ -24,10 +24,10 @@ namespace PixelGameLobby
         // Character options
         private List<CharacterOption> characters = new List<CharacterOption>
         {
-            new CharacterOption { Name = "girlknight", DisplayName = "Girl Knight ??" },
-            new CharacterOption { Name = "bringerofdeath", DisplayName = "Bringer of Death ??" },
-            new CharacterOption { Name = "goatman", DisplayName = "Goatman Berserker ??" },
-            new CharacterOption { Name = "warrior", DisplayName = "Elite Warrior ?" }
+            new CharacterOption { Name = "girlknight", DisplayName = "Scarlet Hunter" },
+            new CharacterOption { Name = "bringerofdeath", DisplayName = "Bringer of Death" },
+            new CharacterOption { Name = "goatman", DisplayName = "Goatman Berserker" },
+            new CharacterOption { Name = "warrior", DisplayName = "Elite Warrior" }
         };
 
         // UI Components
@@ -46,7 +46,7 @@ namespace PixelGameLobby
 
         private void InitializeUI(string player1Name)
         {
-            this.Text = "?? Offline Test Room";
+            this.Text = "Offline Test Room";
             this.Size = new Size(500, 400);
             this.StartPosition = FormStartPosition.CenterParent;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
