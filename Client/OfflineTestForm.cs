@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
@@ -33,9 +33,11 @@ namespace PixelGameLobby
         // UI Components
         private ComboBox cmbPlayer1;
         private ComboBox cmbPlayer2;
+        private ComboBox cmbMap;
         private TextBox txtPlayer2Name;
         private Button btnStart;
         private Button btnCancel;
+        public string SelectedMap { get; private set; } = "battleground1";
 
         public OfflineTestForm(string player1Name)
         {
@@ -45,7 +47,7 @@ namespace PixelGameLobby
         private void InitializeUI(string player1Name)
         {
             this.Text = "?? Offline Test Room";
-            this.Size = new Size(500, 350);
+            this.Size = new Size(500, 400);
             this.StartPosition = FormStartPosition.CenterParent;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
@@ -56,7 +58,7 @@ namespace PixelGameLobby
             var mainPanel = new Panel
             {
                 Location = new Point(20, 20),
-                Size = new Size(440, 280),
+                Size = new Size(440, 320),
                 BackColor = darkBrown,
                 BorderStyle = BorderStyle.FixedSingle
             };
@@ -65,7 +67,7 @@ namespace PixelGameLobby
             // Title
             var lblTitle = new Label
             {
-                Text = "?? OFFLINE TEST MODE",
+                Text = "🧪 OFFLINE MODE",
                 Font = new Font("Courier New", 16, FontStyle.Bold),
                 ForeColor = goldColor,
                 Location = new Point(20, 15),
@@ -169,11 +171,38 @@ namespace PixelGameLobby
             cmbPlayer2.SelectedIndex = 0; // Default: Girl Knight
             mainPanel.Controls.Add(cmbPlayer2);
 
+            // Map selection
+            var lblMap = new Label
+            {
+                Text = "Map:",
+                Font = new Font("Courier New", 10, FontStyle.Bold),
+                ForeColor = Color.White,
+                Location = new Point(40, 235),
+                Size = new Size(120, 25)
+            };
+            mainPanel.Controls.Add(lblMap);
+
+            cmbMap = new ComboBox
+            {
+                Location = new Point(160, 233),
+                Size = new Size(250, 30),
+                Font = new Font("Courier New", 10),
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                BackColor = darkerBrown,
+                ForeColor = goldColor
+            };
+            cmbMap.Items.Add("Battleground 1");
+            cmbMap.Items.Add("Battleground 2");
+            cmbMap.Items.Add("Battleground 3");
+            cmbMap.Items.Add("Battleground 4");
+            cmbMap.SelectedIndex = 0; // default
+            mainPanel.Controls.Add(cmbMap);
+
             // Start button
             btnStart = new Button
             {
-                Text = "?? START BATTLE",
-                Location = new Point(40, 235),
+                Text = "▶ START BATTLE",
+                Location = new Point(40, 275),
                 Size = new Size(180, 35),
                 Font = new Font("Courier New", 11, FontStyle.Bold),
                 BackColor = Color.FromArgb(34, 139, 34),
@@ -193,7 +222,7 @@ namespace PixelGameLobby
             btnCancel = new Button
             {
                 Text = "CANCEL",
-                Location = new Point(230, 235),
+                Location = new Point(230, 275),
                 Size = new Size(180, 35),
                 Font = new Font("Courier New", 11, FontStyle.Bold),
                 BackColor = Color.FromArgb(178, 34, 34),
@@ -225,6 +254,16 @@ namespace PixelGameLobby
             // Get selected characters
             Player1Character = characters[cmbPlayer1.SelectedIndex].Name;
             Player2Character = characters[cmbPlayer2.SelectedIndex].Name;
+
+            // Selected map (battleground1..4)
+            if (cmbMap != null && cmbMap.SelectedIndex >= 0)
+            {
+                SelectedMap = $"battleground{cmbMap.SelectedIndex + 1}";
+            }
+            else
+            {
+                SelectedMap = "battleground1";
+            }
 
             this.DialogResult = DialogResult.OK;
             this.Close();

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Drawing;
 using System.Windows.Forms;
 using DoAn_NT106.Client.BattleSystems; // ✅ THÊM NAMESPACE MỚI
@@ -875,16 +876,62 @@ namespace DoAn_NT106
                                 var res = menu.ShowDialog(this);
                                 if (res == DialogResult.OK)
                                 {
-                                    // Back to Lobby: stop timers and return to PixelGameLobbyForm
+                                    // Back to Lobby: stop timers and return to appropriate lobby
                                     try { gameTimer?.Stop(); } catch { }
                                     try { walkAnimationTimer?.Stop(); } catch { }
-                                    
+
                                     this.Close();
-                                    
-                                    // ✅ QUAY VỀ PIXELGAMELOBBYFORM VỚI ĐÚNG roomCode
-                                    var lobbyForm = new PixelGameLobby.GameLobbyForm(roomCode, username, token);
-                                    lobbyForm.StartPosition = FormStartPosition.CenterScreen;
-                                    lobbyForm.Show();
+
+                                    // If offline mode (roomCode default "000000") -> try to show existing JoinRoomForm owner
+                                    bool isOffline = string.IsNullOrEmpty(roomCode) || roomCode == "000000";
+                                    if (isOffline)
+                                    {
+                                        // Prefer showing the owner JoinRoomForm if provided
+                                        if (this.Owner is PixelGameLobby.JoinRoomForm ownerJoin)
+                                        {
+                                            try
+                                            {
+                                                ownerJoin.Show();
+                                                ownerJoin.BringToFront();
+                                            }
+                                            catch
+                                            {
+                                                // try to find any existing JoinRoomForm in open forms
+                                                var existing = Application.OpenForms.OfType<PixelGameLobby.JoinRoomForm>().FirstOrDefault();
+                                                if (existing != null)
+                                                {
+                                                    existing.Show();
+                                                    existing.BringToFront();
+                                                }
+                                                else
+                                                {
+                                                    // No JoinRoomForm found; don't create UI duplicates. Log and exit to caller.
+                                                    Console.WriteLine("[BattleForm] No JoinRoomForm owner and none found in OpenForms. Skipping creation.");
+                                                }
+                                            }
+                                        }
+                                        else
+                                        {
+                                            var existing = Application.OpenForms.OfType<PixelGameLobby.JoinRoomForm>().FirstOrDefault();
+                                            if (existing != null)
+                                            {
+                                                existing.Show();
+                                                existing.BringToFront();
+                                            }
+                                            else
+                                            {
+                                                // No existing JoinRoomForm found. Do not create a new one to avoid duplicates.
+                                                Console.WriteLine("[BattleForm] No existing JoinRoomForm to return to; skipping creation.");
+                                            }
+                                        }
+                                    }
+                                    else
+                                    {
+                                        // Online room lobby
+                                        var lobbyForm = new PixelGameLobby.GameLobbyForm(roomCode, username, token);
+                                        lobbyForm.StartPosition = FormStartPosition.CenterScreen;
+                                        lobbyForm.Show();
+                                    }
                                 }
                                 else
                                 {

@@ -236,11 +236,11 @@
             btnTestRoom.FlatStyle = FlatStyle.Flat;
             btnTestRoom.Font = new Font("Courier New", 11F, FontStyle.Bold);
             btnTestRoom.ForeColor = Color.White;
-            btnTestRoom.Location = new Point(620, 13);
+            btnTestRoom.Location = new Point(597, 13);
             btnTestRoom.Name = "btnTestRoom";
-            btnTestRoom.Size = new Size(170, 35);
+            btnTestRoom.Size = new Size(193, 35);
             btnTestRoom.TabIndex = 4;
-            btnTestRoom.Text = "\U0001f9ea TEST ROOM";
+            btnTestRoom.Text = "\U0001f9ea OFFLINE MODE";
             btnTestRoom.UseVisualStyleBackColor = false;
             // 
             // lblHelp

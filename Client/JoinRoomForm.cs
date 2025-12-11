@@ -601,19 +601,25 @@ namespace PixelGameLobby
                     string player1Character = testForm.Player1Character;
                     string player2Character = testForm.Player2Character;
                     string player2Name = testForm.Player2Name;
+                    string selectedMap = "battleground1";
+                    try { selectedMap = testForm.SelectedMap ?? "battleground1"; } catch { }
 
                     // Stop timers and chat
                     globalChatClient?.Dispose();
                     globalChatClient = null;
 
-                    // Open BattleForm in offline mode
+                    // Open BattleForm in offline mode with selected map
                     var battleForm = new BattleForm(
                         username,        // Player 1 name
                         token,           // Token (not used in offline)
                         player2Name,     // Player 2 name
                         player1Character,// Player 1 character
-                        player2Character // Player 2 character
+                        player2Character, // Player 2 character
+                        selectedMap      // selected map (battleground1..4)
                     );
+
+                    // Ensure BattleForm knows its owner so we can return to this instance
+                    battleForm.Owner = this;
 
                     battleForm.FormClosed += async (s, args) =>
                     {
