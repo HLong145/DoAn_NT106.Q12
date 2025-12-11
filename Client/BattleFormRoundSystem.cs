@@ -508,7 +508,14 @@ namespace DoAn_NT106
                 return;
             }
 
-            // Start next round
+            // If we've already played 3 rounds and nobody reached 2 wins -> draw
+            if (_roundNumber >= 3)
+            {
+                EndMatchDraw();
+                return;
+            }
+
+            // Start next round (only if less than 3 rounds played)
             _roundNumber++;
             StartNextRound();
         }
@@ -537,7 +544,14 @@ namespace DoAn_NT106
                 return;
             }
 
-            // Start next round
+            // If we've already played 3 rounds and nobody reached 2 wins -> draw
+            if (_roundNumber >= 3)
+            {
+                EndMatchDraw();
+                return;
+            }
+
+            // Start next round (only if less than 3 rounds played)
             _roundNumber++;
             StartNextRound();
         }
@@ -642,6 +656,32 @@ namespace DoAn_NT106
             this.Close();
             
             // ✅ Resume theme music when returning to MainForm
+            try { DoAn_NT106.SoundManager.PlayMusic(DoAn_NT106.Client.BackgroundMusic.ThemeMusic, loop: true); } catch { }
+        }
+
+        /// <summary>Ends the match as a draw and shows dialog</summary>
+        private void EndMatchDraw()
+        {
+            _roundInProgress = false;
+            try { _roundTimer?.Stop(); } catch { }
+            try { gameTimer?.Stop(); } catch { }
+            try { walkAnimationTimer?.Stop(); } catch { }
+
+            string result = $"🤝 MATCH DRAW!\n\n" +
+                            $"{username}: {_player1Wins} wins\n" +
+                            $"{opponent}: {_player2Wins} wins";
+
+            MessageBox.Show(
+                result,
+                "MATCH DRAW",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information
+            );
+
+            // Close battle form and return to lobby
+            this.Close();
+
+            // Resume theme music when returning to MainForm
             try { DoAn_NT106.SoundManager.PlayMusic(DoAn_NT106.Client.BackgroundMusic.ThemeMusic, loop: true); } catch { }
         }
     }
