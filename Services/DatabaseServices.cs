@@ -11,7 +11,8 @@ namespace DoAn_NT106.Services
 {
     public class DatabaseService
     {
-        private readonly string connectionString = "Server=mainline.proxy.rlwy.net;Port=4330;Database=railway;Uid=root;Pwd=gjtaqRQddaGAkFWFTgWiDMPbyrFqzAql;";
+        private readonly string connectionString = "Server=localhost;Port=3306;Database=railway;Uid=root;Pwd=gjtaqRQddaGAkFWFTgWiDMPbyrFqzAql;";
+        private ConcurrentDictionary<string, (string Otp, DateTime ExpireTime)> otps = new();
 
         // =============================
         // 1. TEST CONNECTION
