@@ -479,6 +479,17 @@ namespace DoAn_NT106.Services
 
         #endregion
 
+        #region API methods - game
+
+        public Task<ServerResponse> GameEndAsync(string roomCode, string username)
+            => SendRequestAsync("GAME_END", new Dictionary<string, object>
+            {
+                { "roomCode", roomCode },
+                { "username", username }
+            });
+
+        #endregion
+
         #region API methods - global chat
 
         public Task<ServerResponse> GlobalChatJoinAsync(string username, string token)

@@ -3,19 +3,23 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Drawing;
 using System.Windows.Forms;
-using DoAn_NT106.Client.BattleSystems; // ✅ THÊM NAMESPACE MỚI
-using DoAn_NT106.Client; // ✅ THÊM CHO SOUNDMANAGER
+using DoAn_NT106.Client.BattleSystems;
+using DoAn_NT106.Client;
 using PixelGameLobby;
 
 namespace DoAn_NT106
 {
-    // Helper class for hit effects
     public partial class BattleForm : Form
     {
         private string username;
         private string token;
         private string opponent;
-        private string roomCode = "000000";  // ✅ THÊM: Lưu roomCode để quay về đúng phòng
+        private string roomCode = "000000";
+
+        // ✅ THÊM: UDP Game Client
+        private UDPGameClient udpClient;
+        private bool isOnlineMode = false; // Track nếu đang chơi online
+        private int myPlayerNumber = 0; // 1 or 2
 
         // ===== ✅ NEW SYSTEMS (ADDED) =====
         private PlayerState player1State;
@@ -403,9 +407,12 @@ namespace DoAn_NT106
             this.username = username;
             this.token = token;
             this.opponent = opponent;
-            this.roomCode = roomCode;  // ✅ LƯU roomCode
+            this.roomCode = roomCode;
             this.player1CharacterType = player1Character;
             this.player2CharacterType = player2Character;
+
+            // ✅ THÊM: Kiểm tra online mode
+            isOnlineMode = !string.IsNullOrEmpty(roomCode) && roomCode != "000000";
 
             // ✅ Set map background based on selectedMap ("battleground1" format)
             // ✅ FIX: selectedMap is already "battleground1" format, find its index
@@ -1368,6 +1375,21 @@ namespace DoAn_NT106
 
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
+            // ✅ THÊM: Disconnect UDP khi đóng form
+            try
+            {
+                if (udpClient != null)
+                {
+                    udpClient.Disconnect();
+                    udpClient.Dispose();
+                    udpClient = null;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ UDP cleanup error: {ex.Message}");
+            }
+
             try { gameTimer?.Stop(); } catch { }
             try { walkAnimationTimer?.Stop(); } catch { }
             try { spellDamageTimer?.Stop(); spellDamageTimer?.Dispose(); } catch { }
@@ -1826,30 +1848,30 @@ namespace DoAn_NT106
         // ✅ THÊM: Phương thức tính vùng tấn công của nhân vật
         private Rectangle GetAttackHitbox(PlayerState attacker, string attackType)
         {
+            // ✅ LẤY actualSize NGAY ĐẦU ĐỂ TRÁNH LỖI
+            var actualSize = GetActualCharacterSize(attacker.CharacterType);
+            int actualWidth = actualSize.actualWidth;
+            int actualHeight = actualSize.actualHeight;
+            int yOffset = actualSize.yOffset;
+            int groundAdjustment = actualSize.groundAdjustment;
+
             if (!characterAttackConfigs.ContainsKey(attacker.CharacterType) ||
                 !characterAttackConfigs[attacker.CharacterType].ContainsKey(attackType))
             {
                 Console.WriteLine($"⚠️ No attack config for {attacker.CharacterType}.{attackType}, using default");
 
-                var actualSize = GetActualCharacterSize(attacker.CharacterType);
-                int attackWidth = (int)(actualSize.actualWidth * 0.8f);
-                int attackHeight = (int)(actualSize.actualHeight * 0.6f);
-                int attackRange = (int)(actualSize.actualWidth * 0.7f);
+                int attackWidth = (int)(actualWidth * 0.8f);
+                int attackHeight = (int)(actualHeight * 0.6f);
+                int attackRange = (int)(actualWidth * 0.7f);
 
-                int defaultCenterX = attacker.X + (actualSize.actualWidth / 2);
+                int defaultCenterX = attacker.X + (actualWidth / 2);
                 int attackX = attacker.Facing == "right" ? defaultCenterX : defaultCenterX - attackRange;
-                int attackY = attacker.Y + actualSize.yOffset + actualSize.groundAdjustment + (int)(actualSize.actualHeight * 0.3f);
+                int attackY = attacker.Y + yOffset + groundAdjustment + (int)(actualHeight * 0.3f);
 
                 return new Rectangle(attackX, attackY, attackRange, attackHeight);
             }
 
             var config = characterAttackConfigs[attacker.CharacterType][attackType];
-            var actualSizeWithConfig = GetActualCharacterSize(attacker.CharacterType);
-
-            int actualWidth = actualSizeWithConfig.actualWidth;
-            int actualHeight = actualSizeWithConfig.actualHeight;
-            int yOffset = actualSizeWithConfig.yOffset;
-            int groundAdjustment = actualSizeWithConfig.groundAdjustment;
 
             int attackWidthValue = (int)(actualWidth * config.WidthPercent);
             int attackHeightValue = (int)(actualHeight * config.HeightPercent);
@@ -1873,7 +1895,6 @@ namespace DoAn_NT106
                 finalAttackY = attacker.Y + yOffset + groundAdjustment + offsetY;
                 int bidirectionalWidth = (attackRangeValue * 2) - 20;
                 if (bidirectionalWidth < 0) bidirectionalWidth = 0; // safety
-                // debug removed for skill hitbox
                 return new Rectangle(finalAttackX, finalAttackY, bidirectionalWidth, attackHeightValue);
             }
 
@@ -1889,7 +1910,6 @@ namespace DoAn_NT106
                 finalAttackY = attacker.Y + yOffset + groundAdjustment + offsetY;
             }
 
-            // debug removed for attack hitbox
             return new Rectangle(finalAttackX, finalAttackY, attackRangeValue, attackHeightValue);
         }
 

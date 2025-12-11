@@ -18,6 +18,7 @@ namespace DoAn_NT106.Server
         private bool isRunning;
         private List<ClientHandler> connectedClients = new List<ClientHandler>();
         private DatabaseService dbService;
+
         private TokenManager tokenManager;
         private ValidationService validationService;
         private SecurityService securityService;
@@ -28,6 +29,10 @@ namespace DoAn_NT106.Server
         private GlobalChatManager globalChatManager;
         LobbyManager lobbyManager;
         private RoomListBroadcaster roomListBroadcaster;
+
+        // ✅ THÊM: UDP Game Server
+        private UDPGameServer udpGameServer;
+        private const int UDP_PORT = 5000;
 
         private Task _acceptTask;
         private CancellationTokenSource cts;
@@ -57,6 +62,10 @@ namespace DoAn_NT106.Server
 
             lobbyManager = new LobbyManager(dbService);
             lobbyManager.OnLog += LogMessage;
+
+            // ✅ THÊM: Khởi tạo UDP Game Server
+            udpGameServer = new UDPGameServer(UDP_PORT);
+            udpGameServer.OnLog += LogMessage;
         }
 
         #endregion
@@ -78,7 +87,11 @@ namespace DoAn_NT106.Server
                 listener.Start();
                 isRunning = true;
 
+                // ✅ THÊM: Start UDP Server
+                udpGameServer.Start();
+
                 Log($"✅ Server started on port {port}");
+                Log($"✅ UDP Game Server ready on port {UDP_PORT}");
 
                 _acceptTask = Task.Run(() => AcceptClients(cts.Token));
             }
@@ -102,6 +115,9 @@ namespace DoAn_NT106.Server
                 isRunning = false;
                 cts.Cancel();
                 listener?.Stop();
+
+                // ✅ THÊM: Stop UDP Server
+                udpGameServer?.Stop();
 
                 foreach (var client in connectedClients.ToArray())
                 {
@@ -159,7 +175,8 @@ namespace DoAn_NT106.Server
                         roomManager,
                         globalChatManager,
                         lobbyManager,
-                        roomListBroadcaster);
+                        roomListBroadcaster,
+                        udpGameServer);  // ✅ THÊM: Pass UDP server to client handler
 
                     lock (connectedClients)
                     {
@@ -233,6 +250,9 @@ namespace DoAn_NT106.Server
 
         private bool isNormalLogout = false;
 
+        // ✅ THÊM: UDP Game Server reference
+        private UDPGameServer udpGameServer;
+
         #endregion
 
         #region Constructor
@@ -246,7 +266,8 @@ namespace DoAn_NT106.Server
             RoomManager roomManager,
             GlobalChatManager globalChatManager,
             LobbyManager lobbyManager,
-            RoomListBroadcaster roomListBroadcaster)
+            RoomListBroadcaster roomListBroadcaster,
+            UDPGameServer udpGameServer)  // ✅ THÊM parameter
         {
             tcpClient = client;
             this.server = server;
@@ -259,8 +280,9 @@ namespace DoAn_NT106.Server
             this.globalChatManager = globalChatManager;
             this.lobbyManager = lobbyManager;
             this.roomListBroadcaster = roomListBroadcaster;
+            this.udpGameServer = udpGameServer;  // ✅ THÊM
         }
-
+        #endregion 
         public void SetNormalLogout()
         {
             isNormalLogout = true;
@@ -508,6 +530,10 @@ namespace DoAn_NT106.Server
                         return HandleStartGame(request);
                     case "GAME_ACTION":
                         return HandleGameAction(request);
+                    
+                    // ✅ THÊM: Handle game end
+                    case "GAME_END":
+                        return HandleGameEnd(request);
 
                     //Các case liên quan đến broadcast danh sách phòng
                     case "ROOM_LIST_SUBSCRIBE":
@@ -1256,6 +1282,7 @@ namespace DoAn_NT106.Server
                 return CreateResponse(false, $"Error: {ex.Message}");
             }
         }
+        
         private string HandleLobbyStartGame(Request request)
         {
             try
@@ -1269,6 +1296,37 @@ namespace DoAn_NT106.Server
                 }
 
                 var result = lobbyManager.StartGame(roomCode, username);
+
+                if (result.Success)
+                {
+                    // ✅ THÊM: Lấy thông tin room để tạo UDP match
+                    var room = roomManager.GetRoom(roomCode);
+                    if (room != null)
+                    {
+                        // Tạo UDP match session
+                        var udpResult = udpGameServer.CreateMatch(
+                            roomCode, 
+                            room.Player1Username, 
+                            room.Player2Username
+                        );
+
+                        if (udpResult.Success)
+                        {
+                            server.Log($"✅ UDP Match created for room {roomCode}");
+                            
+                            // Trả về thông tin UDP port cho client
+                            return CreateResponseWithData(true, result.Message, new Dictionary<string, object>
+                            {
+                                { "udpPort", 5000 },
+                                { "serverIp", "127.0.0.1" }  // TODO: Get actual server IP
+                            });
+                        }
+                        else
+                        {
+                            server.Log($"⚠️ Failed to create UDP match: {udpResult.Message}");
+                        }
+                    }
+                }
 
                 return CreateResponse(result.Success, result.Message);
             }
@@ -1343,6 +1401,48 @@ namespace DoAn_NT106.Server
             }
         }
 
+        // ✅ THÊM: Handle game end - đóng UDP match và trả client về lobby
+        private string HandleGameEnd(Request request)
+        {
+            try
+            {
+                var roomCode = request.Data?["roomCode"]?.ToString();
+                var username = request.Data?["username"]?.ToString();
+
+                if (string.IsNullOrEmpty(roomCode) || string.IsNullOrEmpty(username))
+                {
+                    return CreateResponse(false, "Room code and username are required");
+                }
+
+                // Đóng UDP match
+                var udpResult = udpGameServer.EndMatch(roomCode);
+                
+                if (udpResult.Success)
+                {
+                    server.Log($"✅ UDP Match ended for room {roomCode}");
+                }
+                else
+                {
+                    server.Log($"⚠️ Failed to end UDP match: {udpResult.Message}");
+                }
+
+                // Update room status về WAITING (keep room alive for rematch)
+                var room = roomManager.GetRoom(roomCode);
+                if (room != null)
+                {
+                    room.Status = "waiting";
+                    server.Log($"✅ Room {roomCode} reset to WAITING status");
+                }
+
+                return CreateResponse(true, "Game ended, return to lobby");
+            }
+            catch (Exception ex)
+            {
+                server.Log($"❌ HandleGameEnd error: {ex.Message}");
+                return CreateResponse(false, $"Error: {ex.Message}");
+            }
+        }
+
         #endregion
 
 
@@ -1395,6 +1495,7 @@ namespace DoAn_NT106.Server
                 return CreateResponse(false, $"Subscribe error: {ex.Message}");
             }
         }
+        
         private string HandleRoomListUnsubscribe(Request request)
         {
             try
@@ -1427,8 +1528,6 @@ namespace DoAn_NT106.Server
             };
             return JsonSerializer.Serialize(response);
         }
-
-
 
         private string CreateResponseWithData(bool success, string message, Dictionary<string, object> data)
         {
@@ -1465,6 +1564,7 @@ namespace DoAn_NT106.Server
             }
             catch { }
         }
+        
         private void CleanupOnDisconnect()
         {
             try
@@ -1489,30 +1589,24 @@ namespace DoAn_NT106.Server
             }
         }
         #endregion
-
-        #endregion
-
-        #endregion
-
-
-
-
-        #region Class
-        public class Request
-        {
-            public string Action { get; set; }
-            public string RequestId { get; set; }
-            public Dictionary<string, object> Data { get; set; }
-        }
-
-        public class Response
-        {
-            public bool Success { get; set; }
-            public string Message { get; set; }
-            public string RequestId { get; set; }
-            public Dictionary<string, object> Data { get; set; }
-
-        }
-        #endregion
     }
+
+    #endregion
+
+    #region Class
+    public class Request
+    {
+        public string Action { get; set; }
+        public string RequestId { get; set; }
+        public Dictionary<string, object> Data { get; set; }
+    }
+
+    public class Response
+    {
+        public bool Success { get; set; }
+        public string Message { get; set; }
+        public string RequestId { get; set; }
+        public Dictionary<string, object> Data { get; set; }
+    }
+    #endregion
 }
