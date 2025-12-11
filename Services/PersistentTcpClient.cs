@@ -97,10 +97,11 @@ namespace DoAn_NT106.Services
 
         #region Constructor
 
-        public PersistentTcpClient(string address = "127.0.0.1", int port = 8080)
+        public PersistentTcpClient(string address = null, int port = 0)
         {
-            serverAddress = address;
-            serverPort = port;
+            // ✅ Use AppConfig as default
+            serverAddress = string.IsNullOrEmpty(address) ? AppConfig.SERVER_IP : address;
+            serverPort = port <= 0 ? AppConfig.TCP_PORT : port;
         }
 
         #endregion

@@ -6,6 +6,7 @@ using System.Windows.Forms;
 using DoAn_NT106.Client.BattleSystems;
 using DoAn_NT106.Client;
 using PixelGameLobby;
+using DoAn_NT106.Services;
 
 namespace DoAn_NT106
 {
@@ -19,7 +20,7 @@ namespace DoAn_NT106
         // ✅ THÊM: UDP Game Client
         private UDPGameClient udpClient;
         private bool isOnlineMode = false; // Track nếu đang chơi online
-        private int myPlayerNumber = 0; // 1 or 2
+        private int myPlayerNumber = 0; // 1 or 2 assigned by server
 
         // ===== ✅ NEW SYSTEMS (ADDED) =====
         private PlayerState player1State;
@@ -400,7 +401,7 @@ namespace DoAn_NT106
         private string player1CharacterType = "girlknight";
         private string player2CharacterType = "girlknight";
 
-        public BattleForm(string username, string token, string opponent, string player1Character, string player2Character, string selectedMap = "battleground1", string roomCode = "000000")
+        public BattleForm(string username, string token, string opponent, string player1Character, string player2Character, string selectedMap = "battleground1", string roomCode = "000000", int myPlayerNumber = 0)
         {
             InitializeComponent();
 
@@ -410,9 +411,29 @@ namespace DoAn_NT106
             this.roomCode = roomCode;
             this.player1CharacterType = player1Character;
             this.player2CharacterType = player2Character;
+            this.myPlayerNumber = myPlayerNumber; // ✅ set role from server
 
             // ✅ THÊM: Kiểm tra online mode
             isOnlineMode = !string.IsNullOrEmpty(roomCode) && roomCode != "000000";
+
+            // ✅ If online mode, prepare UDP client (using AppConfig IP)
+            if (isOnlineMode)
+            {
+                try
+                {
+                    // ✅ USE AppConfig for IP/Port
+                    udpClient = new UDPGameClient(AppConfig.SERVER_IP, AppConfig.UDP_PORT, roomCode, username);
+                    udpClient.SetPlayerNumber(myPlayerNumber);
+                    udpClient.OnLog += msg => Console.WriteLine(msg);
+                    udpClient.OnOpponentState += OnOpponentUdpState;
+                    udpClient.Connect();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[BattleForm] UDP connect error: {ex.Message}");
+                    // Nếu UDP lỗi thì vẫn cho chơi local, chỉ mất đồng bộ LAN
+                }
+            }
 
             // ✅ Set map background based on selectedMap ("battleground1" format)
             // ✅ FIX: selectedMap is already "battleground1" format, find its index
@@ -713,6 +734,30 @@ namespace DoAn_NT106
             player2Stamina = player2State.Stamina;
             player2Mana = player2State.Mana;
 
+            // ===== ONLINE SYNC: gửi state local cho server qua UDP =====
+            if (isOnlineMode && udpClient != null && udpClient.IsConnected)
+            {
+                try
+                {
+                    // Chỉ gửi state của chính mình; đối thủ sẽ tự gửi state của họ
+                    var me = myPlayerNumber == 1 ? player1State : player2State;
+                    udpClient.UpdateState(
+                        me.X,
+                        me.Y,
+                        me.Health,
+                        me.Stamina,
+                        me.Mana,
+                        me.CurrentAnimation ?? "stand",
+                        me.Facing ?? "right",           // ✅ NEW: Facing
+                        me.IsAttacking,                 // ✅ NEW: IsAttacking
+                        me.IsParrying);                 // ✅ NEW: IsParrying
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[BattleForm] UDP UpdateState error: {ex.Message}");
+                }
+            }
+
             // ===== UPDATE ANIMATIONS =====
             var p1Img = player1AnimationManager.GetAnimation(player1State.CurrentAnimation);
             if (p1Img != null && ImageAnimator.CanAnimate(p1Img))
@@ -813,112 +858,167 @@ namespace DoAn_NT106
             this.Invalidate();
         }
 
+        // ✅ THÊM: Xử lý state nhận từ UDP (đối thủ)
+        private void OnOpponentUdpState(byte[] data)
+        {
+            try
+            {
+                if (data == null || data.Length < 18) return;
+
+                // ✅ EXPANDED PACKET STRUCTURE:
+                // [RoomCode(6)] [PlayerNum(1)] [X(2)] [Y(2)] [Health(1)] [Stamina(1)] [Mana(1)]
+                // [Facing(1)] [IsAttacking(1)] [IsParrying(1)] [ActionLen(1)] [Action(var)]
+
+                string room = System.Text.Encoding.UTF8.GetString(data, 0, 6).TrimEnd('\0');
+                if (!string.Equals(room, roomCode, StringComparison.OrdinalIgnoreCase))
+                    return; // khác trận
+
+                int remotePlayerNum = data[6];
+                // Đối thủ là playerNumber khác mình
+                int opponentNum = myPlayerNumber == 1 ? 2 : 1;
+                if (remotePlayerNum != opponentNum)
+                    return;
+
+                int x = data[7] | (data[8] << 8);
+                int y = data[9] | (data[10] << 8);
+                int health = data[11];
+                int stamina = data[12];
+                int mana = data[13];
+
+                // ✅ NEW: Parse Facing, IsAttacking, IsParrying (bytes 14, 15, 16)
+                string facing = data[14] == 'L' ? "left" : "right";
+                bool isAttacking = data[15] != 0;
+                bool isParrying = data[16] != 0;
+
+                int actionLen = data[17];
+                string action = "stand";
+                if (actionLen > 0 && 18 + actionLen <= data.Length)
+                {
+                    action = System.Text.Encoding.UTF8.GetString(data, 18, actionLen);
+                }
+
+                // Cập nhật vào PlayerState đối thủ trên UI thread
+                this.BeginInvoke(new Action(() =>
+                {
+                    var opp = opponentNum == 1 ? player1State : player2State;
+                    opp.X = x;
+                    opp.Y = y;
+                    opp.Health = health;
+                    opp.Stamina = stamina;
+                    opp.Mana = mana;
+                    opp.Facing = facing;                // ✅ NEW
+                    opp.IsAttacking = isAttacking;      // ✅ NEW
+                    opp.IsParrying = isParrying;        // ✅ NEW
+                    if (!string.IsNullOrEmpty(action))
+                        opp.CurrentAnimation = action;
+                }));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[BattleForm] OnOpponentUdpState error: {ex.Message}");
+            }
+        }
+
         private void BattleForm_KeyDown(object sender, KeyEventArgs e)
         {
-            // Player 1 controls
-            switch (e.KeyCode)
+            // ✅ Map local input based on myPlayerNumber so each client controls only their own avatar
+            if (myPlayerNumber == 1)
             {
-                case Keys.A: 
-                    if (player1State.CanMove) // ✅ USE PlayerState
+                switch (e.KeyCode)
+                {
+                    case Keys.A:
+                        if (player1State.CanMove) { aPressed = true; player1State.LeftKeyPressed = true; }
+                        break;
+                    case Keys.D:
+                        if (player1State.CanMove) { dPressed = true; player1State.RightKeyPressed = true; }
+                        break;
+                    case Keys.W:
+                        physicsSystem.Jump(player1State);
+                        break;
+                    case Keys.J:
+                        if (player1State.CanAttack) ExecuteAttackWithHitbox(1, "punch", 10, 15);
+                        break;
+                    case Keys.K:
+                        if (player1State.CanAttack) ExecuteAttackWithHitbox(1, "kick", 15, 20);
+                        break;
+                    case Keys.L:
+                        if (player1State.CanDash) combatSystem.ExecuteDash(1);
+                        break;
+                    case Keys.U:
+                        if (player1State.CanParry) combatSystem.StartParry(1);
+                        break;
+                    case Keys.I:
+                        if (player1State.CanAttack) combatSystem.ToggleSkill(1);
+                        break;
+                }
+            }
+            else if (myPlayerNumber == 2)
+            {
+                // Cho phép Player2 dùng cùng layout WASD nếu muốn, hoặc bộ NumPad hiện tại
+                switch (e.KeyCode)
+                {
+                    case Keys.A:
+                        if (player2State.CanMove) { leftPressed = true; player2State.LeftKeyPressed = true; }
+                        break;
+                    case Keys.D:
+                        if (player2State.CanMove) { rightPressed = true; player2State.RightKeyPressed = true; }
+                        break;
+                    case Keys.W:
+                        physicsSystem.Jump(player2State);
+                        break;
+                    case Keys.J:
+                        if (player2State.CanAttack) ExecuteAttackWithHitbox(2, "punch", 10, 15);
+                        break;
+                    case Keys.K:
+                        if (player2State.CanAttack) ExecuteAttackWithHitbox(2, "kick", 15, 20);
+                        break;
+                    case Keys.L:
+                        if (player2State.CanDash) combatSystem.ExecuteDash(2);
+                        break;
+                    case Keys.U:
+                        if (player2State.CanParry) combatSystem.StartParry(2);
+                        break;
+                    case Keys.I:
+                        if (player2State.CanAttack) combatSystem.ToggleSkill(2);
+                        break;
+                }
+            }
+
+            // Escape/menu handling remains shared
+            if (e.KeyCode == Keys.Escape)
+            {
+                // Open main menu: Back to Lobby (go to PixelGameLobbyForm) or Continued
+                try
+                {
+                    if (!isPaused)
                     {
-                        aPressed = true;
-                        player1State.LeftKeyPressed = true; // ✅ SYNC STATE
-                    }
-                    break;
-                case Keys.D: 
-                    if (player1State.CanMove)
-                    {
-                        dPressed = true;
-                        player1State.RightKeyPressed = true; // ✅ SYNC STATE
-                    }
-                    break;
-                case Keys.W:
-                    // ✅ MIGRATED TO PhysicsSystem
-                    physicsSystem.Jump(player1State);
-                    break;
-                case Keys.J: 
-                    if (player1State.CanAttack) // ✅ USE PlayerState
-                    {
-                        // ✅ MIGRATED TO CombatSystem
-                        ExecuteAttackWithHitbox(1, "punch", 10, 15);
-                    }
-                    break;
-                case Keys.K: 
-                    if (player1State.CanAttack)
-                    {
-                        // ✅ MIGRATED TO CombatSystem
-                        ExecuteAttackWithHitbox(1, "kick", 15, 20);
-                    }
-                    break;
-                case Keys.L: 
-                    if (player1State.CanDash) // ✅ USE PlayerState
-                    {
-                        // ✅ MIGRATED TO CombatSystem
-                        combatSystem.ExecuteDash(1);
-                    }
-                    break;
-                case Keys.U:
-                    if (player1State.CanParry)
-                    {
-                        // ✅ MIGRATED TO CombatSystem
-                        combatSystem.StartParry(1);
-                    }
-                    break;
-                case Keys.I:
-                    if (player1State.CanAttack)
-                    {
-                        // ✅ MIGRATED TO CombatSystem
-                        combatSystem.ToggleSkill(1);
-                    }
-                    break;
-                case Keys.Escape:
-                    // Open main menu: Back to Lobby (go to PixelGameLobbyForm) or Continue
-                    try
-                    {
-                        if (!isPaused)
+                        PauseGame();
+                        using (var menu = new MainMenuForm(roomCode))  // ✅ TRUYỀN roomCode
                         {
-                            PauseGame();
-                            using (var menu = new MainMenuForm(roomCode))  // ✅ TRUYỀN roomCode
+                            var res = menu.ShowDialog(this);
+                            if (res == DialogResult.OK)
                             {
-                                var res = menu.ShowDialog(this);
-                                if (res == DialogResult.OK)
+                                // Back to Lobby: stop timers and return to appropriate lobby
+                                try { gameTimer?.Stop(); } catch { }
+                                try { walkAnimationTimer?.Stop(); } catch { }
+
+                                this.Close();
+
+                                // If offline mode (roomCode default "000000") -> try to show existing JoinRoomForm owner
+                                bool isOffline = string.IsNullOrEmpty(roomCode) || roomCode == "000000";
+                                if (isOffline)
                                 {
-                                    // Back to Lobby: stop timers and return to appropriate lobby
-                                    try { gameTimer?.Stop(); } catch { }
-                                    try { walkAnimationTimer?.Stop(); } catch { }
-
-                                    this.Close();
-
-                                    // If offline mode (roomCode default "000000") -> try to show existing JoinRoomForm owner
-                                    bool isOffline = string.IsNullOrEmpty(roomCode) || roomCode == "000000";
-                                    if (isOffline)
+                                    // Prefer showing the owner JoinRoomForm if provided
+                                    if (this.Owner is PixelGameLobby.JoinRoomForm ownerJoin)
                                     {
-                                        // Prefer showing the owner JoinRoomForm if provided
-                                        if (this.Owner is PixelGameLobby.JoinRoomForm ownerJoin)
+                                        try
                                         {
-                                            try
-                                            {
-                                                ownerJoin.Show();
-                                                ownerJoin.BringToFront();
-                                            }
-                                            catch
-                                            {
-                                                // try to find any existing JoinRoomForm in open forms
-                                                var existing = Application.OpenForms.OfType<PixelGameLobby.JoinRoomForm>().FirstOrDefault();
-                                                if (existing != null)
-                                                {
-                                                    existing.Show();
-                                                    existing.BringToFront();
-                                                }
-                                                else
-                                                {
-                                                    // No JoinRoomForm found; don't create UI duplicates. Log and exit to caller.
-                                                    Console.WriteLine("[BattleForm] No JoinRoomForm owner and none found in OpenForms. Skipping creation.");
-                                                }
-                                            }
+                                            ownerJoin.Show();
+                                            ownerJoin.BringToFront();
                                         }
-                                        else
+                                        catch
                                         {
+                                            // try to find any existing JoinRoomForm in open forms
                                             var existing = Application.OpenForms.OfType<PixelGameLobby.JoinRoomForm>().FirstOrDefault();
                                             if (existing != null)
                                             {
@@ -927,90 +1027,46 @@ namespace DoAn_NT106
                                             }
                                             else
                                             {
-                                                // No existing JoinRoomForm found. Do not create a new one to avoid duplicates.
-                                                Console.WriteLine("[BattleForm] No existing JoinRoomForm to return to; skipping creation.");
+                                                // No JoinRoomForm found; don't create UI duplicates. Log and exit to caller.
+                                                Console.WriteLine("[BattleForm] No JoinRoomForm owner and none found in OpenForms. Skipping creation.");
                                             }
                                         }
                                     }
                                     else
                                     {
-                                        // Online room lobby
-                                        var lobbyForm = new PixelGameLobby.GameLobbyForm(roomCode, username, token);
-                                        lobbyForm.StartPosition = FormStartPosition.CenterScreen;
-                                        lobbyForm.Show();
+                                        var existing = Application.OpenForms.OfType<PixelGameLobby.JoinRoomForm>().FirstOrDefault();
+                                        if (existing != null)
+                                        {
+                                            existing.Show();
+                                            existing.BringToFront();
+                                        }
+                                        else
+                                        {
+                                            // No existing JoinRoomForm found. Do not create a new one to avoid duplicates.
+                                            Console.WriteLine("[BattleForm] No existing JoinRoomForm to return to; skipping creation.");
+                                        }
                                     }
                                 }
                                 else
                                 {
-                                    ResumeGame();
+                                    // Online room lobby
+                                    var lobbyForm = new PixelGameLobby.GameLobbyForm(roomCode, username, token);
+                                    lobbyForm.StartPosition = FormStartPosition.CenterScreen;
+                                    lobbyForm.Show();
                                 }
+                            }
+                            else
+                            {
+                                ResumeGame();
                             }
                         }
                     }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine("Main menu open error: " + ex.Message);
-                        ResumeGame();
-                    }
-                    break;
-            }
-
-            // Player 2 controls
-            switch (e.KeyCode)
-            {
-                case Keys.Left: 
-                    if (player2State.CanMove)
-                    {
-                        leftPressed = true;
-                        player2State.LeftKeyPressed = true; // ✅ SYNC STATE
-                    }
-                    break;
-                case Keys.Right: 
-                    if (player2State.CanMove)
-                    {
-                        rightPressed = true;
-                        player2State.RightKeyPressed = true; // ✅ SYNC STATE
-                    }
-                    break;
-                case Keys.Up:
-                    // ✅ MIGRATED TO PhysicsSystem
-                    physicsSystem.Jump(player2State);
-                    break;
-                case Keys.NumPad1: 
-                    if (player2State.CanAttack)
-                    {
-                        // ✅ MIGRATED TO CombatSystem
-                        ExecuteAttackWithHitbox(2, "punch", 10, 15);
-                    }
-                    break;
-                case Keys.NumPad2: 
-                    if (player2State.CanAttack)
-                    {
-                        // ✅ MIGRATED TO CombatSystem
-                        ExecuteAttackWithHitbox(2, "kick", 15, 20);
-                    }
-                    break;
-                case Keys.NumPad3: 
-                    if (player2State.CanDash)
-                    {
-                        // ✅ MIGRATED TO CombatSystem
-                        combatSystem.ExecuteDash(2);
-                    }
-                    break;
-                case Keys.NumPad5:
-                    if (player2State.CanParry)
-                    {
-                        // ✅ MIGRATED TO CombatSystem
-                        combatSystem.StartParry(2);
-                    }
-                    break;
-                case Keys.NumPad4:
-                    if (player2State.CanAttack)
-                    {
-                        // ✅ MIGRATED TO CombatSystem
-                        combatSystem.ToggleSkill(2);
-                    }
-                    break;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Main menu open error: " + ex.Message);
+                    ResumeGame();
+                }
             }
 
             e.Handled = true;
@@ -1018,25 +1074,27 @@ namespace DoAn_NT106
 
         private void BattleForm_KeyUp(object sender, KeyEventArgs e)
         {
-            switch (e.KeyCode)
+            if (myPlayerNumber == 1)
             {
-                case Keys.A: 
-                    aPressed = false;
-                    player1State.LeftKeyPressed = false; // ✅ SYNC STATE
-                    break;
-                case Keys.D: 
-                    dPressed = false;
-                    player1State.RightKeyPressed = false; // ✅ SYNC STATE
-                    break;
-                case Keys.Left: 
-                    leftPressed = false;
-                    player2State.LeftKeyPressed = false; // ✅ SYNC STATE
-                    break;
-                case Keys.Right: 
-                    rightPressed = false;
-                    player2State.RightKeyPressed = false; // ✅ SYNC STATE
-                    break;
+                switch (e.KeyCode)
+                {
+                    case Keys.A:
+                        aPressed = false; player1State.LeftKeyPressed = false; break;
+                    case Keys.D:
+                        dPressed = false; player1State.RightKeyPressed = false; break;
+                }
             }
+            else if (myPlayerNumber == 2)
+            {
+                switch (e.KeyCode)
+                {
+                    case Keys.A:
+                        leftPressed = false; player2State.LeftKeyPressed = false; break;
+                    case Keys.D:
+                        rightPressed = false; player2State.RightKeyPressed = false; break;
+                }
+            }
+
             e.Handled = true;
         }
 
@@ -1735,7 +1793,7 @@ namespace DoAn_NT106
                     // Fallback nếu không load được background
                     int screenHeight = Math.Max(100, this.ClientSize.Height);
                     background = CreateColoredImage(backgroundWidth, screenHeight, Color.DarkGreen);
-                    Console.WriteLine($"[SetBackground] Using fallback background");
+                    Console.WriteLine("[SetBackground] Using fallback background");
                 }
 
                 // FORCE REDRAW

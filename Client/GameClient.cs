@@ -164,7 +164,9 @@ namespace DoAn_NT106.Services
                 {
                     RoomCode = GetStringProp(data, "roomCode"),
                     Player1 = GetStringProp(data, "player1"),
-                    Player2 = GetStringProp(data, "player2")
+                    Player2 = GetStringProp(data, "player2"),
+                    Player1Character = GetStringProp(data, "player1Character"),
+                    Player2Character = GetStringProp(data, "player2Character")
                 };
 
                 OnStartGame?.Invoke(startData);
@@ -257,5 +259,9 @@ namespace DoAn_NT106.Services
         public string RoomCode { get; set; }
         public string Player1 { get; set; }
         public string Player2 { get; set; }
+
+        // ✅ NEW: character mapping for each player
+        public string Player1Character { get; set; }
+        public string Player2Character { get; set; }
     }
 }

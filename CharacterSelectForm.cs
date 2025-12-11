@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
+using DoAn_NT106.Services;
+using System.Text.Json;
 
 namespace DoAn_NT106
 {
@@ -53,6 +55,9 @@ namespace DoAn_NT106
         private string player2Character = "girlknight"; // Mặc định
         public string SelectedCharacter { get; private set; }
 
+        private GameClient gameClient; // ✅ NEW: reference to shared GameClient
+        private int myPlayerNumber = 0; // 1 or 2 assigned by server
+
         public CharacterSelectForm(string username, string token, string roomCode, string opponentName, bool isHost = true, string selectedMap = "battleground1")
         {
             this.username = username;
@@ -66,9 +71,49 @@ namespace DoAn_NT106
             this.player1Character = "girlknight"; // Người chơi hiện tại chọn
             this.player2Character = "girlknight"; // Đối thủ (tạm thời giả định)
 
+            // ✅ LẤY GameClient singleton từ PersistentTcpClient
+            gameClient = new GameClient();
+            gameClient.OnStartGame += GameClient_OnStartGame;
+
             InitializeCharacters();
             InitializeUI();
             UpdatePreview();
+        }
+
+        private void GameClient_OnStartGame(StartGameData data)
+        {
+            if (data.RoomCode != roomCode) return;
+
+            // ✅ Gán vai trò Player1/Player2 dựa trên username server gửi về
+            if (string.Equals(data.Player1, username, StringComparison.OrdinalIgnoreCase))
+                myPlayerNumber = 1;
+            else if (string.Equals(data.Player2, username, StringComparison.OrdinalIgnoreCase))
+                myPlayerNumber = 2;
+            else
+                return; // not participant
+
+            // ✅ Parse character picks nếu server gửi kèm
+            string p1Char = data.Player1Character ?? "girlknight";
+            string p2Char = data.Player2Character ?? "girlknight";
+
+            // Mở BattleForm trên UI thread
+            this.BeginInvoke(new Action(() =>
+            {
+                var battleForm = new BattleForm(
+                    username,
+                    token,
+                    opponentName,
+                    p1Char,
+                    p2Char,
+                    selectedMap,
+                    roomCode,
+                    myPlayerNumber // ✅ NEW: pass my role into BattleForm
+                );
+
+                battleForm.FormClosed += (s, args) => { this.Close(); };
+                battleForm.Show();
+                this.Hide();
+            }));
         }
 
         private void InitializeCharacters()
@@ -497,35 +542,48 @@ namespace DoAn_NT106
             return new string('█', bars) + new string('░', 10 - bars) + $" {value}";
         }
 
-        private void BtnConfirm_Click(object sender, EventArgs e)
+        private async void BtnConfirm_Click(object sender, EventArgs e)
         {
-            // ✅ LẤY CHARACTER ĐÃ CHỌN
             SelectedCharacter = characters[selectedIndex].Name;
-            this.DialogResult = DialogResult.OK;
 
-            // ✅ OPPONENT MẶC ĐỊNH là girlknight (sau này lấy từ server)
-            string opponentCharacter = "girlknight";
+            // ✅ Disable button and show feedback
+            btnConfirm.Enabled = false;
+            btnConfirm.Text = "⏳ SENDING...";
 
-            // ✅ TRUYỀN ĐẦY ĐỦ 7 THAM SỐ với character đã chọn + map + roomCode
-            Console.WriteLine($"[CharacterSelectForm] Passing selectedMap='{selectedMap}' to BattleForm");
-            var battleForm = new BattleForm(
-                username,              // Player 1 username
-                token,                 // Token
-                opponentName,          // Opponent username
-                SelectedCharacter,     // ✅ Player 1 character (người chơi đã chọn)
-                opponentCharacter,     // ✅ Player 2 character (mặc định girlknight)
-                selectedMap,           // ✅ MAP ĐÃ CHỈ ĐỊNH (e.g., "battleground4")
-                roomCode               // ✅ ROOM CODE
-            );
-
-            battleForm.FormClosed += (s, args) =>
+            try
             {
-            };
+                var request = new
+                {
+                    Action = "SELECT_CHARACTER",
+                    Data = new
+                    {
+                        roomCode = roomCode,
+                        username = username,
+                        character = SelectedCharacter
+                    }
+                };
 
-            battleForm.Show();
-            this.Close();
+                string json = JsonSerializer.Serialize(request);
+                await PersistentTcpClient.Instance.SendRequestAsync(json);
+                
+                // ✅ Show success feedback
+                btnConfirm.Text = "✓ CONFIRMED";
+                btnConfirm.BackColor = Color.FromArgb(100, 200, 100);
+                Console.WriteLine($"[CharacterSelectForm] Sent SELECT_CHARACTER: {SelectedCharacter}");
+                
+                // ✅ Disable for rest of form lifetime (wait for server START_GAME)
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CharacterSelectForm] Error sending SELECT_CHARACTER: {ex.Message}");
+                MessageBox.Show("Network error when sending character select.", "Error");
+                
+                // Re-enable button on error
+                btnConfirm.Enabled = true;
+                btnConfirm.Text = "✓ CONFIRM";
+            }
         }
-        
+
         private void BtnBack_Click(object sender, EventArgs e)
         {
             // Quay lại GameLobbyForm

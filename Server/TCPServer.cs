@@ -524,8 +524,14 @@ namespace DoAn_NT106.Server
 
                     case "LOBBY_CHAT_SEND":
                         return HandleLobbyChatSend(request);
+
                     case "LOBBY_START_GAME":
                         return HandleLobbyStartGame(request);
+
+                    // ✅ NEW: character selection in lobby
+                    case "SELECT_CHARACTER":
+                        return HandleSelectCharacter(request);
+
                     case "START_GAME":
                         return HandleStartGame(request);
                     case "GAME_ACTION":
@@ -554,7 +560,39 @@ namespace DoAn_NT106.Server
             }
         }
 
-        #region HandleUser
+        // ... existing handlers ...
+
+        // NEW: route SELECT_CHARACTER to LobbyManager
+        private string HandleSelectCharacter(Request request)
+        {
+            try
+            {
+                var roomCode = request.Data?["roomCode"]?.ToString();
+                var username = request.Data?["username"]?.ToString();
+                var character = request.Data?["character"]?.ToString();
+
+                if (string.IsNullOrEmpty(roomCode) || string.IsNullOrEmpty(username) || string.IsNullOrEmpty(character))
+                {
+                    return CreateResponse(false, "Room code, username and character are required");
+                }
+
+                server.Log($"🎯 SELECT_CHARACTER: {username} -> {character} in room {roomCode}");
+                lobbyManager.HandleSelectCharacter(roomCode, username, character);
+
+                // Không cần trả nhiều data, START_GAME sẽ được broadcast riêng
+                return CreateResponse(true, "Character selected");
+            }
+            catch (Exception ex)
+            {
+                server.Log($"❌ HandleSelectCharacter error: {ex.Message}");
+                return CreateResponse(false, $"Error: {ex.Message}");
+            }
+        }
+        #endregion
+
+
+        #region User Handling
+
         private string HandleRegister(Request request)
         {
             try
@@ -1591,7 +1629,7 @@ namespace DoAn_NT106.Server
         #endregion
     }
 
-    #endregion
+
 
     #region Class
     public class Request

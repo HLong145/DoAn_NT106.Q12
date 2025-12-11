@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace DoAn_NT106.Server
 {
@@ -16,6 +17,10 @@ namespace DoAn_NT106.Server
 
         // Room Code -> Lobby Data
         private ConcurrentDictionary<string, LobbyData> lobbies = new ConcurrentDictionary<string, LobbyData>();
+
+        // Room Code -> Character selection state (P1/P2 picks)
+        private ConcurrentDictionary<string, CharacterSelectState> characterSelectByRoom =
+            new ConcurrentDictionary<string, CharacterSelectState>();
 
         // Reference đến RoomManager để gọi LeaveRoom
         private RoomManager roomManager;
@@ -511,6 +516,67 @@ namespace DoAn_NT106.Server
             public DateTime Timestamp { get; set; }
         }
 
+        private class CharacterSelectState
+        {
+            public string Player1Character { get; set; }
+            public string Player2Character { get; set; }
+            public bool Player1Selected { get; set; }
+            public bool Player2Selected { get; set; }
+        }
+
         #endregion
+
+        public void HandleSelectCharacter(string roomCode, string username, string character)
+        {
+            if (!lobbies.TryGetValue(roomCode, out var lobby))
+                return;
+
+            lock (lobby.Lock)
+            {
+                var state = characterSelectByRoom.GetOrAdd(roomCode, _ => new CharacterSelectState());
+
+                if (lobby.Player1Username == username)
+                {
+                    state.Player1Character = character;
+                    state.Player1Selected = true;
+                }
+                else if (lobby.Player2Username == username)
+                {
+                    state.Player2Character = character;
+                    state.Player2Selected = true;
+                }
+                else
+                {
+                    return; // unknown user in this lobby
+                }
+
+                Log($"[Lobby] {username} selected character {character} in room {roomCode}");
+
+                // Khi cả 2 đã chọn xong, gửi START_GAME chung với role + character mapping
+                if (state.Player1Selected && state.Player2Selected &&
+                    !string.IsNullOrEmpty(lobby.Player1Username) &&
+                    !string.IsNullOrEmpty(lobby.Player2Username))
+                {
+                    var payload = new
+                    {
+                        Action = "START_GAME",
+                        Data = new
+                        {
+                            roomCode = lobby.RoomCode,
+                            player1 = lobby.Player1Username,
+                            player2 = lobby.Player2Username,
+                            player1Character = state.Player1Character,
+                            player2Character = state.Player2Character
+                        }
+                    };
+
+                    string json = JsonSerializer.Serialize(payload);
+                    SafeSend(lobby.Player1Client, json);
+                    SafeSend(lobby.Player2Client, json);
+
+                    Log($"🚀 START_GAME sent for room {roomCode}: P1={lobby.Player1Username} ({state.Player1Character}), P2={lobby.Player2Username} ({state.Player2Character})");
+                }
+            }
+        }
     }
 }

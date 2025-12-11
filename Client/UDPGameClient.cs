@@ -3,11 +3,14 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using DoAn_NT106.Services;
 
 namespace DoAn_NT106.Client
 {
     /// <summary>
     /// UDP Client g?i/nh?n game state binary 30-50ms/l?n
+    /// ? Packet structure: [RoomCode(6)] [PlayerNum(1)] [X(2)] [Y(2)] [Health(1)] [Stamina(1)] [Mana(1)] 
+    ///                     [Facing(1)] [IsAttacking(1)] [IsParrying(1)] [ActionLen(1)] [Action(var)]
     /// </summary>
     public class UDPGameClient : IDisposable
     {
@@ -28,7 +31,10 @@ namespace DoAn_NT106.Client
         // Game state to send
         private int currentX, currentY;
         private int currentHealth, currentStamina, currentMana;
-        private string currentAction = "idle";
+        private string currentAction = "stand";
+        private string currentFacing = "right";        // ? NEW
+        private bool currentIsAttacking = false;       // ? NEW
+        private bool currentIsParrying = false;        // ? NEW
         private readonly object stateLock = new object();
 
         // Events
@@ -58,7 +64,7 @@ namespace DoAn_NT106.Client
         {
             if (isConnected)
             {
-                Log("?? Already connected");
+                Log("? Already connected");
                 return;
             }
 
@@ -119,8 +125,10 @@ namespace DoAn_NT106.Client
 
         /// <summary>
         /// Update current game state (called from BattleForm timer)
+        /// ? NEW: Include Facing, IsAttacking, IsParrying
         /// </summary>
-        public void UpdateState(int x, int y, int health, int stamina, int mana, string action)
+        public void UpdateState(int x, int y, int health, int stamina, int mana, string action, 
+            string facing = "right", bool isAttacking = false, bool isParrying = false)
         {
             lock (stateLock)
             {
@@ -129,7 +137,10 @@ namespace DoAn_NT106.Client
                 currentHealth = health;
                 currentStamina = stamina;
                 currentMana = mana;
-                currentAction = action ?? "idle";
+                currentAction = action ?? "stand";
+                currentFacing = facing ?? "right";      // ? NEW
+                currentIsAttacking = isAttacking;       // ? NEW
+                currentIsParrying = isParrying;         // ? NEW
             }
         }
 
@@ -169,13 +180,14 @@ namespace DoAn_NT106.Client
         {
             lock (stateLock)
             {
-                // Binary packet structure:
-                // [RoomCode(6)] [PlayerNum(1)] [X(2)] [Y(2)] [Health(1)] [Stamina(1)] [Mana(1)] [ActionLen(1)] [Action(var)]
+                // ? NEW PACKET STRUCTURE:
+                // [RoomCode(6)] [PlayerNum(1)] [X(2)] [Y(2)] [Health(1)] [Stamina(1)] [Mana(1)] 
+                // [Facing(1)] [IsAttacking(1)] [IsParrying(1)] [ActionLen(1)] [Action(var)]
 
                 byte[] actionBytes = System.Text.Encoding.UTF8.GetBytes(currentAction);
                 int actionLen = Math.Min(actionBytes.Length, 20); // Max 20 chars
 
-                byte[] packet = new byte[14 + actionLen];
+                byte[] packet = new byte[17 + actionLen];
 
                 // RoomCode (6 bytes, padded with nulls)
                 byte[] roomCodeBytes = System.Text.Encoding.UTF8.GetBytes(roomCode.PadRight(6, '\0'));
@@ -201,12 +213,21 @@ namespace DoAn_NT106.Client
                 // Mana (1 byte)
                 packet[13] = (byte)Math.Clamp(currentMana, 0, 255);
 
+                // ? NEW: Facing (1 byte) - 'L' = left, 'R' = right
+                packet[14] = (byte)(currentFacing == "left" ? 'L' : 'R');
+
+                // ? NEW: IsAttacking (1 byte) - 1 = true, 0 = false
+                packet[15] = currentIsAttacking ? (byte)1 : (byte)0;
+
+                // ? NEW: IsParrying (1 byte) - 1 = true, 0 = false
+                packet[16] = currentIsParrying ? (byte)1 : (byte)0;
+
                 // ActionLen (1 byte)
-                packet[14] = (byte)actionLen;
+                packet[17] = (byte)actionLen;
 
                 // Action (variable length)
                 if (actionLen > 0)
-                    Array.Copy(actionBytes, 0, packet, 15, actionLen);
+                    Array.Copy(actionBytes, 0, packet, 18, actionLen);
 
                 return packet;
             }
@@ -230,7 +251,7 @@ namespace DoAn_NT106.Client
             }
             catch (ObjectDisposedException)
             {
-                // Socket closed
+                // Socket ?ã ?óng
             }
             catch (Exception ex)
             {
@@ -245,7 +266,7 @@ namespace DoAn_NT106.Client
         {
             try
             {
-                if (data == null || data.Length < 10)
+                if (data == null || data.Length < 13)
                     return;
 
                 // Invoke event for BattleForm to handle opponent's state
@@ -267,7 +288,7 @@ namespace DoAn_NT106.Client
         public void SetPlayerNumber(int playerNum)
         {
             this.playerNumber = playerNum;
-            Log($"?? Player number set: {playerNum}");
+            Log($"? Player number set: {playerNum}");
         }
 
         private void Log(string message)
