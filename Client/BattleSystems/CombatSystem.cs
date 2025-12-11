@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
 using Timer = System.Windows.Forms.Timer;
+using NAudio.Wave;
 
 namespace DoAn_NT106.Client.BattleSystems
 {
@@ -160,11 +161,11 @@ namespace DoAn_NT106.Client.BattleSystems
             player.IsParrying = true;
             player.CurrentAnimation = "parry";
             animMgr.ResetAnimationToFirstFrame("parry");
-            // ✅ Play warrior parry sound
+            // ✅ Play unified parry sound resource for KG/Warrior/Bringer if available
             try
             {
-                if (player.CharacterType == "warrior")
-                    DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.ParryWarrior);
+                if (player.CharacterType == "warrior" || player.CharacterType == "girlknight" || player.CharacterType == "bringerofdeath" || player.CharacterType == "goatman")
+                    TryPlayParryResource();
             }
             catch { }
             parryTimer.Stop();
@@ -172,6 +173,50 @@ namespace DoAn_NT106.Client.BattleSystems
             // ✅ SỬA: Không hồi mana khi bắt đầu parry, chỉ hồi khi parry thành công (dính attack)
             showHitEffectCallback?.Invoke("Parry!", Color.Cyan);
             invalidateCallback?.Invoke();
+        }
+
+        // Try to play embedded parry sound resource 'parry_KG_warrior_bringer' using NAudio (supports mp3)
+        private void TryPlayParryResource()
+        {
+            try
+            {
+                var obj = Properties.Resources.ResourceManager.GetObject("parry_KG_warrior_bringer_goatman");
+                byte[] audioBytes = null;
+
+                if (obj is byte[] bb) audioBytes = bb;
+                else if (obj is System.IO.UnmanagedMemoryStream ums)
+                {
+                    using var ms = new System.IO.MemoryStream();
+                    ums.CopyTo(ms);
+                    audioBytes = ms.ToArray();
+                }
+                else if (obj is System.IO.Stream s0)
+                {
+                    using var ms2 = new System.IO.MemoryStream();
+                    s0.Position = 0;
+                    s0.CopyTo(ms2);
+                    audioBytes = ms2.ToArray();
+                }
+
+                if (audioBytes != null && audioBytes.Length > 0)
+                {
+                    var ms = new System.IO.MemoryStream(audioBytes);
+                    var reader = new Mp3FileReader(ms);
+                    var wo = new WaveOutEvent();
+                    wo.Init(reader);
+                    wo.PlaybackStopped += (s, e) =>
+                    {
+                        try { wo.Dispose(); } catch { }
+                        try { reader.Dispose(); } catch { }
+                        try { ms.Dispose(); } catch { }
+                    };
+                    wo.Play();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CombatSystem] TryPlayParryResource failed: {ex.Message}");
+            }
         }
 
         public void ExecuteAttack(int playerNum, string attackType)
