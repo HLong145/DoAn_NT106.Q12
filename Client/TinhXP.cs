@@ -1,4 +1,5 @@
-﻿using System;
+﻿using DoAn_NT106.Services;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -7,7 +8,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using DoAn_NT106.Services;
 
 namespace DoAn_NT106.Client
 {
@@ -95,9 +95,17 @@ namespace DoAn_NT106.Client
                 {
                     var db = new DatabaseService();
                     db.UpdatePlayerXp(_result.PlayerUsername, _xpAfter, _xpNeededForNextLevel);
+
+                    // Nếu đã lên cấp, ghi đè cột USER_LEVEL trong bảng PLAYERS
+                    if (_levelAfter > _levelBefore)
+                    {
+                        db.UpdatePlayerLevel(_result.PlayerUsername, _levelAfter);
+                    }
                 }
             }
-            catch { }
+            catch
+            {
+            }
 
             // Hiển thị tổng XP nhận được trên label chính
             if (lbl_XPEarnedValue != null)
@@ -164,7 +172,7 @@ namespace DoAn_NT106.Client
             {
                 if (_levelAfter > _levelBefore)
                 {
-                    lbl_XPProgress.Text = $"Level {_levelBefore} d Level {_levelAfter}";
+                    lbl_XPProgress.Text = $"Level {_levelBefore} -> Level {_levelAfter}";
                 }
                 else
                 {
@@ -196,6 +204,7 @@ namespace DoAn_NT106.Client
                 pnl_XPBarFill.Width = fillWidth;
             }
         }
+
         private void btn_Continue_Click(object sender, EventArgs e)
         {
             // Điều hướng tuỳ theo cách vào trận
