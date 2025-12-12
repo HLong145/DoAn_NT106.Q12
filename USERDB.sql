@@ -16,8 +16,8 @@ BEGIN
     (
         ID INT IDENTITY(1,1) PRIMARY KEY,
         USERNAME NVARCHAR(50) NOT NULL UNIQUE,
-        EMAIL NVARCHAR(100) NULL UNIQUE,
-        PHONE NVARCHAR(20) NULL UNIQUE,
+        EMAIL NVARCHAR(100) NULL, 
+        PHONE NVARCHAR(20) NULL,   
         PASSWORDHASH NVARCHAR(64) NOT NULL,
         SALT NVARCHAR(50) NOT NULL,
         USER_LEVEL INT DEFAULT 1,
@@ -29,6 +29,23 @@ BEGIN
     PRINT '✅ Table PLAYERS created';
 END
 GO
+
+-- Tạo filtered unique index cho EMAIL (cho phép nhiều NULL)
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_PLAYERS_EMAIL_UNIQUE' AND object_id = OBJECT_ID('PLAYERS'))
+BEGIN
+    CREATE UNIQUE INDEX IX_PLAYERS_EMAIL_UNIQUE ON PLAYERS(EMAIL) WHERE EMAIL IS NOT NULL;
+    PRINT '✅ Filtered unique index for EMAIL created';
+END
+GO
+
+-- Tạo filtered unique index cho PHONE (cho phép nhiều NULL)
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_PLAYERS_PHONE_UNIQUE' AND object_id = OBJECT_ID('PLAYERS'))
+BEGIN
+    CREATE UNIQUE INDEX IX_PLAYERS_PHONE_UNIQUE ON PLAYERS(PHONE) WHERE PHONE IS NOT NULL;
+    PRINT '✅ Filtered unique index for PHONE created';
+END
+GO
+
 
 -- =============================================
 -- BẢNG 2: ROOMS (Phòng chơi) 
