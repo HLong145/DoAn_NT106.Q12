@@ -494,6 +494,23 @@ namespace DoAn_NT106
             _player1ManaCarryover = player1State.Mana;
             _player2ManaCarryover = player2State.Mana;
 
+            // In online mode, only the host (player 1) should decide round winners and advance rounds.
+            if (isOnlineMode && myPlayerNumber != 1)
+            {
+                // Non-host: wait for server/host to broadcast round result. Update center label and return.
+                try
+                {
+                    if (_lblRoundCenter != null)
+                    {
+                        _lblRoundCenter.Text = "ROUND ENDED - waiting for host...";
+                        ResizeRoundCenterLabel();
+                        _lblRoundCenter.BringToFront();
+                    }
+                }
+                catch { }
+                return;
+            }
+
             // Determine winner by HP
             if (player1State.Health < player2State.Health)
                 _player2Wins++;
@@ -530,6 +547,22 @@ namespace DoAn_NT106
             _player1ManaCarryover = player1State.Mana;
             _player2ManaCarryover = player2State.Mana;
 
+            // In online mode, only host decides winners and advances rounds
+            if (isOnlineMode && myPlayerNumber != 1)
+            {
+                try
+                {
+                    if (_lblRoundCenter != null)
+                    {
+                        _lblRoundCenter.Text = "ROUND ENDED - waiting for host...";
+                        ResizeRoundCenterLabel();
+                        _lblRoundCenter.BringToFront();
+                    }
+                }
+                catch { }
+                return;
+            }
+
             // Award win to survivor
             if (player1State.IsDead && !player2State.IsDead)
                 _player2Wins++;
@@ -563,60 +596,100 @@ namespace DoAn_NT106
             _roundTimeRemainingMs = 3 * 60 * 1000;
             UpdateRoundCenterText();
 
-            // ✅ SỬA: Reset HP theo character type (không phải mặc định 100)
+            // Apply round defaults based on current round number and carryover mana
             int maxHP1 = GetMaxHealthForCharacter(player1State.CharacterType);
             int maxHP2 = GetMaxHealthForCharacter(player2State.CharacterType);
 
-            player1State.Health = maxHP1;
-            player1State.Stamina = 100;
-            // ✅ SỬA: Sử dụng mana từ hiệp trước (carryover)
-            player1State.Mana = _player1ManaCarryover;
+            ApplyRoundSettings(_roundNumber, maxHP1, maxHP2, _player1ManaCarryover, _player2ManaCarryover);
 
-            player2State.Health = maxHP2;
-            player2State.Stamina = 100;
-            // ✅ SỬA: Sử dụng mana từ hiệp trước (carryover)
-            player2State.Mana = _player2ManaCarryover;
+            // If online and host, broadcast round start to opponent so both clients run same reset
+            try
+            {
+                if (isOnlineMode && myPlayerNumber == 1 && udpClient != null && udpClient.IsConnected)
+                {
+                    var payload = new Dictionary<string, object>
+                    {
+                        ["roundNumber"] = _roundNumber,
+                        ["maxHP1"] = maxHP1,
+                        ["maxHP2"] = maxHP2,
+                        ["player1ManaCarryover"] = _player1ManaCarryover,
+                        ["player2ManaCarryover"] = _player2ManaCarryover
+                    };
+                    udpClient.SendCombatEvent("round_start", payload);
+                    Console.WriteLine($"[UDP] Broadcast round_start (round {_roundNumber}) by host");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Broadcast round_start error: {ex.Message}");
+            }
+        }
 
-            // ✅ THÊM: Update HealthBar Maximum values
-            resourceSystem.HealthBar1.Maximum = maxHP1;
-            resourceSystem.HealthBar2.Maximum = maxHP2;
+        /// <summary>
+        /// Apply complete round reset settings (used by host locally and clients when receiving host's broadcast)
+        /// </summary>
+        private void ApplyRoundSettings(int roundNumber, int maxHP1, int maxHP2, int p1ManaCarry, int p2ManaCarry)
+        {
+            try
+            {
+                _roundNumber = roundNumber;
+                _roundTimeRemainingMs = 3 * 60 * 1000;
+                UpdateRoundCenterText();
 
-            resourceSystem?.UpdateBars();
+                player1State.Health = maxHP1;
+                player1State.Stamina = 100;
+                player1State.Mana = p1ManaCarry;
 
-            // Reset all combat statuses
-            player1State.IsStunned = false;
-            player2State.IsStunned = false;
-            player1State.IsAttacking = false;
-            player2State.IsAttacking = false;
-            player1State.IsParrying = false;
-            player2State.IsParrying = false;
-            player1State.IsSkillActive = false;
-            player2State.IsSkillActive = false;
-            player1State.IsCharging = false;
-            player2State.IsCharging = false;
-            player1State.IsDashing = false;
-            player2State.IsDashing = false;
+                player2State.Health = maxHP2;
+                player2State.Stamina = 100;
+                player2State.Mana = p2ManaCarry;
 
-            player1State.ResetToIdle();
-            player2State.ResetToIdle();
+                // Update HealthBar Maximum values
+                if (resourceSystem != null)
+                {
+                    resourceSystem.HealthBar1.Maximum = maxHP1;
+                    resourceSystem.HealthBar2.Maximum = maxHP2;
+                    resourceSystem.UpdateBars();
+                }
 
-            // Reset positions - ✅ SỬA: X = 150 và 900, force reset Y position
-            player1State.X = 150;
-            player1State.Y = groundLevel - PLAYER_HEIGHT;
-            
-            player2State.X = 900;
-            player2State.Y = groundLevel - PLAYER_HEIGHT;
-            
-            physicsSystem?.ResetToGround(player1State);
-            physicsSystem?.ResetToGround(player2State);
+                // Reset statuses
+                player1State.IsStunned = false;
+                player2State.IsStunned = false;
+                player1State.IsAttacking = false;
+                player2State.IsAttacking = false;
+                player1State.IsParrying = false;
+                player2State.IsParrying = false;
+                player1State.IsSkillActive = false;
+                player2State.IsSkillActive = false;
+                player1State.IsCharging = false;
+                player2State.IsCharging = false;
+                player1State.IsDashing = false;
+                player2State.IsDashing = false;
 
-            // Cleanup effects
-            try { effectManager?.Cleanup(); } catch { }
-            try { projectileManager?.Cleanup(); } catch { }
+                player1State.ResetToIdle();
+                player2State.ResetToIdle();
 
-            // Start round countdown animation
-            DisplayRoundStartAnimation();
-            this.Invalidate();
+                // Reset positions
+                player1State.X = 150;
+                player1State.Y = groundLevel - PLAYER_HEIGHT;
+                player2State.X = 900;
+                player2State.Y = groundLevel - PLAYER_HEIGHT;
+
+                physicsSystem?.ResetToGround(player1State);
+                physicsSystem?.ResetToGround(player2State);
+
+                // Cleanup effects
+                try { effectManager?.Cleanup(); } catch { }
+                try { projectileManager?.Cleanup(); } catch { }
+
+                // Start round countdown animation
+                DisplayRoundStartAnimation();
+                this.Invalidate();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[RoundSystem] ApplyRoundSettings error: {ex.Message}");
+            }
         }
 
         // ✅ THÊM: Helper function to get max health for character

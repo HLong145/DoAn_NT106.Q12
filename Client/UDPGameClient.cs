@@ -40,6 +40,8 @@ namespace DoAn_NT106.Client
             CombatEvent = 1,    // Attack, damage, parry
             RoundEvent = 2      // Round start/end
         }
+        // send sequence counter
+        private uint sendSeq = 0;
 
         // Events
         public event Action<string> OnLog;
@@ -174,7 +176,7 @@ namespace DoAn_NT106.Client
             }
             try
             {
-                byte[] packet = BuildPacket();
+                byte[] packet = BuildPacket(includeSeqAndTs: true);
                 udpSocket.Send(packet, packet.Length);
             }
             catch { }
@@ -192,12 +194,14 @@ namespace DoAn_NT106.Client
             {
                 while (!token.IsCancellationRequested && isConnected)
                 {
-                    byte[] packet = BuildPacket();
+                // Always include seq+timestamp for reliable ordering on receiver side
+                byte[] packet = BuildPacket(includeSeqAndTs: true);
                     await udpSocket.SendAsync(packet, packet.Length);
 
-                    // ? FIX: Reduce delay from 40ms to 16ms for ~60 FPS update rate
-                    // This provides much smoother gameplay with lower perceived latency
-                    await Task.Delay(16, token); // 16ms ? 60 FPS
+                // ? TWEAK: Use slightly higher send rate for lower latency (~80Hz)
+                // Lowering from 16ms -> 12ms reduces input-to-network delay at cost of bandwidth
+                // If system is under heavy load, consider increasing to 16ms.
+                await Task.Delay(12, token); // ~12ms => ~83Hz
                 }
             }
             catch (OperationCanceledException)
@@ -213,7 +217,7 @@ namespace DoAn_NT106.Client
             Log("?? UDP send loop stopped");
         }
 
-        private byte[] BuildPacket()
+        private byte[] BuildPacket(bool includeSeqAndTs = false)
         {
             lock (stateLock)
             {
@@ -226,49 +230,75 @@ namespace DoAn_NT106.Client
                 byte[] actionBytes = System.Text.Encoding.UTF8.GetBytes(currentAction);
                 int actionLen = Math.Min(actionBytes.Length, 20); // Max 20 chars
 
-                // Need +1 for ActionLen byte and +1 since last written index is 16+facingLen+actionLen
-                byte[] packet = new byte[17 + facingLen + actionLen];
+                // If includeSeqAndTs, add 4-byte seq + 4-byte timestamp after packet type
+                int headerExtra = includeSeqAndTs ? 8 : 0;
+                byte[] packet = new byte[17 + facingLen + actionLen + headerExtra];
 
-                // ? ADD: Packet type
+                // Packet type
                 packet[0] = (byte)PacketType.StateUpdate;
+
+                int idx = 1;
+
+                if (includeSeqAndTs)
+                {
+                    unchecked { sendSeq++; }
+                    uint ts = (uint)Environment.TickCount;
+                    // seq (4 bytes)
+                    packet[idx++] = (byte)(sendSeq & 0xFF);
+                    packet[idx++] = (byte)((sendSeq >> 8) & 0xFF);
+                    packet[idx++] = (byte)((sendSeq >> 16) & 0xFF);
+                    packet[idx++] = (byte)((sendSeq >> 24) & 0xFF);
+                    // timestamp (4 bytes)
+                    packet[idx++] = (byte)(ts & 0xFF);
+                    packet[idx++] = (byte)((ts >> 8) & 0xFF);
+                    packet[idx++] = (byte)((ts >> 16) & 0xFF);
+                    packet[idx++] = (byte)((ts >> 24) & 0xFF);
+                }
 
                 // RoomCode (6 bytes, padded with nulls)
                 byte[] roomCodeBytes = System.Text.Encoding.UTF8.GetBytes(roomCode.PadRight(6, '\0'));
-                Array.Copy(roomCodeBytes, 0, packet, 1, 6);
+                Array.Copy(roomCodeBytes, 0, packet, idx, 6);
+                idx += 6;
 
                 // PlayerNum (1 byte)
-                packet[7] = (byte)playerNumber;
+                packet[idx++] = (byte)playerNumber;
 
                 // X (2 bytes, little-endian)
-                packet[8] = (byte)(currentX & 0xFF);
-                packet[9] = (byte)((currentX >> 8) & 0xFF);
+                packet[idx++] = (byte)(currentX & 0xFF);
+                packet[idx++] = (byte)((currentX >> 8) & 0xFF);
 
                 // Y (2 bytes)
-                packet[10] = (byte)(currentY & 0xFF);
-                packet[11] = (byte)((currentY >> 8) & 0xFF);
+                packet[idx++] = (byte)(currentY & 0xFF);
+                packet[idx++] = (byte)((currentY >> 8) & 0xFF);
 
                 // Health (1 byte)
-                packet[12] = (byte)Math.Clamp(currentHealth, 0, 255);
+                packet[idx++] = (byte)Math.Clamp(currentHealth, 0, 255);
 
                 // Stamina (1 byte)
-                packet[13] = (byte)Math.Clamp(currentStamina, 0, 255);
+                packet[idx++] = (byte)Math.Clamp(currentStamina, 0, 255);
 
                 // Mana (1 byte)
-                packet[14] = (byte)Math.Clamp(currentMana, 0, 255);
+                packet[idx++] = (byte)Math.Clamp(currentMana, 0, 255);
 
                 // FacingLen (1 byte)
-                packet[15] = (byte)facingLen;
+                packet[idx++] = (byte)facingLen;
 
                 // Facing (variable length)
                 if (facingLen > 0)
-                    Array.Copy(facingBytes, 0, packet, 16, facingLen);
+                {
+                    Array.Copy(facingBytes, 0, packet, idx, facingLen);
+                    idx += facingLen;
+                }
 
                 // ActionLen (1 byte)
-                packet[16 + facingLen] = (byte)actionLen;
+                packet[idx++] = (byte)actionLen;
 
                 // Action (variable length)
                 if (actionLen > 0)
-                    Array.Copy(actionBytes, 0, packet, 17 + facingLen, actionLen);
+                {
+                    Array.Copy(actionBytes, 0, packet, idx, actionLen);
+                    idx += actionLen;
+                }
 
                 return packet;
             }

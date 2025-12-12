@@ -232,7 +232,9 @@ namespace DoAn_NT106
             btnConfirm = new Btn_Pixel { Text = "✓ CONFIRM", Location = new Point(500, 575), Size = new Size(160, 45) }; btnConfirm.Click += BtnConfirm_Click; mainPanel.Controls.Add(btnConfirm);
             btnBack = new Btn_Pixel { Text = "← BACK", Location = new Point(680, 575), Size = new Size(140, 45) }; btnBack.Click += BtnBack_Click; mainPanel.Controls.Add(btnBack);
 
-            var lblRoomInfo = new Label { Text = $"Room: {roomCode} | VS: {opponentName}", Location = new Point(20, 580), Size = new Size(400, 30), Font = new Font("Courier New", 10, FontStyle.Bold), ForeColor = Color.White };
+            // Show opponent label depending on player assignment
+            string vsLabel = myPlayerNumber == 1 ? $"vs: Player 2 ({opponentName})" : $"vs: Player 1 ({opponentName})";
+            var lblRoomInfo = new Label { Text = $"Room: {roomCode} | {vsLabel}", Location = new Point(20, 580), Size = new Size(400, 30), Font = new Font("Courier New", 10, FontStyle.Bold), ForeColor = Color.White };
             mainPanel.Controls.Add(lblRoomInfo);
 
             UpdatePreview();

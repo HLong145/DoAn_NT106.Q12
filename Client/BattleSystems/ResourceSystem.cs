@@ -154,15 +154,37 @@ namespace DoAn_NT106.Client.BattleSystems
         /// </summary>
         public void UpdateBars()
         {
-            // ✅ SỬA: KHÔNG clamp value ở 100 nữa - để nó là giá trị thực tế
-            // Vì Maximum đã được set theo max HP của character
-            HealthBar1.Value = Math.Max(0, player1.Health);  // ✅ Không Math.Min(100, ...)
-            StaminaBar1.Value = Math.Max(0, Math.Min(100, player1.Stamina));  // Stamina vẫn max 100
-            ManaBar1.Value = Math.Max(0, Math.Min(100, player1.Mana));  // Mana vẫn max 100
-            
-            HealthBar2.Value = Math.Max(0, player2.Health);  // ✅ Không Math.Min(100, ...)
-            StaminaBar2.Value = Math.Max(0, Math.Min(100, player2.Stamina));  // Stamina vẫn max 100
-            ManaBar2.Value = Math.Max(0, Math.Min(100, player2.Mana));  // Mana vẫn max 100
+            // Only update UI when values actually changed to avoid unnecessary layout and reduce stutter.
+            try
+            {
+                // clamp to control maximum to avoid ArgumentOutOfRange exceptions
+                int h1 = Math.Max(0, Math.Min(HealthBar1.Maximum, player1.Health));
+                int s1 = Math.Max(0, Math.Min(StaminaBar1.Maximum, player1.Stamina));
+                int m1 = Math.Max(0, Math.Min(ManaBar1.Maximum, player1.Mana));
+
+                int h2 = Math.Max(0, Math.Min(HealthBar2.Maximum, player2.Health));
+                int s2 = Math.Max(0, Math.Min(StaminaBar2.Maximum, player2.Stamina));
+                int m2 = Math.Max(0, Math.Min(ManaBar2.Maximum, player2.Mana));
+
+                // Cập nhật giá trị mới nếu khác với giá trị hiện tại
+                if (HealthBar1.Value != h1 || StaminaBar1.Value != s1 || ManaBar1.Value != m1)
+                {
+                    HealthBar1.Value = h1;
+                    StaminaBar1.Value = s1;
+                    ManaBar1.Value = m1;
+                }
+
+                if (HealthBar2.Value != h2 || StaminaBar2.Value != s2 || ManaBar2.Value != m2)
+                {
+                    HealthBar2.Value = h2;
+                    StaminaBar2.Value = s2;
+                    ManaBar2.Value = m2;
+                }
+            }
+            catch
+            {
+                // swallow any UI errors to avoid stopping the game loop
+            }
         }
 
         /// <summary>
@@ -170,8 +192,9 @@ namespace DoAn_NT106.Client.BattleSystems
         /// </summary>
         public void RegenerateResources()
         {
-            player1.RegenerateResources();
-            player2.RegenerateResources();
+            // NOTE: Stamina and Mana regeneration is now handled by Timers in PlayerState
+            // This method is called but the regeneration happens automatically via the timers
+            // which are started in PlayerState.InitializeRegenTimers()
         }
 
         /// <summary>

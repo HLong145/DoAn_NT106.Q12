@@ -245,43 +245,36 @@ namespace DoAn_NT106.Client.BattleSystems
                 return;
             }
 
-            // ✅ SỬA: Special attack không tiêu tốn stamina ở đây, sẽ quản lý riêng trong ExecuteSpecialAttack
+            // Determine stamina cost per character and attack type
             int staminaCost = 0;
             if (attackType != "special")
             {
-                staminaCost = attackType == "kick" ? 15 : (attackType == "punch" ? 15 : 0);
-                
-                // ✅ SỬA: Warrior punch tốn 15 stamina, kick tốn 20 stamina
-                if (attacker.CharacterType == "warrior" && attackType == "punch")
+                switch (attacker.CharacterType)
                 {
-                    staminaCost = 15;
-                }
-                
-                if (attacker.CharacterType == "warrior" && attackType == "kick")
-                {
-                    staminaCost = 20;
-                }
-                
-                // ✅ SỬA: Bringer of Death punch tốn 20 stamina
-                if (attacker.CharacterType == "bringerofdeath" && attackType == "punch")
-                {
-                    staminaCost = 20;
-                }
-                
-                // ✅ SỬA: Bringer of Death kick tốn 30 stamina
-                if (attacker.CharacterType == "bringerofdeath" && attackType == "kick")
-                {
-                    staminaCost = 30;
-                }
-                
-                if (!attacker.ConsumeStamina(staminaCost))
-                {
-                    showHitEffectCallback?.Invoke("No Stamina!", Color.Gray);
-                    // debug removed
-                    return;
+                    case "goatman":
+                        // Both punch and kick cost 15
+                        staminaCost = 15;
+                        break;
+                    case "bringerofdeath":
+                        // Punch 20, kick 30
+                        staminaCost = attackType == "punch" ? 20 : (attackType == "kick" ? 30 : 0);
+                        break;
+                    case "warrior":
+                        // Punch 15, kick 20
+                        staminaCost = attackType == "punch" ? 15 : (attackType == "kick" ? 20 : 0);
+                        break;
+                    case "girlknight":
+                    default:
+                        // Default: both cost 15 for KG and others
+                        staminaCost = 15;
+                        break;
                 }
 
-                // debug removed
+                if (staminaCost > 0 && !attacker.ConsumeStamina(staminaCost))
+                {
+                    showHitEffectCallback?.Invoke("No Stamina!", Color.Gray);
+                    return;
+                }
             }
 
             // ✅ Play attack sound
@@ -486,8 +479,27 @@ namespace DoAn_NT106.Client.BattleSystems
 
                     if (attackBox.IntersectsWith(hurtBox))
                     {
-                        ApplyDamage(playerNum == 1 ? 2 : 1, 10); // ✅ SỬA: 15 -> 10 damage
-                        attacker.RegenerateManaOnHitLand(); // ✅ TH ÊM: Hồi mana khi đánh trúng
+                        ApplyDamage(playerNum == 1 ? 2 : 1, 10); // bringer kick deals 10 damage
+                        attacker.RegenerateManaOnHitLand();
+                        // Apply short stun to target (0.5s)
+                        try
+                        {
+                            var tgt = playerNum == 1 ? player2 : player1;
+                            tgt.IsStunned = true;
+                            var stunTimer = new Timer { Interval = 500 };
+                            stunTimer.Tick += (ss, ee) =>
+                            {
+                                stunTimer.Stop();
+                                stunTimer.Dispose();
+                                tgt.IsStunned = false;
+                                if (!tgt.IsAttacking && !tgt.IsJumping)
+                                    tgt.ResetToIdle();
+                                invalidateCallback?.Invoke();
+                            };
+                            stunTimer.Start();
+                        }
+                        catch { }
+
                         showHitEffectCallback?.Invoke("Kick!", Color.Orange);
                     }
                 };
@@ -1194,7 +1206,9 @@ namespace DoAn_NT106.Client.BattleSystems
                 return;
             }
 
-            if (target.CurrentAnimation == "hurt") return;
+            // If currently in hurt animation, avoid re-applying local repeated hits
+            // but allow network-applied damage (broadcast==false) to be applied regardless
+            if (target.CurrentAnimation == "hurt" && broadcast) return;
 
             bool wasAttacking = target.IsAttacking;
             bool wasSkillActive = target.IsSkillActive;
@@ -1284,6 +1298,28 @@ namespace DoAn_NT106.Client.BattleSystems
             catch (Exception ex)
             {
                 Console.WriteLine($"[CombatSystem] Send damage event error: {ex.Message}");
+            }
+
+            // Additionally send an authoritative health snapshot so clients stay in sync
+            try
+            {
+                if (broadcast && sendCombatEventCallback != null)
+                {
+                    var hs = new Dictionary<string, object>
+                    {
+                        ["p1Health"] = player1.Health,
+                        ["p2Health"] = player2.Health,
+                        ["p1Stamina"] = player1.Stamina,
+                        ["p2Stamina"] = player2.Stamina,
+                        ["p1Mana"] = player1.Mana,
+                        ["p2Mana"] = player2.Mana
+                    };
+                    sendCombatEventCallback.Invoke("health_update", hs);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CombatSystem] Send health_update error: {ex.Message}");
             }
         }
 

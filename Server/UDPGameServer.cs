@@ -204,9 +204,22 @@ namespace DoAn_NT106.Server
                 // ? ENHANCED: Detect packet type from first byte
                 byte packetType = data[0];
                 
-                // Parse binary packet: [PacketType(1)] [RoomCode(6)] [PlayerNum(1)] [...]
-                string roomCode = System.Text.Encoding.UTF8.GetString(data, 1, 6).TrimEnd('\0');
-                int playerNum = data[7];
+                // Parse binary packet: [PacketType(1)] [optional: Seq(4)+Ts(4) - only for StateUpdate] [RoomCode(6)] [PlayerNum(1)] [...]
+                int idx = 1;
+                uint seq = 0;
+                uint ts = 0;
+                // Only parse seq+ts when packet type is StateUpdate (0) and packet is long enough
+                if (packetType == 0 && data.Length >= 1 + 8 + 6 + 1)
+                {
+                    seq = (uint)(data[1] | (data[2] << 8) | (data[3] << 16) | (data[4] << 24));
+                    ts = (uint)(data[5] | (data[6] << 8) | (data[7] << 16) | (data[8] << 24));
+                    idx = 9;
+                }
+
+                string roomCode = System.Text.Encoding.UTF8.GetString(data, idx, 6).TrimEnd('\0');
+                idx += 6;
+                int playerNum = data[idx];
+                idx += 1;
 
                 // ? ADDED: Log packet receipt
                 string packetTypeStr = packetType == 0 ? "StateUpdate" : packetType == 1 ? "CombatEvent" : "Unknown";
@@ -232,13 +245,17 @@ namespace DoAn_NT106.Server
                 else if (playerNum == 2)
                     match.Player2Endpoint = senderEndpoint;
 
-                // ? ENHANCED: Relay to opponent (all packet types)
+                // Relay to opponent (all packet types). If opponent endpoint same as sender, skip.
                 IPEndPoint opponentEndpoint = playerNum == 1 ? match.Player2Endpoint : match.Player1Endpoint;
 
                 if (opponentEndpoint != null)
                 {
-                    udpSocket.Send(data, data.Length, opponentEndpoint);
-                    Log($"? Relayed {packetTypeStr} to opponent at {opponentEndpoint}");
+                    // If sender equals opponent (shouldn't happen) skip
+                    if (!opponentEndpoint.Equals(senderEndpoint))
+                    {
+                        udpSocket.Send(data, data.Length, opponentEndpoint);
+                        Log($"? Relayed {packetTypeStr} to opponent at {opponentEndpoint}");
+                    }
                 }
                 else
                 {

@@ -244,6 +244,33 @@ namespace DoAn_NT106
             public Image EffectImage { get; set; }
         }
 
+        // Apply health value received from network, but avoid increasing health if local player recently took damage
+        private void ApplyNetworkHealth(PlayerState state, int networkHealth)
+        {
+            try
+            {
+                // Only allow network to reduce local health to avoid stale/late packets increasing health.
+                // Local damage and server-authoritative changes should reduce Health. Do not raise it here.
+                int maxHealth = state.CharacterType?.ToLower() switch
+                {
+                    "goatman" => 130,
+                    "bringerofdeath" => 90,
+                    "warrior" => 80,
+                    "girlknight" => 100,
+                    "knightgirl" => 100,
+                    _ => 100
+                };
+
+                var clamped = Math.Max(0, Math.Min(maxHealth, networkHealth));
+                // Only apply if network reports LESS health than we currently have
+                if (clamped < state.Health)
+                {
+                    state.Health = clamped;
+                }
+            }
+            catch { }
+        }
+
         public class AttackHitboxConfig
         {
             public float WidthPercent { get; set; }
@@ -448,6 +475,8 @@ namespace DoAn_NT106
         // Character types
         private string player1CharacterType = "girlknight";
         private string player2CharacterType = "girlknight";
+        // Timestamp of last immediate low-latency UDP send (ms)
+        private long _lastImmediateSendMs = 0;
 
         // Added myPlayerNumber last param so caller can indicate which player this client controls
         public BattleForm(string username, string token, string opponent, string player1Character, string player2Character, string selectedMap = "battleground1", string roomCode = "000000", int myPlayerNumber = 1)
@@ -545,6 +574,32 @@ namespace DoAn_NT106
 
             // ❌ Avoid re-running full setup; only force redraw
             this.Invalidate();
+
+            // ===== FIX: Ensure UI shows correct player names (avoid "Lan vs Lan" issue) =====
+            try
+            {
+                if (player1State != null && lblPlayer1Name != null)
+                    lblPlayer1Name.Text = player1State.PlayerName;
+
+                if (player2State != null && lblPlayer2Name != null)
+                    lblPlayer2Name.Text = player2State.PlayerName;
+
+                // Update window title to reflect actual assigned player names
+                try
+                {
+                    // Ensure host (player1) is shown first
+                    string p1 = player1State?.PlayerName ?? username;
+                    string p2 = player2State?.PlayerName ?? opponent;
+                    this.Text = $"⚔️ {p1} vs {p2}";
+                    if (lblPlayer1Name != null) lblPlayer1Name.Text = p1;
+                    if (lblPlayer2Name != null) lblPlayer2Name.Text = p2;
+                }
+                catch { }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[BattleForm] Error updating names/title: {ex.Message}");
+            }
         }
 
         private void SetupGame()
@@ -570,6 +625,8 @@ namespace DoAn_NT106
                         udpClient.OnOpponentState += HandleOpponentState;
                         udpClient.OnCombatEvent += HandleCombatEvent; // ✅ ADD: Subscribe to combat events
                         udpClient.Connect();
+                        // Immediately send one-shot state so server registers our endpoint
+                        try { SendLocalUdpState(); } catch { }
                         Console.WriteLine($"✅ UDP initialized for player {myPlayerNumber}");
                     }
                     catch (Exception ex)
@@ -587,13 +644,13 @@ namespace DoAn_NT106
 
                 // ===== ✅ INITIALIZE NEW SYSTEMS =====
                 // 1. Initialize PlayerState instances - SỬA Y position
-                // ✅ FIX: Determine correct names based on myPlayerNumber
-                string actualPlayer1Name = myPlayerNumber == 1 ? username : opponent;
-                string actualPlayer2Name = myPlayerNumber == 1 ? opponent : username;
-                
+                // Use fixed mapping: player1 is the first character (host/left), player2 is second
+                string actualPlayer1Name = username;
+                string actualPlayer2Name = opponent;
+
                 Console.WriteLine($"[SetupGame] Player {myPlayerNumber}: Me={username}, Opponent={opponent}");
                 Console.WriteLine($"[SetupGame] PlayerState: P1={actualPlayer1Name}, P2={actualPlayer2Name}");
-                
+
                 player1State = new PlayerState(actualPlayer1Name, player1CharacterType, 1)
                 {
                     X = 150, // ✅ SỬA: từ 300 → 150
@@ -604,6 +661,8 @@ namespace DoAn_NT106
                 
                 // ✅ SỬA: Set HP theo character type
                 SetPlayerHealth(player1State, player1CharacterType);
+                // ✅ THÊM: Đảm bảo health được reset đúng lúc startup
+                player1State.ResetHealthToMax();
 
                 player2State = new PlayerState(actualPlayer2Name, player2CharacterType, 2)
                 {
@@ -615,6 +674,8 @@ namespace DoAn_NT106
                 
                 // ✅ SỬA: Set HP theo character type
                 SetPlayerHealth(player2State, player2CharacterType);
+                // ✅ THÊM: Đảm bảo health được reset đúng lúc startup
+                player2State.ResetHealthToMax();
 
                 // 2. Initialize ResourceSystem (only once)
                 if (resourceSystem == null)
@@ -703,7 +764,7 @@ namespace DoAn_NT106
             {
                 lblPlayer1Name = new Label
                 {
-                    Text = username,
+                    Text = player1State?.PlayerName ?? username,
                     Location = new Point(20, startY + 3 * (barHeight + spacing) + 90),  // ✅ Dịch xuống dưới portrait (nhỏ)
                     Size = new Size(barWidth, 25),  // ✅ Tăng chiều cao từ 20 → 25
                     ForeColor = Color.Cyan,
@@ -717,7 +778,7 @@ namespace DoAn_NT106
             {
                 lblPlayer2Name = new Label
                 {
-                    Text = opponent,
+                    Text = player2State?.PlayerName ?? opponent,
                     Location = new Point(screenWidth - barWidth - 20, startY + 3 * (barHeight + spacing) + 90),  // ✅ Dịch xuống dưới portrait (nhỏ)
                     Size = new Size(barWidth, 25),  // ✅ Tăng chiều cao từ 20 → 25
                     ForeColor = Color.Orange,
@@ -800,6 +861,17 @@ namespace DoAn_NT106
             player2Stunned = player2State.IsStunned;
             player1CurrentAnimation = player1State.CurrentAnimation;
             player2CurrentAnimation = player2State.CurrentAnimation;
+
+            // Mark recent local damage to prevent stale network snapshots from increasing health
+            try
+            {
+                var target = player == 1 ? player1State : player2State;
+                target.LastDamageTimeMs = Environment.TickCount;
+                target.LastDamageAmount = damage;
+            }
+            catch { }
+            // NOTE: CombatSystem.ApplyDamage already broadcasts damage events when appropriate.
+            // Do not double-broadcast here.
         }
 
         // Send game action to server (fire-and-forget)
@@ -954,6 +1026,10 @@ namespace DoAn_NT106
             // If offline mode, apply both players' local inputs
             if (!isOnlineMode)
             {
+                // Ensure players are grounded (fix player2 floating issue)
+                try { physicsSystem.ResetToGround(player1State); } catch { }
+                try { physicsSystem.ResetToGround(player2State); } catch { }
+
                 if (player1State.CanMove)
                 {
                     // ✅ FIX: Only move if key is pressed, always stop if neither key is pressed
@@ -999,6 +1075,18 @@ namespace DoAn_NT106
                     // ✅ Force stop if player can't move
                     physicsSystem.StopMovement(player2State);
                 }
+
+                // Ensure offline animations update properly (avoid stuck single-frame)
+                try
+                {
+                    if (!player2State.IsJumping && !player2State.IsAttacking && !player2State.IsParrying)
+                    {
+                        if (leftPressed && !rightPressed) player2State.CurrentAnimation = "walk";
+                        else if (rightPressed && !leftPressed) player2State.CurrentAnimation = "walk";
+                        else player2State.CurrentAnimation = "stand";
+                    }
+                }
+                catch { }
             }
             else
             {
@@ -1060,8 +1148,57 @@ namespace DoAn_NT106
             }
 
             // ===== JUMP PHYSICS =====
-            physicsSystem.UpdateJump(player1State);
-            physicsSystem.UpdateJump(player2State);
+            // Only run physics update for jumps on locally-controlled players (or offline mode)
+            try
+            {
+                if (!isOnlineMode || myPlayerNumber == 1 || myPlayerNumber == 0)
+                    physicsSystem.UpdateJump(player1State);
+
+                if (!isOnlineMode || myPlayerNumber == 2 || myPlayerNumber == 0)
+                    physicsSystem.UpdateJump(player2State);
+            }
+            catch { }
+
+            // ===== SYNC OLD VARIABLES =====
+            // ===== INTERPOLATION FOR REMOTE PLAYERS (reduce jitter) =====
+            // Only interpolate positions for the player this client does NOT control
+            // Interpolation tuned for low-latency fighting game: very small smoothing and short buffer
+            float interpolationSmoothing = 0.02f; // minimal smoothing to avoid micro-jitter
+            int interpDelayMs = 30; // small buffer (~30ms) for responsive feel while keeping order
+            try
+            {
+                // Only interpolate when playing online (remote snapshots exist)
+                if (isOnlineMode)
+                {
+                    long renderTs = Environment.TickCount - interpDelayMs;
+
+                    // For each remote player, compute interpolated position from buffered snapshots
+                    // Apply interpolated position directly to minimize perceived input-to-display delay.
+                    if (player1State.PlayerNumber != myPlayerNumber)
+                    {
+                        player1State.InterpolationDelayMs = interpDelayMs;
+                        if (player1State.GetInterpolatedPosition(renderTs, out int ix, out int iy))
+                        {
+                            // Apply a tiny smoothing lerp to reduce frame-to-frame micro-jitter
+                            float s = interpolationSmoothing;
+                            player1State.X = (int)Math.Round(player1State.X * (1f - s) + ix * s);
+                            player1State.Y = (int)Math.Round(player1State.Y * (1f - s) + iy * s);
+                        }
+                    }
+
+                    if (player2State.PlayerNumber != myPlayerNumber)
+                    {
+                        player2State.InterpolationDelayMs = interpDelayMs;
+                        if (player2State.GetInterpolatedPosition(renderTs, out int ix2, out int iy2))
+                        {
+                            float s = interpolationSmoothing;
+                            player2State.X = (int)Math.Round(player2State.X * (1f - s) + ix2 * s);
+                            player2State.Y = (int)Math.Round(player2State.Y * (1f - s) + iy2 * s);
+                        }
+                    }
+                }
+            }
+            catch { }
 
             // ===== SYNC OLD VARIABLES =====
             player1X = player1State.X;
@@ -1201,7 +1338,12 @@ namespace DoAn_NT106
                             player1State.Facing // ✅ ADD: Send facing direction
                         );
                         // send immediate one-shot for low-latency after inputs
-                        SendLocalUdpState();
+                        // Rate-limit immediate sends to avoid flooding
+                        if (Environment.TickCount - _lastImmediateSendMs > 50)
+                        {
+                            SendLocalUdpState();
+                            _lastImmediateSendMs = Environment.TickCount;
+                        }
                     }
                     else if (myPlayerNumber == 2)
                     {
@@ -1214,7 +1356,11 @@ namespace DoAn_NT106
                             player2State.CurrentAnimation,
                             player2State.Facing // ✅ ADD: Send facing direction
                         );
-                        SendLocalUdpState();
+                        if (Environment.TickCount - _lastImmediateSendMs > 50)
+                        {
+                            SendLocalUdpState();
+                            _lastImmediateSendMs = Environment.TickCount;
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -1222,6 +1368,24 @@ namespace DoAn_NT106
                     Console.WriteLine($"❌ UDP update error: {ex.Message}");
                 }
             }
+
+            // ===== LOW-LATENCY: Send an extra immediate state at lower interval when movement detected =====
+            // This helps reduce perceived input lag. We only do this when movement keys changed recently.
+            try
+            {
+                bool moved = false;
+                if (myPlayerNumber == 1)
+                    moved = player1State.LeftKeyPressed || player1State.RightKeyPressed || player1State.IsAttacking;
+                else if (myPlayerNumber == 2)
+                    moved = player2State.LeftKeyPressed || player2State.RightKeyPressed || player2State.IsAttacking;
+
+                if (moved)
+                {
+                    // Fire-and-forget immediate send (already rate-limited in UDP client)
+                    SendLocalUdpState();
+                }
+            }
+            catch { }
 
             // ===== CHECK ROUND END (by HP depletion) =====
             if (player1State.IsDead || player2State.IsDead)
@@ -1255,6 +1419,7 @@ namespace DoAn_NT106
                     case Keys.A:
                         if (player1State.CanMove) { aPressed = true; player1State.LeftKeyPressed = true; }
                         break;
+                        
                     case Keys.D:
                         if (player1State.CanMove) { dPressed = true; player1State.RightKeyPressed = true; }
                         break;
@@ -1594,7 +1759,7 @@ namespace DoAn_NT106
                 {
                     e.Graphics.DrawString("★", font, brush, sx, player2State.Y - 35);
                 }
-            }
+ }
             // Debug hitbox/hurtbox/skill drawing removed
         }
         private void UpdateCamera()
@@ -2241,17 +2406,56 @@ namespace DoAn_NT106
                     if (data.ValueKind == JsonValueKind.Object)
                     {
                         var gs = data;
-                        // Update local PlayerState from broadcast
-                        if (gs.TryGetProperty("Player1X", out var p1x)) player1State.X = p1x.GetInt32();
-                        if (gs.TryGetProperty("Player1Y", out var p1y)) player1State.Y = p1y.GetInt32();
-                        if (gs.TryGetProperty("Player2X", out var p2x)) player2State.X = p2x.GetInt32();
-                        if (gs.TryGetProperty("Player2Y", out var p2y)) player2State.Y = p2y.GetInt32();
+                        // If playing online, UDP is authoritative for positions; skip position updates from TCP to avoid jitter
+                        if (!isOnlineMode)
+                        {
+                            if (gs.TryGetProperty("Player1X", out var p1x)) player1State.X = p1x.GetInt32();
+                            if (gs.TryGetProperty("Player1Y", out var p1y)) player1State.Y = p1y.GetInt32();
+                            if (gs.TryGetProperty("Player2X", out var p2x)) player2State.X = p2x.GetInt32();
+                            if (gs.TryGetProperty("Player2Y", out var p2y)) player2State.Y = p2y.GetInt32();
+                        }
+
+                        // Actions and resource sync are fine to apply in both modes
                         if (gs.TryGetProperty("Player1Action", out var p1a)) player1State.CurrentAnimation = p1a.GetString();
                         if (gs.TryGetProperty("Player2Action", out var p2a)) player2State.CurrentAnimation = p2a.GetString();
 
                         // Sync HP/Stamina/Mana if present
-                        if (gs.TryGetProperty("Player1Health", out var ph1)) player1State.Health = ph1.GetInt32();
-                        if (gs.TryGetProperty("Player2Health", out var ph2)) player2State.Health = ph2.GetInt32();
+                        // For health: in online mode we must NOT let periodic TCP overwrites increase local health.
+                        // Use ApplyNetworkHealth which only applies reductions. In offline mode accept full snapshot.
+                        if (gs.TryGetProperty("Player1Health", out var ph1))
+                        {
+                            int h1 = ph1.GetInt32();
+                            if (!isOnlineMode)
+                            {
+                                player1State.Health = h1;
+                            }
+                            else
+                            {
+                                // Guard: ignore bogus zero-health snapshots while local health is still positive
+                                if (!(h1 == 0 && player1State.Health > 0))
+                                {
+                                    ApplyNetworkHealth(player1State, h1);
+                                }
+                            }
+                        }
+
+                        if (gs.TryGetProperty("Player2Health", out var ph2))
+                        {
+                            int h2 = ph2.GetInt32();
+                            if (!isOnlineMode)
+                            {
+                                player2State.Health = h2;
+                            }
+                            else
+                            {
+                                // Guard: ignore bogus zero-health snapshots while local health is still positive
+                                if (!(h2 == 0 && player2State.Health > 0))
+                                {
+                                    ApplyNetworkHealth(player2State, h2);
+                                }
+                            }
+                        }
+
                         if (gs.TryGetProperty("Player1Stamina", out var ps1)) player1State.Stamina = ps1.GetInt32();
                         if (gs.TryGetProperty("Player2Stamina", out var ps2)) player2State.Stamina = ps2.GetInt32();
 
@@ -2268,57 +2472,118 @@ namespace DoAn_NT106
 
         /// <summary>
         /// Handle opponent state received via UDP
-        /// ✅ ENHANCED: Now syncs Facing direction for proper animation
+        /// - Uses sequence numbers to drop out-of-order packets
+        /// - Updates snapshot (TargetX/TargetY) and lets interpolation/extrapolation handle smoothing
+        /// - Minimal snapping when drift too large
         /// </summary>
         private void HandleOpponentState(byte[] data)
         {
             try
             {
-                if (data == null || data.Length < 17)
-                    return;
+                if (data == null || data.Length < 16) return;
 
-                // Parse binary packet: [PacketType(1)] [RoomCode(6)] [PlayerNum(1)] [X(2)] [Y(2)] [Health(1)] [Stamina(1)] [Mana(1)] [FacingLen(1)] [Facing(var)] [ActionLen(1)] [Action(var)]
+                int idx = 1;
 
-                int opponentPlayerNum = data[7];
+                // require at least seq(4)+ts(4)+room(6)+player(1)+x(2)+y(2)+stats(3) => 22 bytes
+                if (data.Length < idx + 8 + 6 + 1 + 2 + 2 + 3) return;
 
-                // Only process if it's opponent's data
-                if (opponentPlayerNum == myPlayerNumber)
-                    return;
+                // read seq + ts
+                uint seq = (uint)(data[idx] | (data[idx + 1] << 8) | (data[idx + 2] << 16) | (data[idx + 3] << 24));
+                uint ts = (uint)(data[idx + 4] | (data[idx + 5] << 8) | (data[idx + 6] << 16) | (data[idx + 7] << 24));
+                idx += 8;
 
-                int x = data[8] | (data[9] << 8);
-                int y = data[10] | (data[11] << 8);
-                int health = data[12];
-                int stamina = data[13];
-                int mana = data[14];
-                int facingLen = data[15];
+                // room code (6)
+                string packetRoom = System.Text.Encoding.UTF8.GetString(data, idx, 6).TrimEnd('\0');
+                idx += 6;
+
+                int opponentPlayerNum = data[idx++];
+
+                // ignore packets that belong to this client's own player
+                if (opponentPlayerNum == myPlayerNumber) return;
+
+                // read position and stats
+                if (data.Length < idx + 2 + 2 + 3) return;
+                int x = data[idx] | (data[idx + 1] << 8); idx += 2;
+                int y = data[idx] | (data[idx + 1] << 8); idx += 2;
+                int health = data[idx++];
+                int stamina = data[idx++];
+                int mana = data[idx++];
+
+                int facingLen = 0;
+                if (data.Length > idx) facingLen = data[idx++];
 
                 string facing = "right";
-                if (data.Length >= 16 + facingLen && facingLen > 0)
+                if (facingLen > 0 && data.Length >= idx + facingLen)
                 {
-                    facing = System.Text.Encoding.UTF8.GetString(data, 16, facingLen);
+                    facing = System.Text.Encoding.UTF8.GetString(data, idx, facingLen);
+                    idx += facingLen;
                 }
 
-                int actionLen = data[16 + facingLen];
+                int actionLen = 0;
+                if (data.Length > idx) actionLen = data[idx++];
+
                 string action = "stand";
-                if (data.Length >= 17 + facingLen + actionLen && actionLen > 0)
+                if (actionLen > 0 && data.Length >= idx + actionLen)
                 {
-                    action = System.Text.Encoding.UTF8.GetString(data, 17 + facingLen, actionLen);
+                    action = System.Text.Encoding.UTF8.GetString(data, idx, actionLen);
+                    idx += actionLen;
                 }
 
-                // Update opponent's state
+                // Apply update on UI thread: update snapshot (TargetX/Y) and metadata.
                 this.InvokeIfRequired(() =>
                 {
                     PlayerState opponentState = opponentPlayerNum == 1 ? player1State : player2State;
+                    try
+                    {
+                        // Drop out-of-order or duplicate packets
+                        if (seq != 0 && seq <= opponentState.LastReceivedSeq)
+                        {
+                            return;
+                        }
 
-                    opponentState.X = x;
-                    opponentState.Y = y;
-                    opponentState.Health = health;
-                    opponentState.Stamina = stamina;
-                    opponentState.Mana = mana;
-                    opponentState.CurrentAnimation = action;
-                    opponentState.Facing = facing; // ✅ ADD: Sync facing direction
 
-                    // Force redraw
+                        // Let PlayerState manage velocity estimation and LastReceivedSeq
+                        opponentState.UpdateFromSnapshot(x, y, (int)seq, (long)ts);
+
+                        // record when we applied this network update (used by interpolation/prediction heuristics)
+                        try { opponentState.LastNetworkUpdateMs = Environment.TickCount; } catch { }
+
+                        // IMMEDIATE SNAP: apply snapshot immediately to minimize perceived latency
+                        // This makes remote movement appear with ~0ms delay (visual parity)
+                        opponentState.X = x;
+                        opponentState.Y = y;
+                        opponentState.TargetX = x;
+                        opponentState.TargetY = y;
+
+                        // update other metadata
+                        // For online mode: UDP combat events / damage are authoritative. Only accept health from UDP here,
+                        // but protect against stale snapshots increasing health shortly after local damage.
+                        // Guard: ignore health from snapshots that carry no sequence (seq==0) to avoid initial/garbage bytes
+                        // Guard: NEVER accept health=0 if local health > 0 (avoid death by initialization bug)
+                        if (seq != 0 && !(health == 0 && opponentState.Health > 0))
+                        {
+                            ApplyNetworkHealth(opponentState, health);
+                        }
+                        opponentState.Stamina = stamina;
+                        opponentState.Mana = mana;
+                        opponentState.CurrentAnimation = action ?? opponentState.CurrentAnimation;
+                        opponentState.Facing = facing ?? opponentState.Facing;
+
+                        // If local displayed position drift is huge, snap to target to avoid long smoothing
+                        int dx = Math.Abs(opponentState.X - opponentState.TargetX);
+                        int dy = Math.Abs(opponentState.Y - opponentState.TargetY);
+                        const int hardSnap = 200;
+                        if (dx > hardSnap || dy > hardSnap)
+                        {
+                            opponentState.X = opponentState.TargetX;
+                            opponentState.Y = opponentState.TargetY;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[HandleOpponentState] apply error: {ex.Message}");
+                    }
+
                     this.Invalidate();
                 });
             }
@@ -2345,6 +2610,26 @@ namespace DoAn_NT106
 
                         case "damage":
                             HandleDamageEvent(eventData);
+                            break;
+
+                        case "round_start":
+                            try
+                            {
+                                // Expect payload: roundNumber, maxHP1, maxHP2, player1ManaCarryover, player2ManaCarryover
+                                int rn = eventData.ContainsKey("roundNumber") ? Convert.ToInt32(eventData["roundNumber"]) : _roundNumber;
+                                int max1 = eventData.ContainsKey("maxHP1") ? Convert.ToInt32(eventData["maxHP1"]) : GetMaxHealthForCharacter(player1State.CharacterType);
+                                int max2 = eventData.ContainsKey("maxHP2") ? Convert.ToInt32(eventData["maxHP2"]) : GetMaxHealthForCharacter(player2State.CharacterType);
+                                int carry1 = eventData.ContainsKey("player1ManaCarryover") ? Convert.ToInt32(eventData["player1ManaCarryover"]) : _player1ManaCarryover;
+                                int carry2 = eventData.ContainsKey("player2ManaCarryover") ? Convert.ToInt32(eventData["player2ManaCarryover"]) : _player2ManaCarryover;
+
+                                Console.WriteLine($"[UDP] Received round_start: round={rn} maxHP1={max1} maxHP2={max2} p1Mana={carry1} p2Mana={carry2}");
+                                // Apply settings (clients always apply host's round_start)
+                                ApplyRoundSettings(rn, max1, max2, carry1, carry2);
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"❌ HandleCombatEvent round_start parse error: {ex.Message}");
+                            }
                             break;
 
                         case "parry":
@@ -2410,39 +2695,112 @@ namespace DoAn_NT106
                         int attacker = Convert.ToInt32(data["attacker"]);
                         var attackerState = attacker == 1 ? player1State : player2State;
 
-                        if (data.ContainsKey("attackerX")) attackerState.X = Convert.ToInt32(data["attackerX"]);
-                        if (data.ContainsKey("attackerY")) attackerState.Y = Convert.ToInt32(data["attackerY"]);
-                        if (data.ContainsKey("attackerFacing")) attackerState.Facing = data["attackerFacing"]?.ToString() ?? attackerState.Facing;
-                        if (data.ContainsKey("attackerAction"))
+                        // Prefer updating snapshot (TargetX/TargetY) so interpolation remains smooth
+                        try
                         {
-                            var act = data["attackerAction"]?.ToString() ?? "stand";
-                            attackerState.CurrentAnimation = act;
-                            attackerState.IsAttacking = true;
-                            // Reset attacking flag shortly after to simulate animation end
-                            var t = new System.Windows.Forms.Timer { Interval = 300 };
-                            t.Tick += (s, e) => { try { t.Stop(); t.Dispose(); } catch { } attackerState.IsAttacking = false; attackerState.CurrentAnimation = "stand"; };
-                            t.Start();
+                            bool hasPos = data.ContainsKey("attackerX") && data.ContainsKey("attackerY");
+                            if (hasPos)
+                            {
+                                int ax = Convert.ToInt32(data["attackerX"]);
+                                int ay = Convert.ToInt32(data["attackerY"]);
+                                attackerState.UpdateFromSnapshot(ax, ay, 0, Environment.TickCount);
+                            }
+
+                            if (data.ContainsKey("attackerFacing")) attackerState.Facing = data["attackerFacing"]?.ToString() ?? attackerState.Facing;
+
+                            if (data.ContainsKey("attackerAction"))
+                            {
+                                var act = data["attackerAction"]?.ToString() ?? "stand";
+                                attackerState.CurrentAnimation = act;
+                                attackerState.IsAttacking = true;
+                                // Reset attacking flag shortly after to simulate animation end
+                                var t = new System.Windows.Forms.Timer { Interval = 300 };
+                                t.Tick += (s, e) => { try { t.Stop(); t.Dispose(); } catch { } attackerState.IsAttacking = false; attackerState.CurrentAnimation = "stand"; };
+                                t.Start();
+                            }
                         }
+                        catch { }
                     }
                 }
                 catch { }
 
-                // Apply damage to target without re-broadcasting (this event came from network)
+                // Deduplicate: if local already applied same damage very recently, skip re-applying
+                var tgt = target == 1 ? player1State : player2State;
+                bool isDuplicate = false;
                 try
                 {
-                    combatSystem.ApplyDamage(target, damage, knockback, false);
-
-                    // Sync UI vars
-                    player1Health = player1State.Health;
-                    player2Health = player2State.Health;
-                    player1Stunned = player1State.IsStunned;
-                    player2Stunned = player2State.IsStunned;
-                    player1CurrentAnimation = player1State.CurrentAnimation;
-                    player2CurrentAnimation = player2State.CurrentAnimation;
+                    long now = Environment.TickCount;
+                    // If local recorded a damage with same amount within 800ms, treat as duplicate
+                    if (tgt.LastDamageAmount == damage && (now - tgt.LastDamageTimeMs) <= 800)
+                        isDuplicate = true;
                 }
-                catch (Exception ex)
+                catch { }
+
+                if (!isDuplicate)
                 {
-                    Console.WriteLine($"❌ Apply remote damage error: {ex.Message}");
+                    try
+                    {
+                        // Apply damage without rebroadcast (this came from network)
+                        combatSystem.ApplyDamage(target, damage, knockback, false);
+
+                        // Sync UI vars
+                        player1Health = player1State.Health;
+                        player2Health = player2State.Health;
+                        player1Stunned = player1State.IsStunned;
+                        player2Stunned = player2State.IsStunned;
+                        player1CurrentAnimation = player1State.CurrentAnimation;
+                        player2CurrentAnimation = player2State.CurrentAnimation;
+
+                        // Mark recent damage time so TCP snapshots won't later restore higher health
+                        try
+                        {
+                            var tgtState = target == 1 ? player1State : player2State;
+                            tgtState.LastDamageTimeMs = Environment.TickCount;
+                            tgtState.LastDamageAmount = damage;
+                        }
+                        catch { }
+                        // If this client is the host and the applied damage killed someone, immediately decide round
+                        try
+                        {
+                            if (isOnlineMode && myPlayerNumber == 1 && (player1State.IsDead || player2State.IsDead))
+                            {
+                                Console.WriteLine("[UDP] Host detected round end by death, processing and broadcasting result");
+                                // Host processes end of round which will advance round state and broadcast round_start
+                                HandleRoundEndByDeath();
+
+                                // Additionally broadcast round_result (wins) so clients can sync their score UI immediately
+                                try
+                                {
+                                    if (udpClient != null && udpClient.IsConnected)
+                                    {
+                                        var res = new Dictionary<string, object>
+                                        {
+                                            ["roundNumber"] = _roundNumber,
+                                            ["player1Wins"] = _player1Wins,
+                                            ["player2Wins"] = _player2Wins,
+                                            ["player1ManaCarryover"] = _player1ManaCarryover,
+                                            ["player2ManaCarryover"] = _player2ManaCarryover
+                                        };
+                                        udpClient.SendCombatEvent("round_result", res);
+                                        Console.WriteLine("[UDP] round_result broadcast sent");
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine($"❌ Broadcast round_result error: {ex.Message}");
+                                }
+                            }
+                        }
+                        catch { }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"❌ Apply remote damage error: {ex.Message}");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"[UDP] Duplicate damage ignored: target={target}, dmg={damage}");
                 }
             }
             catch (Exception ex)

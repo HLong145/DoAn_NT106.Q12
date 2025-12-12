@@ -156,7 +156,16 @@ namespace DoAn_NT106.Client.BattleSystems
         /// </summary>
         public void ClampToMapBounds(PlayerState player)
         {
-            player.X = Math.Max(0, Math.Min(backgroundWidth - playerWidth, player.X));
+            // Use hurtbox-based boundary so clamping matches CombatSystem logic
+            try
+            {
+                var boundary = GetBoundaryFromHurtbox(player);
+                player.X = Math.Max(boundary.minX, Math.Min(boundary.maxX, player.X));
+            }
+            catch
+            {
+                player.X = Math.Max(0, Math.Min(backgroundWidth - playerWidth, player.X));
+            }
         }
 
         /// <summary>
