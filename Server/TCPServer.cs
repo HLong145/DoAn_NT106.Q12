@@ -541,6 +541,10 @@ namespace DoAn_NT106.Server
                     case "GAME_END":
                         return HandleGameEnd(request);
 
+                    // ✅ THÊM: Handle game damage event
+                    case "GAME_DAMAGE":
+                        return HandleGameDamage(request);
+
                     //Các case liên quan đến broadcast danh sách phòng
                     case "ROOM_LIST_SUBSCRIBE":
                         return HandleRoomListSubscribe(request);
@@ -1481,6 +1485,67 @@ namespace DoAn_NT106.Server
             }
         }
 
+        // ✅ THÊM: Handle game damage event
+        private string HandleGameDamage(Request request)
+        {
+            try
+            {
+                var roomCode = request.Data?["roomCode"]?.ToString();
+                var senderUsername = request.Data?["username"]?.ToString();
+                var targetPlayerNum = request.Data.ContainsKey("targetPlayerNum") 
+                    ? Convert.ToInt32(request.Data["targetPlayerNum"]) 
+                    : 0;
+                var damage = request.Data.ContainsKey("damage")
+                    ? Convert.ToInt32(request.Data["damage"])
+                    : 0;
+                var isParried = request.Data.ContainsKey("isParried")
+                    ? Convert.ToBoolean(request.Data["isParried"])
+                    : false;
+
+                if (string.IsNullOrEmpty(roomCode) || string.IsNullOrEmpty(senderUsername))
+                {
+                    return CreateResponse(false, "Missing required data");
+                }
+
+                server.Log($"🎯 GAME_DAMAGE: {senderUsername} in room {roomCode} -> Player {targetPlayerNum} took {damage} damage (Parried: {isParried})");
+
+                // Broadcast damage event cho opponent
+                var room = roomManager.GetRoom(roomCode);
+                if (room != null)
+                {
+                    // Find opponent client
+                    var opponentUsername = senderUsername == room.Player1Username ? room.Player2Username : room.Player1Username;
+                    var opponentClient = roomManager.GetClientHandler(roomCode, opponentUsername);
+
+                    if (opponentClient != null)
+                    {
+                        var damageNotification = new
+                        {
+                            Action = "GAME_DAMAGE",
+                            Data = new
+                            {
+                                targetPlayerNum = targetPlayerNum,
+                                damage = damage,
+                                isParried = isParried,
+                                attackerUsername = senderUsername
+                            }
+                        };
+
+                        string json = System.Text.Json.JsonSerializer.Serialize(damageNotification);
+                        opponentClient.SendMessage(json);
+
+                        server.Log($"📤 Relayed GAME_DAMAGE to {opponentUsername}");
+                    }
+                }
+
+                return CreateResponse(true, "Damage event sent");
+            }
+            catch (Exception ex)
+            {
+                server.Log($"❌ HandleGameDamage error: {ex.Message}");
+                return CreateResponse(false, $"Error: {ex.Message}");
+            }
+        }
         #endregion
 
 

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -8,9 +8,9 @@ using DoAn_NT106.Services;
 namespace DoAn_NT106.Client
 {
     /// <summary>
-    /// UDP Client g?i/nh?n game state binary 30-50ms/l?n
-    /// ? Packet structure: [RoomCode(6)] [PlayerNum(1)] [X(2)] [Y(2)] [Health(1)] [Stamina(1)] [Mana(1)] 
-    ///                     [Facing(1)] [IsAttacking(1)] [IsParrying(1)] [ActionLen(1)] [Action(var)]
+    /// UDP Client gửi/nhận game state binary 30-50ms/lần
+    /// ✅ UPDATED Packet structure: [RoomCode(6)] [PlayerNum(1)] [X(2)] [Y(2)] [Health(1)] [Stamina(1)] [Mana(1)] 
+    ///                     [Facing(1)] [IsAttacking(1)] [IsParrying(1)] [IsStunned(1)] [IsSkillActive(1)] [IsCharging(1)] [IsDashing(1)] [ActionLen(1)] [Action(var)]
     /// </summary>
     public class UDPGameClient : IDisposable
     {
@@ -32,9 +32,13 @@ namespace DoAn_NT106.Client
         private int currentX, currentY;
         private int currentHealth, currentStamina, currentMana;
         private string currentAction = "stand";
-        private string currentFacing = "right";        // ? NEW
-        private bool currentIsAttacking = false;       // ? NEW
-        private bool currentIsParrying = false;        // ? NEW
+        private string currentFacing = "right";        // ✅ NEW
+        private bool currentIsAttacking = false;       // ✅ NEW
+        private bool currentIsParrying = false;        // ✅ NEW
+        private bool currentIsStunned = false;         // ✅ THÊM
+        private bool currentIsSkillActive = false;     // ✅ THÊM
+        private bool currentIsCharging = false;        // ✅ THÊM
+        private bool currentIsDashing = false;         // ✅ THÊM
         private readonly object stateLock = new object();
 
         // Events
@@ -125,10 +129,11 @@ namespace DoAn_NT106.Client
 
         /// <summary>
         /// Update current game state (called from BattleForm timer)
-        /// ? NEW: Include Facing, IsAttacking, IsParrying
+        /// ✅ UPDATED: Include all combat state flags
         /// </summary>
         public void UpdateState(int x, int y, int health, int stamina, int mana, string action, 
-            string facing = "right", bool isAttacking = false, bool isParrying = false)
+            string facing = "right", bool isAttacking = false, bool isParrying = false,
+            bool isStunned = false, bool isSkillActive = false, bool isCharging = false, bool isDashing = false)
         {
             lock (stateLock)
             {
@@ -138,9 +143,13 @@ namespace DoAn_NT106.Client
                 currentStamina = stamina;
                 currentMana = mana;
                 currentAction = action ?? "stand";
-                currentFacing = facing ?? "right";      // ? NEW
-                currentIsAttacking = isAttacking;       // ? NEW
-                currentIsParrying = isParrying;         // ? NEW
+                currentFacing = facing ?? "right";
+                currentIsAttacking = isAttacking;
+                currentIsParrying = isParrying;
+                currentIsStunned = isStunned;            // ✅ THÊM
+                currentIsSkillActive = isSkillActive;    // ✅ THÊM
+                currentIsCharging = isCharging;          // ✅ THÊM
+                currentIsDashing = isDashing;            // ✅ THÊM
             }
         }
 
@@ -150,17 +159,31 @@ namespace DoAn_NT106.Client
 
         private async Task SendLoop(CancellationToken token)
         {
-            Log("?? UDP send loop started");
+            Log("🚀 UDP send loop started");
 
             try
             {
                 while (!token.IsCancellationRequested && isConnected)
                 {
                     byte[] packet = BuildPacket();
-                    await udpSocket.SendAsync(packet, packet.Length);
+                    
+                    try
+                    {
+                        await udpSocket.SendAsync(packet, packet.Length);
 
-                    // 30-50ms interval (~ 20-33 FPS)
-                    await Task.Delay(40, token); // 40ms = 25 FPS
+                        // ✅ SPARSE LOG - mỗi 100 packets (roughly 4 seconds at 25 FPS)
+                        if (DateTime.Now.Millisecond % 4000 < 100)
+                        {
+                            Console.WriteLine($"[UDP] P{playerNumber} sent packet: {packet.Length} bytes");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"⚠️ Send error: {ex.Message}");
+                    }
+
+                    // 40ms interval (~ 25 FPS)
+                    await Task.Delay(40, token);
                 }
             }
             catch (OperationCanceledException)
@@ -170,24 +193,24 @@ namespace DoAn_NT106.Client
             catch (Exception ex)
             {
                 if (!token.IsCancellationRequested)
-                    Log($"? Send loop error: {ex.Message}");
+                    Log($"❌ Send loop error: {ex.Message}");
             }
 
-            Log("?? UDP send loop stopped");
+            Log("🛑 UDP send loop stopped");
         }
 
         private byte[] BuildPacket()
         {
             lock (stateLock)
             {
-                // ? NEW PACKET STRUCTURE:
+                // ✅ UPDATED PACKET STRUCTURE:
                 // [RoomCode(6)] [PlayerNum(1)] [X(2)] [Y(2)] [Health(1)] [Stamina(1)] [Mana(1)] 
-                // [Facing(1)] [IsAttacking(1)] [IsParrying(1)] [ActionLen(1)] [Action(var)]
+                // [Facing(1)] [IsAttacking(1)] [IsParrying(1)] [IsStunned(1)] [IsSkillActive(1)] [IsCharging(1)] [IsDashing(1)] [ActionLen(1)] [Action(var)]
 
                 byte[] actionBytes = System.Text.Encoding.UTF8.GetBytes(currentAction);
                 int actionLen = Math.Min(actionBytes.Length, 20); // Max 20 chars
 
-                byte[] packet = new byte[17 + actionLen];
+                byte[] packet = new byte[22 + actionLen];
 
                 // RoomCode (6 bytes, padded with nulls)
                 byte[] roomCodeBytes = System.Text.Encoding.UTF8.GetBytes(roomCode.PadRight(6, '\0'));
@@ -213,21 +236,33 @@ namespace DoAn_NT106.Client
                 // Mana (1 byte)
                 packet[13] = (byte)Math.Clamp(currentMana, 0, 255);
 
-                // ? NEW: Facing (1 byte) - 'L' = left, 'R' = right
+                // Facing (1 byte) - 'L' = left, 'R' = right
                 packet[14] = (byte)(currentFacing == "left" ? 'L' : 'R');
 
-                // ? NEW: IsAttacking (1 byte) - 1 = true, 0 = false
+                // IsAttacking (1 byte) - 1 = true, 0 = false
                 packet[15] = currentIsAttacking ? (byte)1 : (byte)0;
 
-                // ? NEW: IsParrying (1 byte) - 1 = true, 0 = false
+                // IsParrying (1 byte) - 1 = true, 0 = false
                 packet[16] = currentIsParrying ? (byte)1 : (byte)0;
 
+                // ✅ THÊM: IsStunned (1 byte)
+                packet[17] = currentIsStunned ? (byte)1 : (byte)0;
+
+                // ✅ THÊM: IsSkillActive (1 byte)
+                packet[18] = currentIsSkillActive ? (byte)1 : (byte)0;
+
+                // ✅ THÊM: IsCharging (1 byte)
+                packet[19] = currentIsCharging ? (byte)1 : (byte)0;
+
+                // ✅ THÊM: IsDashing (1 byte)
+                packet[20] = currentIsDashing ? (byte)1 : (byte)0;
+
                 // ActionLen (1 byte)
-                packet[17] = (byte)actionLen;
+                packet[21] = (byte)actionLen;
 
                 // Action (variable length)
                 if (actionLen > 0)
-                    Array.Copy(actionBytes, 0, packet, 18, actionLen);
+                    Array.Copy(actionBytes, 0, packet, 22, actionLen);
 
                 return packet;
             }
@@ -251,7 +286,7 @@ namespace DoAn_NT106.Client
             }
             catch (ObjectDisposedException)
             {
-                // Socket ?� ?�ng
+                // Socket đã đóng
             }
             catch (Exception ex)
             {
@@ -266,7 +301,7 @@ namespace DoAn_NT106.Client
         {
             try
             {
-                if (data == null || data.Length < 13)
+                if (data == null || data.Length < 22)
                     return;
 
                 // Invoke event for BattleForm to handle opponent's state

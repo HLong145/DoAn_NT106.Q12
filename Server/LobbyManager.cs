@@ -529,7 +529,10 @@ namespace DoAn_NT106.Server
         public void HandleSelectCharacter(string roomCode, string username, string character)
         {
             if (!lobbies.TryGetValue(roomCode, out var lobby))
+            {
+                Log($"❌ Lobby not found: {roomCode}");
                 return;
+            }
 
             lock (lobby.Lock)
             {
@@ -539,18 +542,21 @@ namespace DoAn_NT106.Server
                 {
                     state.Player1Character = character;
                     state.Player1Selected = true;
+                    Log($"✅ Player1 ({username}) selected {character}");
                 }
                 else if (lobby.Player2Username == username)
                 {
                     state.Player2Character = character;
                     state.Player2Selected = true;
+                    Log($"✅ Player2 ({username}) selected {character}");
                 }
                 else
                 {
+                    Log($"❌ Unknown user {username} in lobby {roomCode}");
                     return; // unknown user in this lobby
                 }
 
-                Log($"[Lobby] {username} selected character {character} in room {roomCode}");
+                Log($"[Lobby] Character selections - P1: {state.Player1Selected} ({state.Player1Character ?? "null"}), P2: {state.Player2Selected} ({state.Player2Character ?? "null"})");
 
                 // Khi cả 2 đã chọn xong, gửi START_GAME chung với role + character mapping
                 if (state.Player1Selected && state.Player2Selected &&
@@ -571,10 +577,18 @@ namespace DoAn_NT106.Server
                     };
 
                     string json = JsonSerializer.Serialize(payload);
+                    
+                    Log($"📢 Broadcasting START_GAME to Player1: {lobby.Player1Username}");
                     SafeSend(lobby.Player1Client, json);
+                    
+                    Log($"📢 Broadcasting START_GAME to Player2: {lobby.Player2Username}");
                     SafeSend(lobby.Player2Client, json);
 
                     Log($"🚀 START_GAME sent for room {roomCode}: P1={lobby.Player1Username} ({state.Player1Character}), P2={lobby.Player2Username} ({state.Player2Character})");
+                }
+                else
+                {
+                    Log($"⏳ Waiting for other player: P1_Selected={state.Player1Selected}, P2_Selected={state.Player2Selected}");
                 }
             }
         }

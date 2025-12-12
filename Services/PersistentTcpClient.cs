@@ -199,6 +199,48 @@ namespace DoAn_NT106.Services
 
         #endregion
 
+        #region Send broadcast
+
+        /// <summary>
+        /// ✅ THÊM: Send broadcast to server
+        /// </summary>
+        public void SendBroadcast(string action, string jsonData)
+        {
+            try
+            {
+                if (!IsConnected)
+                {
+                    Console.WriteLine($"[TCP] Not connected, cannot send broadcast: {action}");
+                    return;
+                }
+
+                var broadcast = new
+                {
+                    Action = action,
+                    Data = jsonData,
+                    Timestamp = DateTime.UtcNow
+                };
+
+                string json = JsonSerializer.Serialize(broadcast);
+                string encrypted = EncryptionService.Encrypt(json);
+                byte[] bytes = Encoding.UTF8.GetBytes(encrypted + "\n");
+
+                lock (sendLock)
+                {
+                    stream.Write(bytes, 0, bytes.Length);
+                    stream.Flush();
+                }
+
+                Console.WriteLine($"[TCP] Broadcast sent: {action}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[TCP] SendBroadcast error: {ex.Message}");
+            }
+        }
+
+        #endregion
+
         #region Listen loop
 
         private async Task ListenLoop(CancellationToken token)
@@ -487,6 +529,17 @@ namespace DoAn_NT106.Services
             {
                 { "roomCode", roomCode },
                 { "username", username }
+            });
+        
+        // ✅ THÊM: Send game damage event
+        public Task<ServerResponse> SendGameDamageAsync(string roomCode, string username, int targetPlayerNum, int damage, bool isParried)
+            => SendRequestAsync("GAME_DAMAGE", new Dictionary<string, object>
+            {
+                { "roomCode", roomCode },
+                { "username", username },
+                { "targetPlayerNum", targetPlayerNum },
+                { "damage", damage },
+                { "isParried", isParried }
             });
 
         #endregion

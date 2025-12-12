@@ -532,6 +532,20 @@ namespace DoAn_NT106.Server
             activeRooms.TryGetValue(roomCode, out GameRoom room);
             return room;
         }
+        
+        // ✅ THÊM: Get client handler theo room code và username
+        public ClientHandler GetClientHandler(string roomCode, string username)
+        {
+            if (!activeRooms.TryGetValue(roomCode, out GameRoom room))
+                return null;
+
+            if (room.Player1Username == username)
+                return room.Player1Client;
+            else if (room.Player2Username == username)
+                return room.Player2Client;
+
+            return null;
+        }
 
         #endregion
 

@@ -19,6 +19,8 @@ namespace DoAn_NT106.Services
         public event Action<PlayerJoinedData> OnPlayerJoined;
         public event Action<PlayerLeftData> OnPlayerLeft;
         public event Action<StartGameData> OnStartGame;
+        // ✅ THÊM: Event khi có damage
+        public event Action<DamageEventData> OnDamageEvent;
         public event Action<string> OnError;
 
         public bool IsConnected => TcpClient.IsConnected;
@@ -75,6 +77,11 @@ namespace DoAn_NT106.Services
 
                     case "START_GAME":
                         HandleStartGame(data);
+                        break;
+                    
+                    // ✅ THÊM: Handle damage event
+                    case "DAMAGE_EVENT":
+                        HandleDamageEvent(data);
                         break;
                 }
             }
@@ -177,6 +184,26 @@ namespace DoAn_NT106.Services
             }
         }
 
+        // ✅ THÊM: Handle damage event
+        private void HandleDamageEvent(JsonElement data)
+        {
+            try
+            {
+                var damageData = new DamageEventData
+                {
+                    TargetPlayerNum = GetIntProp(data, "targetPlayerNum"),
+                    Damage = GetIntProp(data, "damage"),
+                    IsParried = GetBoolProp(data, "isParried")
+                };
+
+                OnDamageEvent?.Invoke(damageData);
+            }
+            catch (Exception ex)
+            {
+                OnError?.Invoke($"HandleDamageEvent error: {ex.Message}");
+            }
+        }
+
         // ===========================
         // SEND ACTION (cho backward compatible)
         // ===========================
@@ -184,6 +211,37 @@ namespace DoAn_NT106.Services
         {
             Console.WriteLine($"[GameClient] SendActionAsync called - consider using TcpClient.SendRequestAsync instead");
             return TcpClient.IsConnected;
+        }
+
+        // ✅ THÊM: Broadcast damage event to server
+        public void BroadcastDamageEvent(int targetPlayerNum, int damage, bool isParried)
+        {
+            try
+            {
+                if (!TcpClient.IsConnected)
+                {
+                    Console.WriteLine("[GameClient] Not connected to server, cannot broadcast damage event");
+                    return;
+                }
+
+                var damageEvent = new
+                {
+                    targetPlayerNum,
+                    damage,
+                    isParried,
+                    timestamp = DateTime.UtcNow
+                };
+
+                string json = JsonSerializer.Serialize(damageEvent);
+                Console.WriteLine($"[GameClient] Broadcasting damage event: {json}");
+                
+                // Send as a broadcast message to server
+                TcpClient.SendBroadcast("DAMAGE_EVENT", json);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GameClient] BroadcastDamageEvent error: {ex.Message}");
+            }
         }
 
         // ===========================
@@ -263,5 +321,13 @@ namespace DoAn_NT106.Services
         // ✅ NEW: character mapping for each player
         public string Player1Character { get; set; }
         public string Player2Character { get; set; }
+    }
+
+    // ✅ THÊM: Damage event data
+    public class DamageEventData
+    {
+        public int TargetPlayerNum { get; set; }
+        public int Damage { get; set; }
+        public bool IsParried { get; set; }
     }
 }

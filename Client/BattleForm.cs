@@ -17,10 +17,15 @@ namespace DoAn_NT106
         private string opponent;
         private string roomCode = "000000";
 
+        // ✅ THÊM: Public properties for room code and player info
+        public string RoomCode => roomCode;
+        public int MyPlayerNumber => myPlayerNumber;
+
         // ✅ THÊM: UDP Game Client
         private UDPGameClient udpClient;
         private bool isOnlineMode = false; // Track nếu đang chơi online
         private int myPlayerNumber = 0; // 1 or 2 assigned by server
+        private bool isCreator = false; // ✅ THÊM: Track if this is Player 1
 
         // ===== ✅ NEW SYSTEMS (ADDED) =====
         private PlayerState player1State;
@@ -401,7 +406,7 @@ namespace DoAn_NT106
         private string player1CharacterType = "girlknight";
         private string player2CharacterType = "girlknight";
 
-        public BattleForm(string username, string token, string opponent, string player1Character, string player2Character, string selectedMap = "battleground1", string roomCode = "000000", int myPlayerNumber = 0)
+        public BattleForm(string username, string token, string opponent, string player1Character, string player2Character, string selectedMap = "battleground1", string roomCode = "000000", int myPlayerNumber = 0, bool isCreator = false)
         {
             InitializeComponent();
 
@@ -412,6 +417,7 @@ namespace DoAn_NT106
             this.player1CharacterType = player1Character;
             this.player2CharacterType = player2Character;
             this.myPlayerNumber = myPlayerNumber; // ✅ set role from server
+            this.isCreator = isCreator; // ✅ THÊM: Track if I'm the creator
 
             // ✅ THÊM: Kiểm tra online mode
             isOnlineMode = !string.IsNullOrEmpty(roomCode) && roomCode != "000000";
@@ -507,6 +513,36 @@ namespace DoAn_NT106
 
             // ❌ Avoid re-running full setup; only force redraw
             this.Invalidate();
+        }
+
+        /// <summary>
+        /// ✅ THÊM: Method for Player 2 to join existing BattleForm
+        /// </summary>
+        public void JoinAsPlayer2(string username, string token, string player1Character, string player2Character, int playerNumber)
+        {
+            Console.WriteLine($"[BattleForm] JoinAsPlayer2 called: {username} as P{playerNumber}");
+            
+            this.username = username;
+            this.token = token;
+            this.player1CharacterType = player1Character;
+            this.player2CharacterType = player2Character;
+            this.myPlayerNumber = playerNumber;
+
+            // ✅ Reinitialize animations and game systems if needed
+            if (player1AnimationManager == null || player2AnimationManager == null)
+            {
+                player1AnimationManager = new CharacterAnimationManager(player1CharacterType, OnFrameChanged);
+                player1AnimationManager.LoadAnimations();
+
+                player2AnimationManager = new CharacterAnimationManager(player2CharacterType, OnFrameChanged);
+                player2AnimationManager.LoadAnimations();
+            }
+
+            // ✅ Bring form to front
+            this.BringToFront();
+            this.Show();
+
+            Console.WriteLine($"[BattleForm] Player 2 joined successfully");
         }
 
         private void SetupGame()
@@ -750,7 +786,11 @@ namespace DoAn_NT106
                         me.CurrentAnimation ?? "stand",
                         me.Facing ?? "right",           // ✅ NEW: Facing
                         me.IsAttacking,                 // ✅ NEW: IsAttacking
-                        me.IsParrying);                 // ✅ NEW: IsParrying
+                        me.IsParrying,                  // ✅ NEW: IsParrying
+                        me.IsStunned,                   // ✅ THÊM: IsStunned
+                        me.IsSkillActive,               // ✅ THÊM: IsSkillActive
+                        me.IsCharging,                  // ✅ THÊM: IsCharging
+                        me.IsDashing);                  // ✅ THÊM: IsDashing
                 }
                 catch (Exception ex)
                 {
@@ -863,11 +903,11 @@ namespace DoAn_NT106
         {
             try
             {
-                if (data == null || data.Length < 18) return;
+                if (data == null || data.Length < 22) return;
 
                 // ✅ EXPANDED PACKET STRUCTURE:
                 // [RoomCode(6)] [PlayerNum(1)] [X(2)] [Y(2)] [Health(1)] [Stamina(1)] [Mana(1)]
-                // [Facing(1)] [IsAttacking(1)] [IsParrying(1)] [ActionLen(1)] [Action(var)]
+                // [Facing(1)] [IsAttacking(1)] [IsParrying(1)] [IsStunned(1)] [IsSkillActive(1)] [IsCharging(1)] [IsDashing(1)] [ActionLen(1)] [Action(var)]
 
                 string room = System.Text.Encoding.UTF8.GetString(data, 0, 6).TrimEnd('\0');
                 if (!string.Equals(room, roomCode, StringComparison.OrdinalIgnoreCase))
@@ -885,16 +925,20 @@ namespace DoAn_NT106
                 int stamina = data[12];
                 int mana = data[13];
 
-                // ✅ NEW: Parse Facing, IsAttacking, IsParrying (bytes 14, 15, 16)
+                // ✅ EXPANDED: Parse all combat flags (bytes 14-20)
                 string facing = data[14] == 'L' ? "left" : "right";
                 bool isAttacking = data[15] != 0;
                 bool isParrying = data[16] != 0;
+                bool isStunned = data[17] != 0;           // ✅ THÊM
+                bool isSkillActive = data[18] != 0;       // ✅ THÊM
+                bool isCharging = data[19] != 0;          // ✅ THÊM
+                bool isDashing = data[20] != 0;           // ✅ THÊM
 
-                int actionLen = data[17];
+                int actionLen = data[21];
                 string action = "stand";
-                if (actionLen > 0 && 18 + actionLen <= data.Length)
+                if (actionLen > 0 && 22 + actionLen <= data.Length)
                 {
-                    action = System.Text.Encoding.UTF8.GetString(data, 18, actionLen);
+                    action = System.Text.Encoding.UTF8.GetString(data, 22, actionLen);
                 }
 
                 // Cập nhật vào PlayerState đối thủ trên UI thread
@@ -909,6 +953,10 @@ namespace DoAn_NT106
                     opp.Facing = facing;                // ✅ NEW
                     opp.IsAttacking = isAttacking;      // ✅ NEW
                     opp.IsParrying = isParrying;        // ✅ NEW
+                    opp.IsStunned = isStunned;          // ✅ THÊM
+                    opp.IsSkillActive = isSkillActive;  // ✅ THÊM
+                    opp.IsCharging = isCharging;        // ✅ THÊM
+                    opp.IsDashing = isDashing;          // ✅ THÊM
                     if (!string.IsNullOrEmpty(action))
                         opp.CurrentAnimation = action;
                 }));
@@ -1721,7 +1769,7 @@ namespace DoAn_NT106
                     int screenHeight = this.ClientSize.Height;
 
                     // KIỂM TRA 2: Đảm bảo screenHeight hợp lệ
-                    if (screenHeight <= 100)
+                    if (screenHeight <=  100)
                     {
                         screenHeight = 600; // Giá trị mặc định an toàn
                         Console.WriteLine($"[SetBackground] ClientSize.Height={this.ClientSize.Height}, using safe height={screenHeight}");

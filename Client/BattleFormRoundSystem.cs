@@ -97,16 +97,27 @@ namespace DoAn_NT106
             _lblRoundCenter.Location = new Point(centerX, topY);
         }
 
-        /// <summary>Initializes round UI and timer (call from SetupGame)</summary>
+        /// <summary>
+        /// Initializes round UI and timer (call from SetupGame)
+        /// </summary>
         private void InitializeRoundSystem()
         {
+            // ✅ RESET ROUND SYSTEM MỖI LẦN INITIALIZE
+            _roundNumber = 1;
+            _player1Wins = 0;
+            _player2Wins = 0;
+            _roundTimeRemainingMs = 3 * 60 * 1000; // 3 minutes per round
+            _roundInProgress = false;
+            _player1ManaCarryover = 0;
+            _player2ManaCarryover = 0;
+
             // Create center label if not already created
             if (_lblRoundCenter == null)
             {
                 string initialText = GetRoundCenterText();
                 _lblRoundCenter = new Label
                 {
-                    Text = GetRoundCenterText(),
+                    Text = initialText,
                     Size = new Size(1, 1),
                     ForeColor = Color.Gold,
                     Font = new Font("Courier New", 15, FontStyle.Bold),
@@ -168,7 +179,7 @@ namespace DoAn_NT106
                 if (this.ClientSize.Width > 100 && this.ClientSize.Height > 100)
                 {
                     // ✅ Cập nhật lại text và vị trí SAU KHI form đã load
-                    Console.WriteLine($"[RoundSystem] Updating center text with: {username} vs {opponent}");
+                    Console.WriteLine($"[RoundSystem] Initializing with: {username} vs {opponent}");
                     UpdateRoundCenterText();
                     PositionRoundCenterLabel();
                     _lblRoundCenter?.BringToFront();

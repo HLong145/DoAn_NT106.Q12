@@ -55,7 +55,6 @@ namespace DoAn_NT106
         private string player2Character = "girlknight"; // Mặc định
         public string SelectedCharacter { get; private set; }
 
-        private GameClient gameClient; // ✅ NEW: reference to shared GameClient
         private int myPlayerNumber = 0; // 1 or 2 assigned by server
 
         public CharacterSelectForm(string username, string token, string roomCode, string opponentName, bool isHost = true, string selectedMap = "battleground1")
@@ -71,49 +70,200 @@ namespace DoAn_NT106
             this.player1Character = "girlknight"; // Người chơi hiện tại chọn
             this.player2Character = "girlknight"; // Đối thủ (tạm thời giả định)
 
-            // ✅ LẤY GameClient singleton từ PersistentTcpClient
-            gameClient = new GameClient();
-            gameClient.OnStartGame += GameClient_OnStartGame;
-
             InitializeCharacters();
             InitializeUI();
             UpdatePreview();
+            
+            // ✅ REGISTER TCP BROADCAST HANDLER BEFORE SHOWING
+            PersistentTcpClient.Instance.OnBroadcast += TcpClient_OnBroadcast;
+            Console.WriteLine("[CharacterSelectForm] Registered for TCP broadcasts");
         }
 
-        private void GameClient_OnStartGame(StartGameData data)
+        // ✅ LISTEN TO SERVER BROADCASTS (INCLUDING START_GAME)
+        private void TcpClient_OnBroadcast(string action, JsonElement data)
         {
-            if (data.RoomCode != roomCode) return;
+            if (action != "START_GAME") return;
 
-            // ✅ Gán vai trò Player1/Player2 dựa trên username server gửi về
-            if (string.Equals(data.Player1, username, StringComparison.OrdinalIgnoreCase))
-                myPlayerNumber = 1;
-            else if (string.Equals(data.Player2, username, StringComparison.OrdinalIgnoreCase))
-                myPlayerNumber = 2;
-            else
-                return; // not participant
+            Console.WriteLine("[CharacterSelectForm] Received START_GAME broadcast");
 
-            // ✅ Parse character picks nếu server gửi kèm
-            string p1Char = data.Player1Character ?? "girlknight";
-            string p2Char = data.Player2Character ?? "girlknight";
-
-            // Mở BattleForm trên UI thread
-            this.BeginInvoke(new Action(() =>
+            try
             {
-                var battleForm = new BattleForm(
-                    username,
-                    token,
-                    opponentName,
-                    p1Char,
-                    p2Char,
-                    selectedMap,
-                    roomCode,
-                    myPlayerNumber // ✅ NEW: pass my role into BattleForm
-                );
+                // Parse START_GAME data từ server
+                string msgRoomCode = GetStringOrNull(data, "roomCode");
+                if (!string.Equals(msgRoomCode, roomCode, StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.WriteLine($"[CharacterSelectForm] START_GAME for different room: {msgRoomCode}");
+                    return;
+                }
 
-                battleForm.FormClosed += (s, args) => { this.Close(); };
-                battleForm.Show();
-                this.Hide();
-            }));
+                string p1Name = GetStringOrNull(data, "player1");
+                string p2Name = GetStringOrNull(data, "player2");
+                string p1Char = GetStringOrNull(data, "player1Character") ?? "girlknight";
+                string p2Char = GetStringOrNull(data, "player2Character") ?? "girlknight";
+
+                // ✅ DETERMINE MY PLAYER NUMBER BASED ON USERNAME MATCH
+                if (string.Equals(p1Name, username, StringComparison.OrdinalIgnoreCase))
+                {
+                    myPlayerNumber = 1;
+                    Console.WriteLine($"[CharacterSelectForm] I am Player 1 - will CREATE BattleForm");
+                }
+                else if (string.Equals(p2Name, username, StringComparison.OrdinalIgnoreCase))
+                {
+                    myPlayerNumber = 2;
+                    Console.WriteLine($"[CharacterSelectForm] I am Player 2 - will JOIN BattleForm");
+                }
+                else
+                {
+                    Console.WriteLine($"[CharacterSelectForm] ⚠️ USERNAME MISMATCH! p1={p1Name}, p2={p2Name}, me={username}");
+                    return;
+                }
+
+                Console.WriteLine($"[CharacterSelectForm] Game starting: P1={p1Name}({p1Char}) vs P2={p2Name}({p2Char})");
+
+                // ✅ UNREGISTER BROADCAST BEFORE CLOSING
+                PersistentTcpClient.Instance.OnBroadcast -= TcpClient_OnBroadcast;
+
+                // ✅ MOVE TO BATTLE ON UI THREAD
+                this.BeginInvoke(new Action(() =>
+                {
+                    try
+                    {
+                        if (myPlayerNumber == 1)
+                        {
+                            // ✅ PLAYER 1: CREATE NEW BATTLEFORM
+                            Console.WriteLine($"[CharacterSelectForm] Player 1 creating new BattleForm for room {roomCode}");
+                            var battleForm = new BattleForm(
+                                username,
+                                token,
+                                opponentName,
+                                p1Char,  // Player 1's selected character
+                                p2Char,  // Player 2's selected character
+                                selectedMap,
+                                roomCode,
+                                myPlayerNumber,
+                                isCreator: true  // ✅ PASS FLAG: I'm the creator
+                            );
+
+                            battleForm.FormClosed += (s, args) =>
+                            {
+                                this.Close();
+                            };
+
+                            battleForm.Show();
+                            this.Hide();
+                        }
+                        else
+                        {
+                            // ✅ PLAYER 2: FIND AND JOIN EXISTING BATTLEFORM
+                            Console.WriteLine($"[CharacterSelectForm] Player 2 searching for BattleForm in room {roomCode}");
+                            
+                            // Tìm BattleForm đã được tạo bởi Player 1
+                            BattleForm existingBattleForm = null;
+                            foreach (Form form in Application.OpenForms)
+                            {
+                                if (form is BattleForm bf && bf.RoomCode == roomCode)
+                                {
+                                    existingBattleForm = bf;
+                                    break;
+                                }
+                            }
+
+                            if (existingBattleForm != null && !existingBattleForm.IsDisposed)
+                            {
+                                // ✅ JOIN EXISTING BATTLEFORM
+                                Console.WriteLine($"[CharacterSelectForm] Found existing BattleForm, joining...");
+                                existingBattleForm.JoinAsPlayer2(
+                                    username,
+                                    token,
+                                    p1Char,
+                                    p2Char,
+                                    myPlayerNumber
+                                );
+                                existingBattleForm.BringToFront();
+                                this.Close();
+                            }
+                            else
+                            {
+                                // ✅ PLAYER 1 HASN'T CREATED YET - WAIT AND RETRY
+                                Console.WriteLine($"[CharacterSelectForm] BattleForm not found yet, waiting...");
+                                System.Threading.Thread.Sleep(500);
+                                
+                                // Retry once more
+                                existingBattleForm = null;
+                                foreach (Form form in Application.OpenForms)
+                                {
+                                    if (form is BattleForm bf && bf.RoomCode == roomCode)
+                                    {
+                                        existingBattleForm = bf;
+                                        break;
+                                    }
+                                }
+
+                                if (existingBattleForm != null && !existingBattleForm.IsDisposed)
+                                {
+                                    Console.WriteLine($"[CharacterSelectForm] Found BattleForm after retry, joining...");
+                                    existingBattleForm.JoinAsPlayer2(
+                                        username,
+                                        token,
+                                        p1Char,
+                                        p2Char,
+                                        myPlayerNumber
+                                    );
+                                    existingBattleForm.BringToFront();
+                                    this.Close();
+                                }
+                                else
+                                {
+                                    // ✅ FALLBACK: CREATE OWN BATTLEFORM IF PLAYER 1 FAILED
+                                    Console.WriteLine($"[CharacterSelectForm] BattleForm still not found, creating fallback...");
+                                    var battleForm = new BattleForm(
+                                        username,
+                                        token,
+                                        opponentName,
+                                        p1Char,
+                                        p2Char,
+                                        selectedMap,
+                                        roomCode,
+                                        myPlayerNumber,
+                                        isCreator: false
+                                    );
+
+                                    battleForm.FormClosed += (s, args) =>
+                                    {
+                                        this.Close();
+                                    };
+
+                                    battleForm.Show();
+                                    this.Hide();
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[CharacterSelectForm] Failed to enter BattleForm: {ex.Message}");
+                        MessageBox.Show($"Error starting battle: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CharacterSelectForm] START_GAME parse error: {ex.Message}");
+            }
+        }
+
+        // ✅ HELPER: Get string from JSON safely
+        private string GetStringOrNull(JsonElement data, string propertyName)
+        {
+            try
+            {
+                if (data.TryGetProperty(propertyName, out var prop) && prop.ValueKind != JsonValueKind.Null)
+                {
+                    return prop.GetString();
+                }
+            }
+            catch { }
+            return null;
         }
 
         private void InitializeCharacters()
@@ -552,26 +702,36 @@ namespace DoAn_NT106
 
             try
             {
-                var request = new
-                {
-                    Action = "SELECT_CHARACTER",
-                    Data = new
+                // ✅ USE THE CORRECT OVERLOAD (action, data)
+                var response = await PersistentTcpClient.Instance.SendRequestAsync(
+                    "SELECT_CHARACTER",
+                    new Dictionary<string, object>
                     {
-                        roomCode = roomCode,
-                        username = username,
-                        character = SelectedCharacter
+                        { "roomCode", roomCode },
+                        { "username", username },
+                        { "character", SelectedCharacter }
                     }
-                };
+                );
 
-                string json = JsonSerializer.Serialize(request);
-                await PersistentTcpClient.Instance.SendRequestAsync(json);
-                
-                // ✅ Show success feedback
-                btnConfirm.Text = "✓ CONFIRMED";
-                btnConfirm.BackColor = Color.FromArgb(100, 200, 100);
-                Console.WriteLine($"[CharacterSelectForm] Sent SELECT_CHARACTER: {SelectedCharacter}");
-                
-                // ✅ Disable for rest of form lifetime (wait for server START_GAME)
+                if (response.Success)
+                {
+                    // ✅ Show success feedback
+                    btnConfirm.Text = "✓ CONFIRMED";
+                    btnConfirm.BackColor = Color.FromArgb(100, 200, 100);
+                    Console.WriteLine($"[CharacterSelectForm] SELECT_CHARACTER sent successfully: {SelectedCharacter}");
+                    
+                    // ✅ Wait for server START_GAME (handled in TcpClient_OnBroadcast)
+                    btnConfirm.Enabled = false;
+                }
+                else
+                {
+                    Console.WriteLine($"[CharacterSelectForm] SELECT_CHARACTER failed: {response.Message}");
+                    MessageBox.Show($"Failed to send character select: {response.Message}", "Error");
+                    
+                    // Re-enable button on error
+                    btnConfirm.Enabled = true;
+                    btnConfirm.Text = "✓ CONFIRM";
+                }
             }
             catch (Exception ex)
             {
@@ -586,6 +746,9 @@ namespace DoAn_NT106
 
         private void BtnBack_Click(object sender, EventArgs e)
         {
+            // Unregister before leaving
+            PersistentTcpClient.Instance.OnBroadcast -= TcpClient_OnBroadcast;
+            
             // Quay lại GameLobbyForm
             var result = MessageBox.Show(
                 "Are you sure you want to go back to the lobby?",
@@ -607,6 +770,19 @@ namespace DoAn_NT106
                 lobbyForm.Show();
                 this.Close();
             }
+        }
+        
+        // ✅ CLEANUP
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            try
+            {
+                PersistentTcpClient.Instance.OnBroadcast -= TcpClient_OnBroadcast;
+                Console.WriteLine("[CharacterSelectForm] Unregistered from TCP broadcasts");
+            }
+            catch { }
+            
+            base.OnFormClosing(e);
         }
     }
 
