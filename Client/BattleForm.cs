@@ -6,6 +6,9 @@ using System.Windows.Forms;
 using DoAn_NT106.Client.BattleSystems;
 using DoAn_NT106.Client;
 using PixelGameLobby;
+using DoAn_NT106.Services;
+using System.Text.Json;
+using System.Threading.Tasks;
 
 namespace DoAn_NT106
 {
@@ -218,6 +221,8 @@ namespace DoAn_NT106
         // Key states
         private bool aPressed, dPressed;
         private bool leftPressed, rightPressed;
+        // If online mode, both players use WASD locally. If offline, Player2 uses arrow keys.
+        private bool bothPlayersUseWASD = false;
         private bool isPaused = false;
 
         // Kích thước nhân vật (dynamic)
@@ -241,19 +246,68 @@ namespace DoAn_NT106
 
         public class AttackHitboxConfig
         {
-            public float WidthPercent { get; set; }      // Chiều rộng vùng tấn công
-            public float HeightPercent { get; set; }     // Chiều cao vùng tấn công
-            public float RangePercent { get; set; }      // Khoảng cách tấn công (nhân với PLAYER_WIDTH)
-            public float OffsetYPercent { get; set; }    // Độ cao của vùng tấn công
+            public float WidthPercent { get; set; }
+            public float HeightPercent { get; set; }
+            public float RangePercent { get; set; }
+            public float OffsetYPercent { get; set; }
         }
 
         public class AttackAnimationConfig
         {
             public int FPS { get; set; }
             public int TotalFrames { get; set; }
-            public List<int> HitFrames { get; set; } // Các frame gây sát thương
-            public int Duration => (int)((TotalFrames / (float)FPS) * 1000); // ms
+            public List<int> HitFrames { get; set; }
+            public int Duration => (int)((TotalFrames / (float)FPS) * 1000);
         }
+
+        public class HitboxConfig
+        {
+            public float WidthPercent { get; set; }
+            public float HeightPercent { get; set; }
+            public float OffsetYPercent { get; set; }
+            public float OffsetXPercent { get; set; } = 0f;
+        }
+
+        // Compute attack hitbox for an attacker based on config
+        private Rectangle GetAttackHitbox(PlayerState attacker, string attackType)
+        {
+            var actual = GetActualCharacterSize(attacker.CharacterType);
+            int actualWidth = actual.actualWidth;
+            int actualHeight = actual.actualHeight;
+            int yOffset = actual.yOffset;
+            int groundAdjustment = actual.groundAdjustment;
+
+            if (!characterAttackConfigs.ContainsKey(attacker.CharacterType) ||
+                !characterAttackConfigs[attacker.CharacterType].ContainsKey(attackType))
+            {
+                int attackRange = (int)(actualWidth * 0.7f);
+                int attackHeight = (int)(actualHeight * 0.6f);
+                int centerX = attacker.X + actualWidth / 2;
+                int attackX = attacker.Facing == "right" ? centerX : centerX - attackRange;
+                int attackY = attacker.Y + yOffset + groundAdjustment + (int)(actualHeight * 0.3f);
+                return new Rectangle(attackX, attackY, attackRange, attackHeight);
+            }
+
+            var cfg = characterAttackConfigs[attacker.CharacterType][attackType];
+            int attackW = (int)(actualWidth * cfg.WidthPercent);
+            int attackH = (int)(actualHeight * cfg.HeightPercent);
+            int attackRangeVal = (int)(actualWidth * cfg.RangePercent);
+            int offsetY = (int)(actualHeight * cfg.OffsetYPercent);
+
+            int center = attacker.X + actualWidth / 2;
+            if (attacker.CharacterType == "girlknight" && attackType == "skill")
+            {
+                int finalX = (center - attackRangeVal) + 10;
+                int finalW = attackRangeVal * 2 - 20;
+                if (finalW < 0) finalW = 0;
+                return new Rectangle(finalX, attacker.Y + yOffset + groundAdjustment + offsetY, finalW, attackH);
+            }
+
+            int finalX2 = attacker.Facing == "right" ? center : center - attackRangeVal;
+            int finalY2 = attacker.Y + yOffset + groundAdjustment + offsetY;
+            return new Rectangle(finalX2, finalY2, attackRangeVal, attackH);
+        }
+
         // Cấu hình Attack Hitbox cho từng loại tấn công của từng nhân vật
         private Dictionary<string, Dictionary<string, AttackHitboxConfig>> characterAttackConfigs = new Dictionary<string, Dictionary<string, AttackHitboxConfig>>
         {
@@ -354,6 +408,7 @@ namespace DoAn_NT106
                 }
             }
         };
+
         // Cấu hình HURTBOX chi tiết cho từng loại nhân vật 
         private Dictionary<string, HitboxConfig> characterHurtboxConfigs = new Dictionary<string, HitboxConfig>
         {
@@ -384,13 +439,7 @@ namespace DoAn_NT106
                 OffsetYPercent = 0.40f    
             }
         };
-        public class HitboxConfig
-        {
-            public float WidthPercent { get; set; }
-            public float HeightPercent { get; set; }
-            public float OffsetYPercent { get; set; }
-            public float OffsetXPercent { get; set; } = 0f;
-        }
+
         // Hurt handling
         private const int HURT_DISPLAY_MS = 400;
         private string _prevAnimPlayer1 = null;
@@ -400,7 +449,8 @@ namespace DoAn_NT106
         private string player1CharacterType = "girlknight";
         private string player2CharacterType = "girlknight";
 
-        public BattleForm(string username, string token, string opponent, string player1Character, string player2Character, string selectedMap = "battleground1", string roomCode = "000000")
+        // Added myPlayerNumber last param so caller can indicate which player this client controls
+        public BattleForm(string username, string token, string opponent, string player1Character, string player2Character, string selectedMap = "battleground1", string roomCode = "000000", int myPlayerNumber = 1)
         {
             InitializeComponent();
 
@@ -413,6 +463,9 @@ namespace DoAn_NT106
 
             // ✅ THÊM: Kiểm tra online mode
             isOnlineMode = !string.IsNullOrEmpty(roomCode) && roomCode != "000000";
+
+            // If online, prefer WASD for both players locally
+            bothPlayersUseWASD = isOnlineMode;
 
             // ✅ Set map background based on selectedMap ("battleground1" format)
             // ✅ FIX: selectedMap is already "battleground1" format, find its index
@@ -430,8 +483,14 @@ namespace DoAn_NT106
             
             Console.WriteLine($"[BattleForm] selectedMap='{selectedMap}' → mapIndex={currentBackground}");
 
+            // ✅ RESTORE: Start maximized like original behavior, allow ALT+TAB
+            this.StartPosition = FormStartPosition.CenterScreen;
             this.WindowState = FormWindowState.Maximized;
-            this.FormBorderStyle = FormBorderStyle.None;
+            this.FormBorderStyle = FormBorderStyle.Sizable; // Allow resizing
+            this.Text = $"⚔️ {(myPlayerNumber == 1 ? "Player 1" : "Player 2")} - {username} vs {opponent}";
+            
+            Console.WriteLine($"[BattleForm] Window created for Player {myPlayerNumber}");
+            this.myPlayerNumber = myPlayerNumber;
             player1Y = 0;
             player2Y = 0;
             this.Load += BattleForm_Load;
@@ -500,6 +559,25 @@ namespace DoAn_NT106
                 player1Y = groundLevel - PLAYER_HEIGHT;
                 player2Y = groundLevel - PLAYER_HEIGHT;
 
+                // ✅ THÊM: Initialize UDP if online mode
+                if (isOnlineMode)
+                {
+                    try
+                    {
+                        udpClient = new UDPGameClient("127.0.0.1", 5000, roomCode, username);
+                        udpClient.SetPlayerNumber(myPlayerNumber);
+                        udpClient.OnLog += (msg) => Console.WriteLine($"[UDP] {msg}");
+                        udpClient.OnOpponentState += HandleOpponentState;
+                        udpClient.OnCombatEvent += HandleCombatEvent; // ✅ ADD: Subscribe to combat events
+                        udpClient.Connect();
+                        Console.WriteLine($"✅ UDP initialized for player {myPlayerNumber}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"❌ UDP init error: {ex.Message}");
+                    }
+                }
+
                 // Load animations...
                 player1AnimationManager = new CharacterAnimationManager(player1CharacterType, OnFrameChanged);
                 player1AnimationManager.LoadAnimations();
@@ -509,7 +587,14 @@ namespace DoAn_NT106
 
                 // ===== ✅ INITIALIZE NEW SYSTEMS =====
                 // 1. Initialize PlayerState instances - SỬA Y position
-                player1State = new PlayerState(username, player1CharacterType, 1)
+                // ✅ FIX: Determine correct names based on myPlayerNumber
+                string actualPlayer1Name = myPlayerNumber == 1 ? username : opponent;
+                string actualPlayer2Name = myPlayerNumber == 1 ? opponent : username;
+                
+                Console.WriteLine($"[SetupGame] Player {myPlayerNumber}: Me={username}, Opponent={opponent}");
+                Console.WriteLine($"[SetupGame] PlayerState: P1={actualPlayer1Name}, P2={actualPlayer2Name}");
+                
+                player1State = new PlayerState(actualPlayer1Name, player1CharacterType, 1)
                 {
                     X = 150, // ✅ SỬA: từ 300 → 150
                     Y = groundLevel - PLAYER_HEIGHT,
@@ -520,7 +605,7 @@ namespace DoAn_NT106
                 // ✅ SỬA: Set HP theo character type
                 SetPlayerHealth(player1State, player1CharacterType);
 
-                player2State = new PlayerState(opponent, player2CharacterType, 2)
+                player2State = new PlayerState(actualPlayer2Name, player2CharacterType, 2)
                 {
                     X = 700, // ✅ SỬA: từ 600 → 900
                     Y = groundLevel - PLAYER_HEIGHT,
@@ -563,7 +648,8 @@ namespace DoAn_NT106
                     () => this.Invalidate(),
                     ShowHitEffect,
                     GetAttackHitbox,
-                    GetPlayerHitbox
+                    GetPlayerHitbox,
+                    SendCombatEventViaUDP // ✅ ADD: Pass callback to send combat events
                 );
                 // =====================================
 
@@ -644,6 +730,17 @@ namespace DoAn_NT106
 
             SetupControlsInfo();
 
+            // Subscribe to TCP broadcasts for online mode sync
+            try { PersistentTcpClient.Instance.OnBroadcast += HandleTcpBroadcast; } catch { }
+
+            // Ensure this form is tracked as an open BattleForm for lookup by other UI
+            try
+            {
+                var list = Application.OpenForms.OfType<BattleForm>().ToList();
+                // nothing to do, presence in OpenForms is enough
+            }
+            catch { }
+
             // ✅ THÊM: Load background map
             string backgroundName = $"battleground{currentBackground + 1}";
             SetBackground(backgroundName);
@@ -653,6 +750,199 @@ namespace DoAn_NT106
             InitializeRoundSystem();
         }
 
+        // Helper: set player health based on character type
+        private void SetPlayerHealth(PlayerState playerState, string characterType)
+        {
+            int baseHealth = 100;
+            switch (characterType)
+            {
+                case "goatman": baseHealth = 130; break;
+                case "bringerofdeath": baseHealth = 90; break;
+                case "warrior": baseHealth = 80; break;
+                case "girlknight": baseHealth = 100; break;
+            }
+            playerState.Health = baseHealth;
+        }
+
+        // Compute player hurtbox based on configuration
+        private Rectangle GetPlayerHitbox(PlayerState player)
+        {
+            var actual = GetActualCharacterSize(player.CharacterType);
+            int actualWidth = actual.actualWidth;
+            int actualHeight = actual.actualHeight;
+            int yOffset = actual.yOffset;
+            int groundAdjustment = actual.groundAdjustment;
+
+            if (!characterHurtboxConfigs.ContainsKey(player.CharacterType))
+            {
+                return new Rectangle(player.X, player.Y + yOffset + groundAdjustment, actualWidth, actualHeight);
+            }
+
+            var cfg = characterHurtboxConfigs[player.CharacterType];
+            int hitW = (int)(actualWidth * cfg.WidthPercent);
+            int hitH = (int)(actualHeight * cfg.HeightPercent);
+            int offsetX = (actualWidth - hitW) / 2 + (int)(actualWidth * cfg.OffsetXPercent);
+            int offsetY = (int)(actualHeight * cfg.OffsetYPercent);
+
+            return new Rectangle(player.X + offsetX, player.Y + yOffset + groundAdjustment + offsetY, hitW, hitH);
+        }
+
+        // Apply damage via combatSystem and sync local state
+        private void ApplyHurtToPlayer(int player, int damage, bool knockback = true)
+        {
+            // ✅ GỌI COMBATSYSTEM TRỰC TIẾP - ĐÃ XỬ LÝ ĐẦY ĐỦ
+            combatSystem.ApplyDamage(player, damage, knockback);
+
+            // ✅ SYNC LẠI BIẾN CŨ (để UI hoạt động)
+            player1Health = player1State.Health;
+            player2Health = player2State.Health;
+            player1Stunned = player1State.IsStunned;
+            player2Stunned = player2State.IsStunned;
+            player1CurrentAnimation = player1State.CurrentAnimation;
+            player2CurrentAnimation = player2State.CurrentAnimation;
+        }
+
+        // Send game action to server (fire-and-forget)
+        private async void SendGameAction(string actionType, Dictionary<string, object> data = null)
+        {
+            try
+            {
+                var tcp = PersistentTcpClient.Instance;
+                if (tcp == null) return;
+                if (!tcp.IsConnected) return;
+
+                var payload = data != null ? new Dictionary<string, object>(data) : new Dictionary<string, object>();
+                payload["roomCode"] = roomCode ?? string.Empty;
+                payload["username"] = username ?? string.Empty;
+                payload["type"] = actionType;
+                payload["playerNumber"] = myPlayerNumber;
+
+                // Fire-and-forget
+                _ = tcp.SendRequestAsync("GAME_ACTION", payload);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[BattleForm] SendGameAction error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// ✅ NEW: Send combat events via UDP (called by CombatSystem)
+        /// </summary>
+        private void SendCombatEventViaUDP(string eventType, Dictionary<string, object> eventData)
+        {
+            if (!isOnlineMode || udpClient == null || !udpClient.IsConnected)
+                return;
+
+            try
+            {
+                udpClient.SendCombatEvent(eventType, eventData);
+                Console.WriteLine($"[UDP] Sent {eventType} event: {System.Text.Json.JsonSerializer.Serialize(eventData)}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ SendCombatEventViaUDP error: {ex.Message}");
+            }
+        }
+
+        // Send current controlled player state immediately over UDP
+        private void SendLocalUdpState()
+        {
+            if (!isOnlineMode || udpClient == null || !udpClient.IsConnected) return;
+
+            try
+            {
+                if (myPlayerNumber == 1)
+                {
+                    udpClient.SendImmediateState(
+                        player1State.X, player1State.Y,
+                        player1State.Health, player1State.Stamina, player1State.Mana,
+                        player1State.CurrentAnimation, player1State.Facing
+                    );
+                }
+                else if (myPlayerNumber == 2)
+                {
+                    udpClient.SendImmediateState(
+                        player2State.X, player2State.Y,
+                        player2State.Health, player2State.Stamina, player2State.Mana,
+                        player2State.CurrentAnimation, player2State.Facing
+                    );
+                }
+            }
+            catch { }
+        }
+
+        // Show a quick hit effect label
+        private void ShowHitEffect(string message, Color color)
+        {
+            try
+            {
+                var hitLabel = new Label
+                {
+                    Text = message,
+                    ForeColor = color,
+                    BackColor = Color.FromArgb(180, 255, 255, 255),
+                    Font = new Font("Arial", 12, FontStyle.Bold),
+                    AutoSize = true,
+                    Location = new Point(this.ClientSize.Width / 2 - 40, 150)
+                };
+                this.Controls.Add(hitLabel);
+                hitLabel.BringToFront();
+
+                var removeTimer = new System.Windows.Forms.Timer { Interval = 800 };
+                removeTimer.Tick += (s, e) => { this.Controls.Remove(hitLabel); removeTimer.Stop(); removeTimer.Dispose(); };
+                removeTimer.Start();
+            }
+            catch { }
+        }
+
+        // Check current fireball collision
+        private void CheckFireballHit()
+        {
+            if (!fireballActive) return;
+
+            var fireRect = new Rectangle(fireballX, fireballY, FIREBALL_WIDTH, FIREBALL_HEIGHT);
+
+            if (fireballOwner == 1)
+            {
+                var p2Rect = GetPlayerHitbox(player2State);
+                if (fireRect.IntersectsWith(p2Rect))
+                {
+                    if (player2State.IsParrying)
+                    {
+                        fireballDirection *= -1; fireballOwner = 2;
+                        fireballX = player2State.X + (player2State.Facing == "right" ? PLAYER_WIDTH + 5 : -FIREBALL_WIDTH - 5);
+                        ShowHitEffect("Reflected!", Color.Orange);
+                    }
+                    else
+                    {
+                        ApplyHurtToPlayer(2, 20);
+                        fireballActive = false;
+                        ShowHitEffect("Fireball Hit!", Color.Yellow);
+                    }
+                }
+            }
+            else if (fireballOwner == 2)
+            {
+                var p1Rect = GetPlayerHitbox(player1State);
+                if (fireRect.IntersectsWith(p1Rect))
+                {
+                    if (player1State.IsParrying)
+                    {
+                        fireballDirection *= -1; fireballOwner = 1;
+                        fireballX = player1State.X + (player1State.Facing == "right" ? PLAYER_WIDTH + 5 : -FIREBALL_WIDTH - 5);
+                        ShowHitEffect("Reflected!", Color.Orange);
+                    }
+                    else
+                    {
+                        ApplyHurtToPlayer(1, 20);
+                        fireballActive = false;
+                        ShowHitEffect("Fireball Hit!", Color.Yellow);
+                    }
+                }
+            }
+        }
+
         // In BattleForm.cs - GameTimer_Tick() - VERSION CLEAN
 
         private void GameTimer_Tick(object sender, EventArgs e)
@@ -660,21 +950,113 @@ namespace DoAn_NT106
             // ===== MOVEMENT LOGIC =====
             player1State.IsWalking = false;
             player2State.IsWalking = false;
-
-            if (player1State.CanMove)
+            
+            // If offline mode, apply both players' local inputs
+            if (!isOnlineMode)
             {
-                if (aPressed) physicsSystem.MovePlayer(player1State, -1);
-                else if (dPressed) physicsSystem.MovePlayer(player1State, 1);
-                else if (!player1State.IsJumping && !player1State.IsParrying && !player1State.IsSkillActive)
+                if (player1State.CanMove)
+                {
+                    // ✅ FIX: Only move if key is pressed, always stop if neither key is pressed
+                    if (aPressed && !dPressed)
+                    {
+                        physicsSystem.MovePlayer(player1State, -1);
+                    }
+                    else if (dPressed && !aPressed)
+                    {
+                        physicsSystem.MovePlayer(player1State, 1);
+                    }
+                    else
+                    {
+                        // ✅ Stop movement when no keys are pressed or both are pressed
+                        physicsSystem.StopMovement(player1State);
+                    }
+                }
+                else
+                {
+                    // ✅ Force stop if player can't move
                     physicsSystem.StopMovement(player1State);
-            }
+                }
 
-            if (player2State.CanMove)
-            {
-                if (leftPressed) physicsSystem.MovePlayer(player2State, -1);
-                else if (rightPressed) physicsSystem.MovePlayer(player2State, 1);
-                else if (!player2State.IsJumping && !player2State.IsParrying && !player2State.IsSkillActive)
+                if (player2State.CanMove)
+                {
+                    // ✅ FIX: Only move if key is pressed, always stop if neither key is pressed
+                    if (leftPressed && !rightPressed)
+                    {
+                        physicsSystem.MovePlayer(player2State, -1);
+                    }
+                    else if (rightPressed && !leftPressed)
+                    {
+                        physicsSystem.MovePlayer(player2State, 1);
+                    }
+                    else
+                    {
+                        // ✅ Stop movement when no keys are pressed or both are pressed
+                        physicsSystem.StopMovement(player2State);
+                    }
+                }
+                else
+                {
+                    // ✅ Force stop if player can't move
                     physicsSystem.StopMovement(player2State);
+                }
+            }
+            else
+            {
+                // Online mode: only apply local player's input
+                if (myPlayerNumber == 1)
+                {
+                    if (player1State.CanMove)
+                    {
+                        // ✅ FIX: Only move if key is pressed, always stop if neither key is pressed
+                        if (aPressed && !dPressed)
+                        {
+                            physicsSystem.MovePlayer(player1State, -1);
+                        }
+                        else if (dPressed && !aPressed)
+                        {
+                            physicsSystem.MovePlayer(player1State, 1);
+                        }
+                        else
+                        {
+                            // ✅ Stop movement when no keys are pressed or both are pressed
+                            physicsSystem.StopMovement(player1State);
+                        }
+                    }
+                    else
+                    {
+                        // ✅ Force stop if player can't move
+                        physicsSystem.StopMovement(player1State);
+                    }
+                }
+
+                if (myPlayerNumber == 2)
+                {
+                    if (player2State.CanMove)
+                    {
+                        // ✅ FIX: Use WASD if bothPlayersUseWASD is true, otherwise arrow keys
+                        bool moveLeft = bothPlayersUseWASD ? (aPressed && !dPressed) : (leftPressed && !rightPressed);
+                        bool moveRight = bothPlayersUseWASD ? (dPressed && !aPressed) : (rightPressed && !leftPressed);
+                        
+                        if (moveLeft)
+                        {
+                            physicsSystem.MovePlayer(player2State, -1);
+                        }
+                        else if (moveRight)
+                        {
+                            physicsSystem.MovePlayer(player2State, 1);
+                        }
+                        else
+                        {
+                            // ✅ Stop movement when no keys are pressed or both are pressed
+                            physicsSystem.StopMovement(player2State);
+                        }
+                    }
+                    else
+                    {
+                        // ✅ Force stop if player can't move
+                        physicsSystem.StopMovement(player2State);
+                    }
+                }
             }
 
             // ===== JUMP PHYSICS =====
@@ -802,6 +1184,45 @@ namespace DoAn_NT106
             resourceSystem.RegenerateResources();
             resourceSystem.UpdateBars();
 
+            // ===== UDP: Send local state (only for controlled player) =====
+            if (isOnlineMode && udpClient != null && udpClient.IsConnected)
+            {
+                try
+                {
+                    if (myPlayerNumber == 1)
+                    {
+                        udpClient.UpdateState(
+                            player1State.X,
+                            player1State.Y,
+                            player1State.Health,
+                            player1State.Stamina,
+                            player1State.Mana,
+                            player1State.CurrentAnimation,
+                            player1State.Facing // ✅ ADD: Send facing direction
+                        );
+                        // send immediate one-shot for low-latency after inputs
+                        SendLocalUdpState();
+                    }
+                    else if (myPlayerNumber == 2)
+                    {
+                        udpClient.UpdateState(
+                            player2State.X,
+                            player2State.Y,
+                            player2State.Health,
+                            player2State.Stamina,
+                            player2State.Mana,
+                            player2State.CurrentAnimation,
+                            player2State.Facing // ✅ ADD: Send facing direction
+                        );
+                        SendLocalUdpState();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"❌ UDP update error: {ex.Message}");
+                }
+            }
+
             // ===== CHECK ROUND END (by HP depletion) =====
             if (player1State.IsDead || player2State.IsDead)
             {
@@ -815,226 +1236,178 @@ namespace DoAn_NT106
 
         private void BattleForm_KeyDown(object sender, KeyEventArgs e)
         {
-            // Player 1 controls
-            switch (e.KeyCode)
+            // ✅ FIX: Remove Form.ActiveForm check to allow both forms to receive input
+            // This allows Player 1 and Player 2 to control their characters in separate windows
+
+            // ✅ FIX: Allow ESC for all players
+            if (e.KeyCode == Keys.Escape)
             {
-                case Keys.A: 
-                    if (player1State.CanMove) // ✅ USE PlayerState
-                    {
-                        aPressed = true;
-                        player1State.LeftKeyPressed = true; // ✅ SYNC STATE
-                    }
-                    break;
-                case Keys.D: 
-                    if (player1State.CanMove)
-                    {
-                        dPressed = true;
-                        player1State.RightKeyPressed = true; // ✅ SYNC STATE
-                    }
-                    break;
-                case Keys.W:
-                    // ✅ MIGRATED TO PhysicsSystem
-                    physicsSystem.Jump(player1State);
-                    break;
-                case Keys.J: 
-                    if (player1State.CanAttack) // ✅ USE PlayerState
-                    {
-                        // ✅ MIGRATED TO CombatSystem
-                        ExecuteAttackWithHitbox(1, "punch", 10, 15);
-                    }
-                    break;
-                case Keys.K: 
-                    if (player1State.CanAttack)
-                    {
-                        // ✅ MIGRATED TO CombatSystem
-                        ExecuteAttackWithHitbox(1, "kick", 15, 20);
-                    }
-                    break;
-                case Keys.L: 
-                    if (player1State.CanDash) // ✅ USE PlayerState
-                    {
-                        // ✅ MIGRATED TO CombatSystem
-                        combatSystem.ExecuteDash(1);
-                    }
-                    break;
-                case Keys.U:
-                    if (player1State.CanParry)
-                    {
-                        // ✅ MIGRATED TO CombatSystem
-                        combatSystem.StartParry(1);
-                    }
-                    break;
-                case Keys.I:
-                    if (player1State.CanAttack)
-                    {
-                        // ✅ MIGRATED TO CombatSystem
-                        combatSystem.ToggleSkill(1);
-                    }
-                    break;
-                case Keys.Escape:
-                    // Open main menu: Back to Lobby (go to PixelGameLobbyForm) or Continue
-                    try
-                    {
-                        if (!isPaused)
-                        {
-                            PauseGame();
-                            using (var menu = new MainMenuForm(roomCode))  // ✅ TRUYỀN roomCode
-                            {
-                                var res = menu.ShowDialog(this);
-                                if (res == DialogResult.OK)
-                                {
-                                    // Back to Lobby: stop timers and return to appropriate lobby
-                                    try { gameTimer?.Stop(); } catch { }
-                                    try { walkAnimationTimer?.Stop(); } catch { }
-
-                                    this.Close();
-
-                                    // If offline mode (roomCode default "000000") -> try to show existing JoinRoomForm owner
-                                    bool isOffline = string.IsNullOrEmpty(roomCode) || roomCode == "000000";
-                                    if (isOffline)
-                                    {
-                                        // Prefer showing the owner JoinRoomForm if provided
-                                        if (this.Owner is PixelGameLobby.JoinRoomForm ownerJoin)
-                                        {
-                                            try
-                                            {
-                                                ownerJoin.Show();
-                                                ownerJoin.BringToFront();
-                                            }
-                                            catch
-                                            {
-                                                // try to find any existing JoinRoomForm in open forms
-                                                var existing = Application.OpenForms.OfType<PixelGameLobby.JoinRoomForm>().FirstOrDefault();
-                                                if (existing != null)
-                                                {
-                                                    existing.Show();
-                                                    existing.BringToFront();
-                                                }
-                                                else
-                                                {
-                                                    // No JoinRoomForm found; don't create UI duplicates. Log and exit to caller.
-                                                    Console.WriteLine("[BattleForm] No JoinRoomForm owner and none found in OpenForms. Skipping creation.");
-                                                }
-                                            }
-                                        }
-                                        else
-                                        {
-                                            var existing = Application.OpenForms.OfType<PixelGameLobby.JoinRoomForm>().FirstOrDefault();
-                                            if (existing != null)
-                                            {
-                                                existing.Show();
-                                                existing.BringToFront();
-                                            }
-                                            else
-                                            {
-                                                // No existing JoinRoomForm found. Do not create a new one to avoid duplicates.
-                                                Console.WriteLine("[BattleForm] No existing JoinRoomForm to return to; skipping creation.");
-                                            }
-                                        }
-                                    }
-                                    else
-                                    {
-                                        // Online room lobby
-                                        var lobbyForm = new PixelGameLobby.GameLobbyForm(roomCode, username, token);
-                                        lobbyForm.StartPosition = FormStartPosition.CenterScreen;
-                                        lobbyForm.Show();
-                                    }
-                                }
-                                else
-                                {
-                                    ResumeGame();
-                                }
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine("Main menu open error: " + ex.Message);
-                        ResumeGame();
-                    }
-                    break;
+                try { OpenMainMenu(); } catch { ResumeGame(); }
+                e.Handled = true;
+                return;
             }
 
-            // Player 2 controls
-            switch (e.KeyCode)
+            // Handle Player1 input (if this client controls player1 or in local dual-control mode)
+            if (myPlayerNumber == 1 || myPlayerNumber == 0)
             {
-                case Keys.Left: 
-                    if (player2State.CanMove)
+                switch (e.KeyCode)
+                {
+                    case Keys.A:
+                        if (player1State.CanMove) { aPressed = true; player1State.LeftKeyPressed = true; }
+                        break;
+                    case Keys.D:
+                        if (player1State.CanMove) { dPressed = true; player1State.RightKeyPressed = true; }
+                        break;
+                    case Keys.W:
+                        physicsSystem.Jump(player1State);
+                        break;
+                    case Keys.J:
+                        if (player1State.CanAttack) ExecuteAttackWithHitbox(1, "punch", 10, 15);
+                        break;
+                    case Keys.K:
+                        if (player1State.CanAttack) ExecuteAttackWithHitbox(1, "kick", 15, 20);
+                        break;
+                    case Keys.L:
+                        if (player1State.CanDash) combatSystem.ExecuteDash(1);
+                        break;
+                    case Keys.U:
+                        if (player1State.CanParry) combatSystem.StartParry(1);
+                        break;
+                    case Keys.I:
+                        if (player1State.CanAttack) combatSystem.ToggleSkill(1);
+                        break;
+                }
+            }
+
+            // Handle Player2 input (if this client controls player2, in local dual-control mode, or in offline mode)
+            if (!isOnlineMode || myPlayerNumber == 2 || myPlayerNumber == 0)
+            {
+                // if WASD mode for both players, map A/D/W to player2 as well
+                if (bothPlayersUseWASD && isOnlineMode)
+                {
+                    switch (e.KeyCode)
                     {
-                        leftPressed = true;
-                        player2State.LeftKeyPressed = true; // ✅ SYNC STATE
+                        case Keys.A:
+                            // ✅ FIX: Player 2 uses aPressed (not leftPressed) in online mode
+                            if (player2State.CanMove) { aPressed = true; player2State.LeftKeyPressed = true; }
+                            break;
+                        case Keys.D:
+                            // ✅ FIX: Player 2 uses dPressed (not rightPressed) in online mode
+                            if (player2State.CanMove) { dPressed = true; player2State.RightKeyPressed = true; }
+                            break;
+                        case Keys.W:
+                            physicsSystem.Jump(player2State);
+                            break;
+                        case Keys.J:
+                            if (player2State.CanAttack) ExecuteAttackWithHitbox(2, "punch", 10, 15);
+                            break;
+                        case Keys.K:
+                            if (player2State.CanAttack) ExecuteAttackWithHitbox(2, "kick", 15, 20);
+                            break;
+                        case Keys.L:
+                            if (player2State.CanDash) combatSystem.ExecuteDash(2);
+                            break;
+                        case Keys.U:
+                            if (player2State.CanParry) combatSystem.StartParry(2);
+                            break;
+                        case Keys.I:
+                            if (player2State.CanAttack) combatSystem.ToggleSkill(2);
+                            break;
                     }
-                    break;
-                case Keys.Right: 
-                    if (player2State.CanMove)
+                }
+                else
+                {
+                    switch (e.KeyCode)
                     {
-                        rightPressed = true;
-                        player2State.RightKeyPressed = true; // ✅ SYNC STATE
+                        case Keys.Left:
+                            if (player2State.CanMove) { leftPressed = true; player2State.LeftKeyPressed = true; }
+                            break;
+                        case Keys.Right:
+                            if (player2State.CanMove) { rightPressed = true; player2State.RightKeyPressed = true; }
+                            break;
+                        case Keys.Up:
+                            physicsSystem.Jump(player2State);
+                            break;
+                        // Allow number keys (top row) for offline player2 controls as alternative to numpad
+                        case Keys.D1:
+                            if (player2State.CanAttack) ExecuteAttackWithHitbox(2, "punch", 10, 15);
+                            break;
+                        case Keys.D2:
+                            if (player2State.CanAttack) ExecuteAttackWithHitbox(2, "kick", 15, 20);
+                            break;
+                        case Keys.D3:
+                            if (player2State.CanDash) combatSystem.ExecuteDash(2);
+                            break;
+                        case Keys.D5:
+                            if (player2State.CanParry) combatSystem.StartParry(2);
+                            break;
+                        case Keys.D4:
+                            if (player2State.CanAttack) combatSystem.ToggleSkill(2);
+                            break;
+                        // Keep numpad mapping too
+                        case Keys.NumPad1:
+                            if (player2State.CanAttack) ExecuteAttackWithHitbox(2, "punch", 10, 15);
+                            break;
+                        case Keys.NumPad2:
+                            if (player2State.CanAttack) ExecuteAttackWithHitbox(2, "kick", 15, 20);
+                            break;
+                        case Keys.NumPad3:
+                            if (player2State.CanDash) combatSystem.ExecuteDash(2);
+                            break;
+                        case Keys.NumPad5:
+                            if (player2State.CanParry) combatSystem.StartParry(2);
+                            break;
+                        case Keys.NumPad4:
+                            if (player2State.CanAttack) combatSystem.ToggleSkill(2);
+                            break;
                     }
-                    break;
-                case Keys.Up:
-                    // ✅ MIGRATED TO PhysicsSystem
-                    physicsSystem.Jump(player2State);
-                    break;
-                case Keys.NumPad1: 
-                    if (player2State.CanAttack)
-                    {
-                        // ✅ MIGRATED TO CombatSystem
-                        ExecuteAttackWithHitbox(2, "punch", 10, 15);
-                    }
-                    break;
-                case Keys.NumPad2: 
-                    if (player2State.CanAttack)
-                    {
-                        // ✅ MIGRATED TO CombatSystem
-                        ExecuteAttackWithHitbox(2, "kick", 15, 20);
-                    }
-                    break;
-                case Keys.NumPad3: 
-                    if (player2State.CanDash)
-                    {
-                        // ✅ MIGRATED TO CombatSystem
-                        combatSystem.ExecuteDash(2);
-                    }
-                    break;
-                case Keys.NumPad5:
-                    if (player2State.CanParry)
-                    {
-                        // ✅ MIGRATED TO CombatSystem
-                        combatSystem.StartParry(2);
-                    }
-                    break;
-                case Keys.NumPad4:
-                    if (player2State.CanAttack)
-                    {
-                        // ✅ MIGRATED TO CombatSystem
-                        combatSystem.ToggleSkill(2);
-                    }
-                    break;
+                }
             }
 
             e.Handled = true;
         }
+      
 
         private void BattleForm_KeyUp(object sender, KeyEventArgs e)
         {
+            // ✅ FIX: Remove Form.ActiveForm check to allow both forms to receive input
             switch (e.KeyCode)
             {
                 case Keys.A: 
                     aPressed = false;
-                    player1State.LeftKeyPressed = false; // ✅ SYNC STATE
+                    // ✅ FIX: Clear both player states (player1 or player2 depending on mode)
+                    if (myPlayerNumber == 1 || myPlayerNumber == 0) player1State.LeftKeyPressed = false;
+                    if (myPlayerNumber == 2 && bothPlayersUseWASD) player2State.LeftKeyPressed = false;
+                    if (isOnlineMode && myPlayerNumber == 1) SendGameAction("move_stop", new Dictionary<string, object>{{"dir", -1}});
+                    if (isOnlineMode && myPlayerNumber == 2 && bothPlayersUseWASD) SendGameAction("move_stop", new Dictionary<string, object>{{"dir", -1}});
                     break;
                 case Keys.D: 
                     dPressed = false;
-                    player1State.RightKeyPressed = false; // ✅ SYNC STATE
+                    // ✅ FIX: Clear both player states (player1 or player2 depending on mode)
+                    if (myPlayerNumber == 1 || myPlayerNumber == 0) player1State.RightKeyPressed = false;
+                    if (myPlayerNumber == 2 && bothPlayersUseWASD) player2State.RightKeyPressed = false;
+                    if (isOnlineMode && myPlayerNumber == 1) SendGameAction("move_stop", new Dictionary<string, object>{{"dir", 1}});
+                    if (isOnlineMode && myPlayerNumber == 2 && bothPlayersUseWASD) SendGameAction("move_stop", new Dictionary<string, object>{{"dir", 1}});
                     break;
-                case Keys.Left: 
+                case Keys.Left:
                     leftPressed = false;
                     player2State.LeftKeyPressed = false; // ✅ SYNC STATE
+                    if (isOnlineMode && myPlayerNumber == 2) SendGameAction("move_stop", new Dictionary<string, object>{{"dir", -1}});
                     break;
-                case Keys.Right: 
+                case Keys.Right:
                     rightPressed = false;
                     player2State.RightKeyPressed = false; // ✅ SYNC STATE
+                    if (isOnlineMode && myPlayerNumber == 2) SendGameAction("move_stop", new Dictionary<string, object>{{"dir", 1}});
+                    break;
+                case Keys.Up:
+                    // Up released for Player2 (offline). No persistent flag to clear.
+                    break;
+                case Keys.W:
+                    // If using WASD for both players, releasing W should clear jump flags if any
+                    if (bothPlayersUseWASD && myPlayerNumber == 2)
+                    {
+                        // No persistent flag for jump; physics handles jump state
+                    }
                     break;
             }
             e.Handled = true;
@@ -1431,6 +1804,9 @@ namespace DoAn_NT106
             player1AnimationManager?.Dispose();
             player2AnimationManager?.Dispose();
 
+            // Unsubscribe from TCP broadcasts
+            try { PersistentTcpClient.Instance.OnBroadcast -= HandleTcpBroadcast; } catch { }
+
             foreach (var s in resourceStreams)
             {
                 try { s.Dispose(); } catch { }
@@ -1450,6 +1826,24 @@ namespace DoAn_NT106
         private void ExecuteAttackWithHitbox(int playerNum, string attackType, int damage, int staminaCost)
         {
             Console.WriteLine($"[BattleForm] Player {playerNum} attempts {attackType}");
+            
+            // ✅ ADD: Send attack event via UDP
+            if (isOnlineMode && udpClient != null && udpClient.IsConnected)
+            {
+                try
+                {
+                    udpClient.SendCombatEvent("attack", new Dictionary<string, object>
+                    {
+                        {"attacker", playerNum},
+                        {"attackType", attackType}
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"❌ UDP send attack error: {ex.Message}");
+                }
+            }
+            
             combatSystem.ExecuteAttack(playerNum, attackType);
         }
         private void OnFrameChanged(object sender, EventArgs e)
@@ -1619,9 +2013,71 @@ namespace DoAn_NT106
             gameTimer.Tick += GameTimer_Tick;
             if (!gameTimer.Enabled) gameTimer.Start();
 
+            // Enable Key events for any local control mode
+            // myPlayerNumber == 0 -> local single-window offline controlling both players
+            // myPlayerNumber == 1 or 2 -> this window controls that single player (online or offline)
             this.KeyDown += BattleForm_KeyDown;
             this.KeyUp += BattleForm_KeyUp;
             this.Resize += BattleForm_Resize;
+        }
+
+        // Open main menu and handle returning to lobby (extracted from KeyDown)
+        private void OpenMainMenu()
+        {
+            if (isPaused) return;
+
+            PauseGame();
+            using (var menu = new MainMenuForm(roomCode))
+            {
+                var res = menu.ShowDialog(this);
+                if (res == DialogResult.OK)
+                {
+                    try { gameTimer?.Stop(); } catch { }
+                    try { walkAnimationTimer?.Stop(); } catch { }
+
+                    this.Close();
+
+                    bool isOffline = string.IsNullOrEmpty(roomCode) || roomCode == "000000";
+                    if (isOffline)
+                    {
+                        if (this.Owner is PixelGameLobby.JoinRoomForm ownerJoin)
+                        {
+                            try { ownerJoin.Show(); ownerJoin.BringToFront(); }
+                            catch
+                            {
+                                var existing = Application.OpenForms.OfType<PixelGameLobby.JoinRoomForm>().FirstOrDefault();
+                                if (existing != null) { existing.Show(); existing.BringToFront(); }
+                                else Console.WriteLine("[BattleForm] No JoinRoomForm found to return to.");
+                            }
+                        }
+                        else
+                        {
+                            var existing = Application.OpenForms.OfType<PixelGameLobby.JoinRoomForm>().FirstOrDefault();
+                            if (existing != null) { existing.Show(); existing.BringToFront(); }
+                            else Console.WriteLine("[BattleForm] No JoinRoomForm found to return to.");
+                        }
+                    }
+                    else
+                    {
+                        var existingLobby = Application.OpenForms.OfType<PixelGameLobby.GameLobbyForm>()
+                            .FirstOrDefault(f => string.Equals(((dynamic)f).RoomCode, roomCode, StringComparison.OrdinalIgnoreCase)
+                                                 && string.Equals(((dynamic)f).Username, username, StringComparison.OrdinalIgnoreCase));
+                        if (existingLobby != null)
+                        {
+                            try { existingLobby.Show(); existingLobby.BringToFront(); }
+                            catch { Console.WriteLine("[BattleForm] Failed to show existing GameLobbyForm"); }
+                        }
+                        else
+                        {
+                            Console.WriteLine("[BattleForm] No existing GameLobbyForm found; skipping creation.");
+                        }
+                    }
+                }
+                else
+                {
+                    ResumeGame();
+                }
+            }
         }
 
         private void SetBackground(string backgroundName)
@@ -1774,237 +2230,250 @@ namespace DoAn_NT106
 
             this.Controls.Add(lblControlsInfo);
         }
+
+        // Handle TCP broadcasts for online sync of game state
+        private void HandleTcpBroadcast(string action, System.Text.Json.JsonElement data)
+        {
+            try
+            {
+                if (string.Equals(action, "GAME_STATE_UPDATE", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (data.ValueKind == JsonValueKind.Object)
+                    {
+                        var gs = data;
+                        // Update local PlayerState from broadcast
+                        if (gs.TryGetProperty("Player1X", out var p1x)) player1State.X = p1x.GetInt32();
+                        if (gs.TryGetProperty("Player1Y", out var p1y)) player1State.Y = p1y.GetInt32();
+                        if (gs.TryGetProperty("Player2X", out var p2x)) player2State.X = p2x.GetInt32();
+                        if (gs.TryGetProperty("Player2Y", out var p2y)) player2State.Y = p2y.GetInt32();
+                        if (gs.TryGetProperty("Player1Action", out var p1a)) player1State.CurrentAnimation = p1a.GetString();
+                        if (gs.TryGetProperty("Player2Action", out var p2a)) player2State.CurrentAnimation = p2a.GetString();
+
+                        // Sync HP/Stamina/Mana if present
+                        if (gs.TryGetProperty("Player1Health", out var ph1)) player1State.Health = ph1.GetInt32();
+                        if (gs.TryGetProperty("Player2Health", out var ph2)) player2State.Health = ph2.GetInt32();
+                        if (gs.TryGetProperty("Player1Stamina", out var ps1)) player1State.Stamina = ps1.GetInt32();
+                        if (gs.TryGetProperty("Player2Stamina", out var ps2)) player2State.Stamina = ps2.GetInt32();
+
+                        // Force redraw
+                        this.InvokeIfRequired(() => this.Invalidate());
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[BattleForm] HandleTcpBroadcast error: {ex.Message}");
+            }
+        }
+
         /// <summary>
-        /// Get actual character width for movement boundaries
+        /// Handle opponent state received via UDP
+        /// ✅ ENHANCED: Now syncs Facing direction for proper animation
         /// </summary>
-
-        private void ShowHitEffect(string message, Color color)
+        private void HandleOpponentState(byte[] data)
         {
-            var hitLabel = new Label
+            try
             {
-                Text = message,
-                ForeColor = color,
-                BackColor = Color.FromArgb(150, 255, 255, 255),
-                Font = new Font("Arial", 12, FontStyle.Bold),
-                AutoSize = true,
-                Location = new Point(this.ClientSize.Width / 2 - 40, 150)
-            };
+                if (data == null || data.Length < 17)
+                    return;
 
-            this.Controls.Add(hitLabel);
-            hitLabel.BringToFront();
+                // Parse binary packet: [PacketType(1)] [RoomCode(6)] [PlayerNum(1)] [X(2)] [Y(2)] [Health(1)] [Stamina(1)] [Mana(1)] [FacingLen(1)] [Facing(var)] [ActionLen(1)] [Action(var)]
 
-            System.Windows.Forms.Timer removeTimer = new System.Windows.Forms.Timer();
-            removeTimer.Interval = 800;
-            removeTimer.Tick += (s, e) =>
-            {
-                this.Controls.Remove(hitLabel);
-                removeTimer.Stop();
-                removeTimer.Dispose();
-            };
-            removeTimer.Start();
-        }
-        // Phương thức tính hitbox theo cấu hình nhân vật
+                int opponentPlayerNum = data[7];
 
-        // Overload để lấy hitbox từ PlayerState
-        private Rectangle GetPlayerHitbox(PlayerState player)
-        {
-            var actualSize = GetActualCharacterSize(player.CharacterType);
-            int actualWidth = actualSize.actualWidth;
-            int actualHeight = actualSize.actualHeight;
-            int yOffset = actualSize.yOffset;
-            int groundAdjustment = actualSize.groundAdjustment;
+                // Only process if it's opponent's data
+                if (opponentPlayerNum == myPlayerNumber)
+                    return;
 
-            if (!characterHurtboxConfigs.ContainsKey(player.CharacterType))
-            {
-                return new Rectangle(player.X, player.Y + yOffset + groundAdjustment, actualWidth, actualHeight);
-            }
+                int x = data[8] | (data[9] << 8);
+                int y = data[10] | (data[11] << 8);
+                int health = data[12];
+                int stamina = data[13];
+                int mana = data[14];
+                int facingLen = data[15];
 
-            var config = characterHurtboxConfigs[player.CharacterType];
-
-            int hitboxWidth = (int)(actualWidth * config.WidthPercent);
-            int hitboxHeight = (int)(actualHeight * config.HeightPercent);
-
-            // ✅ CĂN GIỮA HOÀN HẢO
-            int offsetX = (actualWidth - hitboxWidth) / 2;
-            int offsetY = (int)(actualHeight * config.OffsetYPercent);
-
-            // ✅ CHỈ GOATMAN MỚI CÓ HARD FIX
-            if (player.CharacterType == "goatman")
-            {
-                offsetX += 65; // Sprite padding fix
-            }
-            // Bringer of Death, Warrior, GirlKnight đều căn giữa tự nhiên
-
-            // hurtbox debug removed
-
-            return new Rectangle(
-                player.X + offsetX,
-                player.Y + yOffset + groundAdjustment + offsetY,
-                hitboxWidth,
-                hitboxHeight
-            );
-        }
-
-        // ✅ THÊM: Phương thức tính vùng tấn công của nhân vật
-        private Rectangle GetAttackHitbox(PlayerState attacker, string attackType)
-        {
-            // ✅ LẤY actualSize NGAY ĐẦU ĐỂ TRÁNH LỖI
-            var actualSize = GetActualCharacterSize(attacker.CharacterType);
-            int actualWidth = actualSize.actualWidth;
-            int actualHeight = actualSize.actualHeight;
-            int yOffset = actualSize.yOffset;
-            int groundAdjustment = actualSize.groundAdjustment;
-
-            if (!characterAttackConfigs.ContainsKey(attacker.CharacterType) ||
-                !characterAttackConfigs[attacker.CharacterType].ContainsKey(attackType))
-            {
-                Console.WriteLine($"⚠️ No attack config for {attacker.CharacterType}.{attackType}, using default");
-
-                int attackWidth = (int)(actualWidth * 0.8f);
-                int attackHeight = (int)(actualHeight * 0.6f);
-                int attackRange = (int)(actualWidth * 0.7f);
-
-                int defaultCenterX = attacker.X + (actualWidth / 2);
-                int attackX = attacker.Facing == "right" ? defaultCenterX : defaultCenterX - attackRange;
-                int attackY = attacker.Y + yOffset + groundAdjustment + (int)(actualHeight * 0.3f);
-
-                return new Rectangle(attackX, attackY, attackRange, attackHeight);
-            }
-
-            var config = characterAttackConfigs[attacker.CharacterType][attackType];
-
-            int attackWidthValue = (int)(actualWidth * config.WidthPercent);
-            int attackHeightValue = (int)(actualHeight * config.HeightPercent);
-            int attackRangeValue = (int)(actualWidth * config.RangePercent);
-            int offsetY = (int)(actualHeight * config.OffsetYPercent);
-
-            int configCenterX = attacker.X + (actualWidth / 2);
-            if (attacker.CharacterType == "goatman")
-            {
-                configCenterX += 60;
-            }
-
-            int finalAttackX, finalAttackY;
-
-            // ✅ SPECIAL CASE: Girl Knight skill should hit forward AND backward (extend range to opposite direction)
-            if (attacker.CharacterType == "girlknight" && attackType == "skill")
-            {
-                // Bidirectional area: cover forward + backward
-                // Reduce 10px on each side → shift start by +10 and reduce total width by 20
-                finalAttackX = (configCenterX - attackRangeValue) + 10;
-                finalAttackY = attacker.Y + yOffset + groundAdjustment + offsetY;
-                int bidirectionalWidth = (attackRangeValue * 2) - 20;
-                if (bidirectionalWidth < 0) bidirectionalWidth = 0; // safety
-                return new Rectangle(finalAttackX, finalAttackY, bidirectionalWidth, attackHeightValue);
-            }
-
-            // Default directional logic (forward-only)
-            if (attacker.Facing == "right")
-            {
-                finalAttackX = configCenterX;
-                finalAttackY = attacker.Y + yOffset + groundAdjustment + offsetY;
-            }
-            else
-            {
-                finalAttackX = configCenterX - attackRangeValue;
-                finalAttackY = attacker.Y + yOffset + groundAdjustment + offsetY;
-            }
-
-            return new Rectangle(finalAttackX, finalAttackY, attackRangeValue, attackHeightValue);
-        }
-
-
-        private void CheckFireballHit()
-        {
-            if (!fireballActive) return;
-
-            Rectangle fireRect = new Rectangle(fireballX, fireballY, FIREBALL_WIDTH, FIREBALL_HEIGHT);
-
-            if (fireballOwner == 1)
-            {
-                // Sử dụng hitbox động
-                Rectangle p2Rect = GetPlayerHitbox(player2State);
-                if (fireRect.IntersectsWith(p2Rect))
+                string facing = "right";
+                if (data.Length >= 16 + facingLen && facingLen > 0)
                 {
-                    if (player2Parrying)
+                    facing = System.Text.Encoding.UTF8.GetString(data, 16, facingLen);
+                }
+
+                int actionLen = data[16 + facingLen];
+                string action = "stand";
+                if (data.Length >= 17 + facingLen + actionLen && actionLen > 0)
+                {
+                    action = System.Text.Encoding.UTF8.GetString(data, 17 + facingLen, actionLen);
+                }
+
+                // Update opponent's state
+                this.InvokeIfRequired(() =>
+                {
+                    PlayerState opponentState = opponentPlayerNum == 1 ? player1State : player2State;
+
+                    opponentState.X = x;
+                    opponentState.Y = y;
+                    opponentState.Health = health;
+                    opponentState.Stamina = stamina;
+                    opponentState.Mana = mana;
+                    opponentState.CurrentAnimation = action;
+                    opponentState.Facing = facing; // ✅ ADD: Sync facing direction
+
+                    // Force redraw
+                    this.Invalidate();
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ HandleOpponentState error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// ✅ NEW: Handle combat events (attack, damage, parry)
+        /// </summary>
+        private void HandleCombatEvent(string eventType, Dictionary<string, object> eventData)
+        {
+            try
+            {
+                this.InvokeIfRequired(() =>
+                {
+                    switch (eventType)
                     {
-                        // reflect: send fireball back
-                        fireballDirection *= -1;
-                        fireballOwner = 2;
-                        // reposition just in front of parrier
-                        fireballX = player2X + (player2Facing == "right" ? PLAYER_WIDTH + 5 : -FIREBALL_WIDTH - 5);
-                        ShowHitEffect("Reflected!", Color.Orange);
+                        case "attack":
+                            HandleAttackEvent(eventData);
+                            break;
+
+                        case "damage":
+                            HandleDamageEvent(eventData);
+                            break;
+
+                        case "parry":
+                            HandleParryEvent(eventData);
+                            break;
+
+                        default:
+                            Console.WriteLine($"⚠️ Unknown combat event: {eventType}");
+                            break;
                     }
-                    else
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ HandleCombatEvent error: {ex.Message}");
+            }
+        }
+
+        private void HandleAttackEvent(Dictionary<string, object> data)
+        {
+            try
+            {
+                int attacker = Convert.ToInt32(data["attacker"]);
+                string attackType = data["attackType"].ToString();
+
+                Console.WriteLine($"[UDP] Player {attacker} attacked with {attackType}");
+
+                // Trigger attack animation on opponent's screen
+                PlayerState attackerState = attacker == 1 ? player1State : player2State;
+                attackerState.CurrentAnimation = attackType;
+                attackerState.IsAttacking = true;
+
+                // Reset after animation duration
+                var timer = new System.Windows.Forms.Timer { Interval = 300 };
+                timer.Tick += (s, e) => {
+                    timer.Stop();
+                    attackerState.IsAttacking = false;
+                    attackerState.CurrentAnimation = "stand";
+                };
+                timer.Start();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ HandleAttackEvent error: {ex.Message}");
+            }
+        }
+
+        private void HandleDamageEvent(Dictionary<string, object> data)
+        {
+            try
+            {
+                int target = Convert.ToInt32(data["target"]);
+                int damage = Convert.ToInt32(data["damage"]);
+                bool knockback = data.ContainsKey("knockback") && Convert.ToBoolean(data["knockback"]);
+
+                Console.WriteLine($"[UDP] Player {target} took {damage} damage");
+
+                // If attacker snapshot present, update attacker state so remote sees the action
+                try
+                {
+                    if (data.ContainsKey("attacker"))
                     {
-                        ApplyHurtToPlayer(2, 20);
-                        fireballActive = false;
-                        ShowHitEffect("Fireball Hit!", Color.Yellow);
+                        int attacker = Convert.ToInt32(data["attacker"]);
+                        var attackerState = attacker == 1 ? player1State : player2State;
+
+                        if (data.ContainsKey("attackerX")) attackerState.X = Convert.ToInt32(data["attackerX"]);
+                        if (data.ContainsKey("attackerY")) attackerState.Y = Convert.ToInt32(data["attackerY"]);
+                        if (data.ContainsKey("attackerFacing")) attackerState.Facing = data["attackerFacing"]?.ToString() ?? attackerState.Facing;
+                        if (data.ContainsKey("attackerAction"))
+                        {
+                            var act = data["attackerAction"]?.ToString() ?? "stand";
+                            attackerState.CurrentAnimation = act;
+                            attackerState.IsAttacking = true;
+                            // Reset attacking flag shortly after to simulate animation end
+                            var t = new System.Windows.Forms.Timer { Interval = 300 };
+                            t.Tick += (s, e) => { try { t.Stop(); t.Dispose(); } catch { } attackerState.IsAttacking = false; attackerState.CurrentAnimation = "stand"; };
+                            t.Start();
+                        }
                     }
                 }
-            }
-            else if (fireballOwner == 2)
-            {
-                //  Sử dụng hitbox động
-                Rectangle p1Rect = GetPlayerHitbox(player1State);
-                if (fireRect.IntersectsWith(p1Rect))
+                catch { }
+
+                // Apply damage to target without re-broadcasting (this event came from network)
+                try
                 {
-                    if (player1Parrying)
-                    {
-                        // reflect: send fireball back
-                        fireballDirection *= -1;
-                        fireballOwner = 1;
-                        // reposition just in front of parrier
-                        fireballX = player1X + (player1Facing == "right" ? PLAYER_WIDTH + 5 : -FIREBALL_WIDTH - 5);
-                        ShowHitEffect("Reflected!", Color.Orange);
-                    }
-                    else
-                    {
-                        ApplyHurtToPlayer(1, 20);
-                        fireballActive = false;
-                        ShowHitEffect("Fireball Hit!", Color.Yellow);
-                    }
+                    combatSystem.ApplyDamage(target, damage, knockback, false);
+
+                    // Sync UI vars
+                    player1Health = player1State.Health;
+                    player2Health = player2State.Health;
+                    player1Stunned = player1State.IsStunned;
+                    player2Stunned = player2State.IsStunned;
+                    player1CurrentAnimation = player1State.CurrentAnimation;
+                    player2CurrentAnimation = player2State.CurrentAnimation;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"❌ Apply remote damage error: {ex.Message}");
                 }
             }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ HandleDamageEvent error: {ex.Message}");
+            }
         }
 
-        // Apply hurt properly - KEEP OLD IMPLEMENTATION FOR NOW (COMPATIBILITY)
-        private void ApplyHurtToPlayer(int player, int damage, bool knockback = true)
+        private void HandleParryEvent(Dictionary<string, object> data)
         {
-            // ✅ GỌI COMBATSYSTEM TRỰC TIẾP - ĐÃ XỬ LÝ ĐẦY ĐỦ
-            combatSystem.ApplyDamage(player, damage, knockback);
+            try
+            {
+                int player = Convert.ToInt32(data["player"]);
 
-            // ✅ SYNC LẠI BIẾN CŨ (để UI hoạt động)
-            player1Health = player1State.Health;
-            player2Health = player2State.Health;
-            player1Stunned = player1State.IsStunned;
-            player2Stunned = player2State.IsStunned;
-            player1CurrentAnimation = player1State.CurrentAnimation;
-            player2CurrentAnimation = player2State.CurrentAnimation;
+                Console.WriteLine($"[UDP] Player {player} parried!");
+
+                ShowHitEffect("PARRY!", Color.Cyan);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ HandleParryEvent error: {ex.Message}");
+            }
         }
 
-        private void SetPlayerHealth(PlayerState playerState, string characterType)
-{
-    int baseHealth = 100; // Giá trị mặc định
-
-    // Đặt HP tối đa theo từng nhân vật
-    switch (characterType)
-    {
-        case "goatman":
-            baseHealth = 130;
-            break;
-        case "bringerofdeath":
-            baseHealth = 90;
-            break;
-        case "warrior":
-            baseHealth = 80;
-            break;
-        case "girlknight":
-            baseHealth = 100;
-            break;
-    }
-
-    playerState.Health = baseHealth;
-}
+        private void InvokeIfRequired(Action action)
+        {
+            if (this.IsHandleCreated && !this.IsDisposed)
+            {
+                if (this.InvokeRequired) this.Invoke(action);
+                else action();
+            }
+        }
     }
 }

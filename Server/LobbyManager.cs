@@ -22,6 +22,9 @@ namespace DoAn_NT106.Server
 
         private DatabaseService dbService;
 
+        // ✅ THÊM: UDP Game Server reference
+        private UDPGameServer udpGameServer;
+
         public event Action<string> OnLog;
 
         private void Log(string message) => OnLog?.Invoke($"[Lobby] {message}");
@@ -37,6 +40,13 @@ namespace DoAn_NT106.Server
         {
             this.roomManager = manager;
             Log("✅ RoomManager reference set");
+        }
+
+        // ✅ THÊM: Set UDP Game Server reference
+        public void SetUDPGameServer(UDPGameServer udpServer)
+        {
+            this.udpGameServer = udpServer;
+            Log("✅ UDPGameServer reference set");
         }
 
         #endregion
@@ -231,7 +241,60 @@ namespace DoAn_NT106.Server
                 return (false, ex.Message, false);
             }
         }
-        // START GAME (by host)
+
+        // ✅ THÊM: Set character for player
+        public (bool Success, string Message, bool BothSelected) SetCharacter(
+            string roomCode,
+            string username,
+            string character)
+        {
+            try
+            {
+                if (!lobbies.TryGetValue(roomCode, out var lobby))
+                    return (false, "Lobby not found", false);
+
+                lock (lobby.Lock)
+                {
+                    if (lobby.Player1Username == username)
+                    {
+                        lobby.Player1Character = character;
+                        Log($"👤 Player1 {username} selected {character}");
+                    }
+                    else if (lobby.Player2Username == username)
+                    {
+                        lobby.Player2Character = character;
+                        Log($"👤 Player2 {username} selected {character}");
+                    }
+                    else
+                    {
+                        return (false, "Player not in lobby", false);
+                    }
+
+                    // Broadcast character selection
+                    BroadcastCharacterSelected(lobby, username, character);
+
+                    // Check if both selected
+                    bool bothSelected = !string.IsNullOrEmpty(lobby.Player1Character) &&
+                                       !string.IsNullOrEmpty(lobby.Player2Character) &&
+                                       !string.IsNullOrEmpty(lobby.Player1Username) &&
+                                       !string.IsNullOrEmpty(lobby.Player2Username);
+
+                    if (bothSelected)
+                    {
+                        Log($"🎭 Both players selected characters in lobby {roomCode}!");
+                        BroadcastBothCharactersSelected(lobby);
+                    }
+
+                    return (true, "Character selected", bothSelected);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"❌ SetCharacter error: {ex.Message}");
+                return (false, ex.Message, false);
+            }
+        }
+        // START GAME (by host ONLY)
         public (bool Success, string Message) StartGame(string roomCode, string username)
         {
             try
@@ -241,10 +304,11 @@ namespace DoAn_NT106.Server
 
                 lock (lobby.Lock)
                 {
-                    // Chỉ Player 1 (host) mới được start
+                    // ✅ THÊM: Only Player1 (host) can start game - reject Player2
                     if (lobby.Player1Username != username)
                     {
-                        return (false, "Only the host can start the game");
+                        Log($"⚠️ Only host can start game - {username} is not host");
+                        return (false, "Only host can start game");
                     }
 
                     // Kiểm tra cả 2 đã ready
@@ -257,7 +321,30 @@ namespace DoAn_NT106.Server
                         return (false, "Both players must be ready");
                     }
 
+                    // ✅ THÊM: Kiểm tra udpGameServer có bị null không
+                    if (udpGameServer == null)
+                    {
+                        Log($"❌ UDPGameServer is null!");
+                        return (false, "UDP server not available");
+                    }
+
                     Log($"🎮 Host {username} starting game in lobby {roomCode}");
+
+                    // ✅ SỬA: CreateMatch được gọi ở ĐÂY, chỉ một lần bởi HOST
+                    var udpResult = udpGameServer.CreateMatch(
+                        roomCode,
+                        lobby.Player1Username,
+                        lobby.Player2Username
+                    );
+
+                    if (!udpResult.Success)
+                    {
+                        Log($"⚠️ Failed to create UDP match: {udpResult.Message}");
+                        return (false, $"Failed to create UDP match: {udpResult.Message}");
+                    }
+
+                    Log($"✅ UDP Match created for room {roomCode}");
+
                     BroadcastStartGame(lobby);
                     return (true, "Game started");
                 }
@@ -434,7 +521,8 @@ namespace DoAn_NT106.Server
                 {
                     roomCode = lobby.RoomCode,
                     player1 = lobby.Player1Username,
-                    player2 = lobby.Player2Username
+                    player2 = lobby.Player2Username,
+                    selectedMap = lobby.SelectedMap ?? "battleground1"  // ✅ ADD: Broadcast map selection
                 }
             };
 
@@ -468,6 +556,59 @@ namespace DoAn_NT106.Server
                 SafeSend(lobby.Player2Client, json);
         }
 
+        // ✅ THÊM: Broadcast khi player1 chọn character
+        private void BroadcastCharacterSelected(LobbyData lobby, string username, string character)
+        {
+            var broadcast = new
+            {
+                Action = "CHARACTER_SELECTED",
+                Data = new
+                {
+                    roomCode = lobby.RoomCode,
+                    username = username,
+                    character = character,
+                    player1Character = lobby.Player1Character,
+                    player2Character = lobby.Player2Character
+                }
+            };
+
+            string json = JsonSerializer.Serialize(broadcast);
+
+            // Gửi cho cả 2 bên
+            if (lobby.Player1Client != null)
+                SafeSend(lobby.Player1Client, json);
+
+            if (lobby.Player2Client != null)
+                SafeSend(lobby.Player2Client, json);
+        }
+
+        // ✅ THÊM: Broadcast khi cả 2 đã chọn character
+        private void BroadcastBothCharactersSelected(LobbyData lobby)
+        {
+            var broadcast = new
+            {
+                Action = "BOTH_CHARACTERS_READY",
+                Data = new
+                {
+                    roomCode = lobby.RoomCode,
+                    player1Username = lobby.Player1Username,
+                    player2Username = lobby.Player2Username,
+                    player1Character = lobby.Player1Character,
+                    player2Character = lobby.Player2Character
+                }
+            };
+
+            string json = JsonSerializer.Serialize(broadcast);
+
+            Log($"📢 Broadcasting BOTH_CHARACTERS_READY: P1={lobby.Player1Character}, P2={lobby.Player2Character}");
+
+            if (lobby.Player1Client != null)
+                SafeSend(lobby.Player1Client, json);
+
+            if (lobby.Player2Client != null)
+                SafeSend(lobby.Player2Client, json);
+        }
+
         private void SafeSend(ClientHandler client, string json)
         {
             try
@@ -492,10 +633,14 @@ namespace DoAn_NT106.Server
             public string Player1Username { get; set; }
             public ClientHandler Player1Client { get; set; }
             public bool Player1Ready { get; set; }
+            public string Player1Character { get; set; }  // ✅ THÊM: character selection
 
             public string Player2Username { get; set; }
             public ClientHandler Player2Client { get; set; }
             public bool Player2Ready { get; set; }
+            public string Player2Character { get; set; }  // ✅ THÊM: character selection
+
+            public string SelectedMap { get; set; } = "battleground1";  // ✅ ADD: Store selected map
 
             // Lịch sử chat trong lobby, giữ với số lượng nhất định
             public List<LobbyChatMessage> ChatHistory { get; } = new List<LobbyChatMessage>();

@@ -39,6 +39,9 @@ namespace DoAn_NT106.Client.BattleSystems
         private Action invalidateCallback;
         private Action<string, Color> showHitEffectCallback;
         private Func<PlayerState, string, Rectangle> getAttackHitboxCallback;
+        
+        // ✅ ADD: Callback to send combat events via UDP
+        private Action<string, Dictionary<string, object>> sendCombatEventCallback;
 
         private readonly Dictionary<string, Dictionary<string, float>> frameTimings = new Dictionary<string, Dictionary<string, float>>
         {
@@ -77,7 +80,8 @@ namespace DoAn_NT106.Client.BattleSystems
             Action invalidateCallback,
             Action<string, Color> showHitEffectCallback,
             Func<PlayerState, string, Rectangle> getAttackHitboxCallback,
-            Func<PlayerState, Rectangle> getPlayerHurtboxCallback // NEW
+            Func<PlayerState, Rectangle> getPlayerHurtboxCallback,
+            Action<string, Dictionary<string, object>> sendCombatEventCallback = null
         )
         {
             this.player1 = p1;
@@ -93,6 +97,7 @@ namespace DoAn_NT106.Client.BattleSystems
             this.showHitEffectCallback = showHitEffectCallback;
             this.getAttackHitboxCallback = getAttackHitboxCallback;
             this.getPlayerHurtboxCallback = getPlayerHurtboxCallback;
+            this.sendCombatEventCallback = sendCombatEventCallback; // ✅ ADD
             SetupParryTimers();
         }
         private void SetupParryTimers()
@@ -1168,7 +1173,7 @@ namespace DoAn_NT106.Client.BattleSystems
             showHitEffectCallback?.Invoke("CHARGE!", Color.Gold);
         }
 
-        public void ApplyDamage(int targetPlayer, int damage, bool knockback = true)
+        public void ApplyDamage(int targetPlayer, int damage, bool knockback = true, bool broadcast = true)
         {
             PlayerState target = targetPlayer == 1 ? player1 : player2;
             PlayerState attacker = targetPlayer == 1 ? player2 : player1;
@@ -1256,6 +1261,36 @@ namespace DoAn_NT106.Client.BattleSystems
                 };
                 restoreTimer.Start();
             }
+
+            // ✅ BROADCAST damage event to opponent with attacker snapshot
+            try
+            {
+                if (broadcast && sendCombatEventCallback != null)
+                {
+                    var ev = new Dictionary<string, object>
+                    {
+                        ["target"] = targetPlayer,
+                        ["damage"] = damage,
+                        ["knockback"] = knockback,
+                        ["attacker"] = attacker.PlayerNumber,
+                        ["attackerX"] = attacker.X,
+                        ["attackerY"] = attacker.Y,
+                        ["attackerAction"] = attacker.CurrentAnimation ?? "stand",
+                        ["attackerFacing"] = attacker.Facing ?? "right"
+                    };
+                    sendCombatEventCallback.Invoke("damage", ev);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CombatSystem] Send damage event error: {ex.Message}");
+            }
+        }
+
+        // Backward-compatible overload used as method group for projectile callbacks
+        public void ApplyDamage(int targetPlayer, int damage, bool knockback)
+        {
+            ApplyDamage(targetPlayer, damage, knockback, true);
         }
 
         private void ApplyKnockback(PlayerState target, int direction, int distance)

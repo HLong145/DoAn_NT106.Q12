@@ -39,6 +39,9 @@ namespace DoAn_NT106.Server
             this.playerEndpoints = new ConcurrentDictionary<string, (string, int)>();
         }
 
+        // Expose port for other components
+        public int Port => udpPort;
+
         #endregion
 
         #region Start/Stop
@@ -198,9 +201,16 @@ namespace DoAn_NT106.Server
                     return;
                 }
 
-                // Parse binary packet: [RoomCode(6)] [PlayerNum(1)] [X(2)] [Y(2)] [Health(1)] [Stamina(1)] [Mana(1)] [ActionLen(1)] [Action(var)]
-                string roomCode = System.Text.Encoding.UTF8.GetString(data, 0, 6).TrimEnd('\0');
-                int playerNum = data[6];
+                // ? ENHANCED: Detect packet type from first byte
+                byte packetType = data[0];
+                
+                // Parse binary packet: [PacketType(1)] [RoomCode(6)] [PlayerNum(1)] [...]
+                string roomCode = System.Text.Encoding.UTF8.GetString(data, 1, 6).TrimEnd('\0');
+                int playerNum = data[7];
+
+                // ? ADDED: Log packet receipt
+                string packetTypeStr = packetType == 0 ? "StateUpdate" : packetType == 1 ? "CombatEvent" : "Unknown";
+                Log($"? Received {packetTypeStr} packet from Player{playerNum} (room={roomCode}) at {senderEndpoint}");
 
                 // Validate match exists
                 if (!activeMatches.TryGetValue(roomCode, out var match))
@@ -222,12 +232,17 @@ namespace DoAn_NT106.Server
                 else if (playerNum == 2)
                     match.Player2Endpoint = senderEndpoint;
 
-                // Relay to opponent
+                // ? ENHANCED: Relay to opponent (all packet types)
                 IPEndPoint opponentEndpoint = playerNum == 1 ? match.Player2Endpoint : match.Player1Endpoint;
 
                 if (opponentEndpoint != null)
                 {
                     udpSocket.Send(data, data.Length, opponentEndpoint);
+                    Log($"? Relayed {packetTypeStr} to opponent at {opponentEndpoint}");
+                }
+                else
+                {
+                    Log($"?? Opponent endpoint not yet registered (Player{(playerNum == 1 ? 2 : 1)})");
                 }
             }
             catch (Exception ex)

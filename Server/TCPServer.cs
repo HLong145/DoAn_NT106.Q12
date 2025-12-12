@@ -60,12 +60,15 @@ namespace DoAn_NT106.Server
             globalChatManager = new GlobalChatManager(dbService);
             globalChatManager.OnLog += LogMessage;
 
+            // ✅ THÊM: Khởi tạo UDP Game Server TRƯỚC (vì LobbyManager cần reference)
+            udpGameServer = new UDPGameServer(UDP_PORT);
+            udpGameServer.OnLog += LogMessage;
+
             lobbyManager = new LobbyManager(dbService);
             lobbyManager.OnLog += LogMessage;
 
-            // ✅ THÊM: Khởi tạo UDP Game Server
-            udpGameServer = new UDPGameServer(UDP_PORT);
-            udpGameServer.OnLog += LogMessage;
+            // ✅ THÊM: Inject UDPGameServer vào LobbyManager (SAU khi tạo)
+            lobbyManager.SetUDPGameServer(udpGameServer);
         }
 
         #endregion
@@ -524,12 +527,21 @@ namespace DoAn_NT106.Server
 
                     case "LOBBY_CHAT_SEND":
                         return HandleLobbyChatSend(request);
+                    
+                    // ✅ THÊM: Handle map selection
+                    case "LOBBY_SET_MAP":
+                        return HandleLobbySetMap(request);
+                    
                     case "LOBBY_START_GAME":
                         return HandleLobbyStartGame(request);
                     case "START_GAME":
                         return HandleStartGame(request);
                     case "GAME_ACTION":
                         return HandleGameAction(request);
+                    
+                    // ✅ THÊM: Handle character selection in lobby
+                    case "CHARACTER_SELECTED":
+                        return HandleCharacterSelected(request);
                     
                     // ✅ THÊM: Handle game end
                     case "GAME_END":
@@ -1282,6 +1294,83 @@ namespace DoAn_NT106.Server
                 return CreateResponse(false, $"Error: {ex.Message}");
             }
         }
+
+        // ✅ THÊM: Handle map selection from HOST
+        private string HandleLobbySetMap(Request request)
+        {
+            try
+            {
+                var roomCode = request.Data?["roomCode"]?.ToString();
+                var username = request.Data?["username"]?.ToString();
+                var selectedMap = request.Data?["selectedMap"]?.ToString();
+
+                if (string.IsNullOrEmpty(roomCode) || string.IsNullOrEmpty(username) || string.IsNullOrEmpty(selectedMap))
+                {
+                    return CreateResponse(false, "Room code, username, and selectedMap are required");
+                }
+
+                // Get lobby and update map
+                var lobby = lobbyManager.GetLobby(roomCode);
+                if (lobby == null)
+                {
+                    return CreateResponse(false, "Lobby not found");
+                }
+
+                // Only HOST (Player1) can set map
+                if (lobby.Player1Username != username)
+                {
+                    server.Log($"⚠️ Non-host {username} tried to set map - REJECTED");
+                    return CreateResponse(false, "Only host can select map");
+                }
+
+                lock (lobby.Lock)
+                {
+                    lobby.SelectedMap = selectedMap;
+                    server.Log($"🗺️ [{roomCode}] Host {username} selected map: {selectedMap}");
+                }
+
+                return CreateResponse(true, "Map selected");
+            }
+            catch (Exception ex)
+            {
+                server.Log($"❌ HandleLobbySetMap error: {ex.Message}");
+                return CreateResponse(false, $"Error: {ex.Message}");
+            }
+        }
+
+        // ✅ THÊM: Handle character selection
+        private string HandleCharacterSelected(Request request)
+        {
+            try
+            {
+                var roomCode = request.Data?["roomCode"]?.ToString();
+                var username = request.Data?["username"]?.ToString();
+                var character = request.Data?["character"]?.ToString();
+
+                if (string.IsNullOrEmpty(roomCode) || string.IsNullOrEmpty(username) || string.IsNullOrEmpty(character))
+                {
+                    return CreateResponse(false, "Room code, username, and character are required");
+                }
+
+                server.Log($"🎭 [{roomCode}] {username} selected {character}");
+
+                var result = lobbyManager.SetCharacter(roomCode, username, character);
+
+                var responseData = new Dictionary<string, object>
+                {
+                    { "success", result.Success },
+                    { "message", result.Message },
+                    { "bothSelected", result.BothSelected }
+                };
+
+                return CreateResponseWithData(result.Success, result.Message, responseData);
+            }
+            catch (Exception ex)
+            {
+                server.Log($"❌ HandleCharacterSelected error: {ex.Message}");
+                return CreateResponse(false, $"Error: {ex.Message}");
+            }
+        }
         
         private string HandleLobbyStartGame(Request request)
         {
@@ -1295,40 +1384,52 @@ namespace DoAn_NT106.Server
                     return CreateResponse(false, "Room code and username are required");
                 }
 
-                var result = lobbyManager.StartGame(roomCode, username);
-
-                if (result.Success)
+                // ✅ THÊM: Check if this is the HOST (Player1)
+                var room = roomManager.GetRoom(roomCode);
+                if (room == null)
                 {
-                    // ✅ THÊM: Lấy thông tin room để tạo UDP match
-                    var room = roomManager.GetRoom(roomCode);
-                    if (room != null)
-                    {
-                        // Tạo UDP match session
-                        var udpResult = udpGameServer.CreateMatch(
-                            roomCode, 
-                            room.Player1Username, 
-                            room.Player2Username
-                        );
-
-                        if (udpResult.Success)
-                        {
-                            server.Log($"✅ UDP Match created for room {roomCode}");
-                            
-                            // Trả về thông tin UDP port cho client
-                            return CreateResponseWithData(true, result.Message, new Dictionary<string, object>
-                            {
-                                { "udpPort", 5000 },
-                                { "serverIp", "127.0.0.1" }  // TODO: Get actual server IP
-                            });
-                        }
-                        else
-                        {
-                            server.Log($"⚠️ Failed to create UDP match: {udpResult.Message}");
-                        }
-                    }
+                    return CreateResponse(false, "Room not found");
                 }
 
-                return CreateResponse(result.Success, result.Message);
+                // ✅ CHỈ HOST (Player1) được phép start game
+                if (username != room.Player1Username)
+                {
+                    server.Log($"⚠️ Player2 ({username}) tried to start game - REJECTED");
+                    return CreateResponse(false, "Only host can start the game");
+                }
+
+                server.Log($"📤 HandleLobbyStartGame: {username} (HOST) starting game in room {roomCode}");
+
+                // ✅ SỬA: Call LobbyManager.StartGame (handles UDP match creation)
+                var result = lobbyManager.StartGame(roomCode, username);
+
+                if (!result.Success)
+                {
+                    server.Log($"❌ LobbyManager.StartGame failed: {result.Message}");
+                    return CreateResponse(false, result.Message);
+                }
+
+                // ✅ SỬA: Get room info AFTER successful start
+                var roomAfterStart = roomManager.GetRoom(roomCode);
+                if (roomAfterStart == null)
+                {
+                    server.Log($"❌ Room not found: {roomCode}");
+                    return CreateResponse(false, "Room not found");
+                }
+
+                server.Log($"✅ Game start successful: P1={roomAfterStart.Player1Username}, P2={roomAfterStart.Player2Username}");
+
+                // Trả về thông tin UDP port cho client
+                var responseData = new Dictionary<string, object>
+                {
+                    { "udpPort", 5000 },
+                    { "serverIp", "127.0.0.1" },
+                    { "player1", roomAfterStart.Player1Username },
+                    { "player2", roomAfterStart.Player2Username }
+                };
+
+                server.Log($"📤 Returning StartGame response with UDP info");
+                return CreateResponseWithData(true, "Game started", responseData);
             }
             catch (Exception ex)
             {

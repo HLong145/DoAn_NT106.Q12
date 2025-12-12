@@ -1,5 +1,6 @@
 using DoAn_NT106;
 using DoAn_NT106.Services;
+using DoAn_NT106.Client;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -11,6 +12,9 @@ namespace PixelGameLobby
 {
     public partial class GameLobbyForm : Form
     {
+        // Expose room and user for other forms to find existing lobby instance
+        public string RoomCode => roomCode;
+        public string Username => username;
         #region Fields
 
         // FIELDS
@@ -30,6 +34,8 @@ namespace PixelGameLobby
         private bool isHost = false;  // Player 1 = host
         private string selectedMap = "battleground1";  // MAP SELECTION
 
+        // ✅ THÊM: LobbyClient instance
+        private LobbyClient lobbyClient;
 
         // TCP Client - dùng singleton
         private PersistentTcpClient TcpClient => PersistentTcpClient.Instance;
@@ -60,6 +66,11 @@ namespace PixelGameLobby
 
             // Setup UI
             SetupPixelStyling();
+
+            // ✅ THÊM: Khởi tạo LobbyClient và subscribe events
+            lobbyClient = new LobbyClient();
+            lobbyClient.Initialize(roomCode, username, token);
+            lobbyClient.OnStartGame += HandleStartGameFromLobbyClient;
 
             // Events
             this.Load += GameLobbyForm_Load;
@@ -116,6 +127,9 @@ namespace PixelGameLobby
             // Cleanup (xoá sự kiện)
             TcpClient.OnBroadcast -= HandleBroadcast;
             TcpClient.OnDisconnected -= HandleDisconnected;
+
+            // ✅ THÊM: Dispose LobbyClient
+            lobbyClient?.Dispose();
         }
 
         #endregion
@@ -507,52 +521,118 @@ namespace PixelGameLobby
 
                 AddSystemMessage("🎮 Both players ready! Starting game...");
 
-                // Đợi 1 giây để user thấy message
-                var timer = new System.Windows.Forms.Timer
+                // Determine which player we are
+                string player1 = GetStringOrNull(data, "player1");
+                string player2 = GetStringOrNull(data, "player2");
+
+                // ✅ GET SELECTED MAP FROM BROADCAST
+                string mapFromServer = GetStringOrNull(data, "selectedMap");
+                if (!string.IsNullOrEmpty(mapFromServer))
                 {
-                    Interval = 1000
-                };
+                    selectedMap = mapFromServer;
+                    Console.WriteLine($"[GameLobby] Received map from server: {selectedMap}");
+                }
 
-                timer.Tick += (s, e) =>
+                int myPlayerNumber = 1;
+                if (!string.IsNullOrEmpty(player1) && player1 == username) myPlayerNumber = 1;
+                else if (!string.IsNullOrEmpty(player2) && player2 == username) myPlayerNumber = 2;
+
+                // OPEN CHARACTER SELECT FOR BOTH PLAYERS IMMEDIATELY
+                // ONLY HOST SHOULD WAIT FOR BOTH_CHARACTERS_READY
                 {
-                    timer.Stop();
-                    timer.Dispose();
-
-                    // Đánh dấu để không trigger confirm dialog khi close
-                    hasLeft = true;
-                    isLeaving = true;
-
-                    // ✅ PASS MAP TO CHARACTER SELECT FORM
-                    // selectedMap is already "battleground1" format from chooseMapButton_Click
-                    string opponent = opponentName ?? "Opponent";
-
-                    Console.WriteLine($"[GameLobby] Passing selectedMap='{selectedMap}' to CharacterSelectForm");
-                    var selectForm = new CharacterSelectForm(username, token, roomCode, opponent, true, selectedMap);
-
-                    selectForm.FormClosed += (s2, args) =>
+                    // Small delay so user sees the system message
+                    var timer = new System.Windows.Forms.Timer { Interval = 800 };
+                    timer.Tick += (s, e) =>
                     {
-                        if (selectForm.DialogResult != DialogResult.OK)
-                        {
-                            // Reset flags nếu quay lại
-                            hasLeft = false;
-                            isLeaving = false;
-                            this.Show();
-                        }
-                        else
-                        {
-                            this.Close();
-                        }
-                    };
+                        timer.Stop();
+                        timer.Dispose();
 
-                    selectForm.Show();
-                    this.Hide();
-                };
-                timer.Start();
+                        hasLeft = true;
+                        isLeaving = true;
+
+                        string opponent = player1 ?? opponentName ?? "Opponent";
+                    Console.WriteLine($"[GameLobby] Opening CharacterSelectForm for Player {myPlayerNumber} (map={selectedMap})");
+                        // Pass correct isHost flag so host UI behaves appropriately
+                        var selectForm = new CharacterSelectForm(username, token, roomCode, opponent, isHost: isHost, selectedMap, myPlayerNumber);
+
+                        selectForm.FormClosed += (s2, args) =>
+                        {
+                            if (selectForm.DialogResult != DialogResult.OK)
+                            {
+                                hasLeft = false;
+                                isLeaving = false;
+                                this.Show();
+                            }
+                            else
+                            {
+                                this.Close();
+                            }
+                        };
+
+                        selectForm.Show();
+                        this.Hide();
+                    };
+                    timer.Start();
+                }
+
+                // Host: show waiting message and do not open CharacterSelect here
+                if (myPlayerNumber == 1)
+                {
+                    AddSystemMessage("⏳ You are host. Waiting for opponent to select character...");
+                    Console.WriteLine("[GameLobby] Host will wait for BOTH_CHARACTERS_READY broadcast before opening character select or starting battle.");
+                }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[GameLobby] HandleStartGame error: {ex.Message}");
             }
+        }
+
+        // Handle OnStartGame event from LobbyClient (response to StartGameAsync)
+        private void HandleStartGameFromLobbyClient(int udpPort, int myPlayerNumber, string serverIp, string opponent)
+        {
+            // This callback acknowledges server created UDP match. Do not open CharacterSelect for host here.
+            if (InvokeRequired)
+            {
+                Invoke(new Action(() => HandleStartGameFromLobbyClient(udpPort, myPlayerNumber, serverIp, opponent)));
+                return;
+            }
+
+            Console.WriteLine($"[GameLobby] OnStartGame (lobby client): udpPort={udpPort}, playerNum={myPlayerNumber}, serverIp={serverIp}, opponent={opponent}");
+
+            // Host should wait for BOTH_CHARACTERS_READY; non-host may proceed if not already
+            if (myPlayerNumber == 1)
+            {
+                AddSystemMessage("✅ Server acknowledged start. Waiting for opponent to select character...");
+                return;
+            }
+
+            // Non-host (Player2) open CharacterSelect if not already opened
+            AddSystemMessage($"🎮 Starting game as Player {myPlayerNumber}!");
+            hasLeft = true;
+            isLeaving = true;
+
+            string opponentNameLocal = opponent ?? this.opponentName ?? "Opponent";
+            Console.WriteLine($"[GameLobby] Opening CharacterSelectForm for Player2 with map='{selectedMap}'");
+            var selectForm2 = new CharacterSelectForm(username, token, roomCode, opponentNameLocal, isHost: false, selectedMap, myPlayerNumber);
+            selectForm2.Owner = this;
+
+            selectForm2.FormClosed += (s2, args) =>
+            {
+                if (selectForm2.DialogResult != DialogResult.OK)
+                {
+                    hasLeft = false;
+                    isLeaving = false;
+                    this.Show();
+                }
+                else
+                {
+                    this.Close();
+                }
+            };
+
+            selectForm2.Show();
+            this.Hide();
         }
 
         private void LoadChatHistory(JsonElement data)
@@ -739,17 +819,18 @@ namespace PixelGameLobby
                 startGameButton.Enabled = false;
                 startGameButton.Text = "STARTING...";
 
-                // Gọi start game ở server
-                var response = await PersistentTcpClient.Instance.LobbyStartGameAsync(roomCode, username);
-                if (!response.Success)
+                // ✅ THAY ĐỔI: Sử dụng LobbyClient.StartGameAsync thay vì gọi trực tiếp
+                // LobbyClient sẽ xử lý response và fire OnStartGame event
+                bool success = await lobbyClient.StartGameAsync();
+                
+                if (!success)
                 {
-                    MessageBox.Show($"Failed to start game: {response.Message}", "Error",
+                    MessageBox.Show("Failed to start game!", "Error",
                         MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     startGameButton.Enabled = true;
                     startGameButton.Text = "START GAME";
                 }
-
-                // Nếu success, server sẽ broadcast LOBBY_START_GAME và HandleStartGame sẽ xử lý
+                // Nếu success, LobbyClient sẽ fire OnStartGame event và HandleStartGame sẽ được gọi
             }
             catch (Exception ex)
             {
@@ -811,6 +892,14 @@ namespace PixelGameLobby
                         
                         Console.WriteLine($"[GameLobby.chooseMapButton_Click] MapSelectForm returned: '{f.SelectedMap}'");
                         Console.WriteLine($"[GameLobby.chooseMapButton_Click] selectedMap now = '{selectedMap}'");
+
+                        // ✅ NEW: Send map selection to server for sync
+                        _ = TcpClient.SendRequestAsync("LOBBY_SET_MAP", new System.Collections.Generic.Dictionary<string, object>
+                        {
+                            { "roomCode", roomCode },
+                            { "username", username },
+                            { "selectedMap", selectedMap }
+                        });
                     }
                 }
             }

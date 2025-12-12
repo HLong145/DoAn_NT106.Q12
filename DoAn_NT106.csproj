@@ -46,6 +46,14 @@
     <None Include="Client\BattleForm.resx" />
   </ItemGroup>
 
+  <!-- Exclude specific problematic resx files that cause duplicate logical resource names -->
+  <ItemGroup>
+    <EmbeddedResource Remove="Client\GameLobbyForm_BothCharactersHandler.resx" />
+    <None Include="Client\GameLobbyForm_BothCharactersHandler.resx" />
+    <EmbeddedResource Remove="Client\PixelGameLobbyForm.resx" />
+    <None Include="Client\PixelGameLobbyForm.resx" />
+  </ItemGroup>
+
   <ItemGroup>
     <None Update="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>

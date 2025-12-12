@@ -33,6 +33,8 @@ namespace DoAn_NT106.Client
         public event Action<string, bool> OnPlayerReadyChanged;
         public event Action<LobbyChatMessage> OnChatMessage;
         public event Action OnAllPlayersReady;
+        // udpPort, myPlayerNumber, serverIp, opponent
+        public event Action<int, int, string, string> OnStartGame;
         public event Action<LobbyStateData> OnLobbyStateUpdate;
 
         public bool IsConnected => TcpClient.IsConnected;
@@ -52,6 +54,16 @@ namespace DoAn_NT106.Client
 
         public LobbyClient(string address, int port) : this()
         {
+        }
+
+        // ✅ THÊM: Initialize method để set roomCode, username, token
+        public void Initialize(string roomCode, string username, string token)
+        {
+            this.roomCode = roomCode;
+            this.username = username;
+            this.token = token;
+            isJoined = true;
+            Console.WriteLine($"[LobbyClient] Initialized: roomCode={roomCode}, username={username}");
         }
 
         #endregion
@@ -289,6 +301,68 @@ namespace DoAn_NT106.Client
             }
         }
 
+        // ✅ THÊM: Start game method
+        public async Task<bool> StartGameAsync()
+        {
+            try
+            {
+                if (!IsConnected || !isJoined)
+                {
+                    Console.WriteLine($"[LobbyClient] StartGame failed: not connected or joined");
+                    OnError?.Invoke("Not connected or joined to lobby");
+                    return false;
+                }
+
+                Console.WriteLine($"[LobbyClient] Sending StartGameAsync for room={roomCode}, user={username}");
+                var response = await TcpClient.LobbyStartGameAsync(roomCode, username);
+                
+                Console.WriteLine($"[LobbyClient] StartGame response: Success={response.Success}, Message={response.Message}");
+
+                if (!response.Success)
+                {
+                    Console.WriteLine($"[LobbyClient] StartGame failed: {response.Message}");
+                    OnError?.Invoke($"Start game failed: {response.Message}");
+                    return false;
+                }
+
+                // Parse response data
+                if (response.RawData.ValueKind == JsonValueKind.Undefined)
+                {
+                    Console.WriteLine($"[LobbyClient] StartGame response has no data");
+                    OnError?.Invoke("No UDP data in response");
+                    return false;
+                }
+
+                // Extract UDP info from response
+                int udpPort = GetIntProp(response.RawData, "udpPort");
+                string serverIp = GetStringProp(response.RawData, "serverIp");
+                string player1 = GetStringProp(response.RawData, "player1");
+                string player2 = GetStringProp(response.RawData, "player2");
+
+                // Determine player number and opponent
+                int myPlayerNumber = 2; // default
+                string opponent = player1;
+                
+                if (player1 == username)
+                {
+                    myPlayerNumber = 1;
+                    opponent = player2;
+                }
+
+                Console.WriteLine($"[LobbyClient] StartGame success: udpPort={udpPort}, playerNum={myPlayerNumber}, serverIp={serverIp}, opponent={opponent}");
+
+                // Fire event for UI to handle
+                OnStartGame?.Invoke(udpPort, myPlayerNumber, serverIp, opponent ?? "Opponent");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[LobbyClient] StartGame exception: {ex.Message}");
+                OnError?.Invoke($"StartGame error: {ex.Message}");
+                return false;
+            }
+        }
+
         public async Task LeaveAsync()
         {
             try
@@ -347,6 +421,12 @@ namespace DoAn_NT106.Client
         private bool GetBoolProp(JsonElement el, string name)
         {
             return el.TryGetProperty(name, out var prop) && prop.GetBoolean();
+        }
+
+        // ✅ THÊM: Get int property helper
+        private int GetIntProp(JsonElement el, string name)
+        {
+            return el.TryGetProperty(name, out var prop) && prop.TryGetInt32(out int value) ? value : 0;
         }
 
         #endregion
