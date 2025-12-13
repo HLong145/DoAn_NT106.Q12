@@ -101,9 +101,6 @@ namespace DoAn_NT106
 
         private async void FormDangNhap_Load(object sender, EventArgs e)
         {
-            // Kiểm tra kết nối server ngay khi form load
-            await CheckServerConnectionAsync();
-
             await ConnectionHelper.CheckConnectionOnLoadAsync(
             this,
             onSuccess: () => SetControlsEnabled(true),  // Enable lại khi thành công
@@ -120,44 +117,6 @@ namespace DoAn_NT106
                 onCancel: () => this.Close()
             );
         }
-
-        private async Task CheckServerConnectionAsync()
-        {
-            // Disable các control trong khi kiểm tra
-            SetControlsEnabled(false);
-            this.Text = "Login - Checking Connection...";
-            this.Cursor = Cursors.WaitCursor;
-
-            try
-            {
-                Console.WriteLine("🔍 Checking server connection...");
-
-                // Thử kết nối đến server, timeout 5 giây trong PersistentTcpClient
-                bool isConnected = await tcpClient.ConnectAsync();
-
-                if (isConnected)
-                {
-                    Console.WriteLine("✅ Server connection successful!");
-                    this.Text = "Đăng Nhập";
-                    SetControlsEnabled(true);
-                }
-                else
-                {
-                    Console.WriteLine("❌ Server connection failed!");
-                    ShowConnectionError();
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"❌ Connection check error: {ex.Message}");
-                ShowConnectionError();
-            }
-            finally
-            {
-                this.Cursor = Cursors.Default;
-            }
-        }
-
         private void SetControlsEnabled(bool enabled)
         {
             if (this.InvokeRequired)
@@ -175,35 +134,6 @@ namespace DoAn_NT106
             chk_ShowPassword.Enabled = enabled;
             chk_Captcha.Enabled = enabled;
         }
-
-        private void ShowConnectionError()
-        {
-            this.Text = "Login - Unable to connect";
-
-            var result = MessageBox.Show(
-                "❌ Unable to connect to the server!\n\n" +
-                "Please check:\n" +
-                "• Is the server running?\n" +
-                "• Is your network connection stable?\n" +
-                "• Is the firewall blocking the connection?\n\n" +
-                "Do you want to try again?",
-                "⚠️ Connection Error",
-                MessageBoxButtons.RetryCancel,
-                MessageBoxIcon.Warning
-            );
-
-            if (result == DialogResult.Retry)
-            {
-                // Thử kết nối lại
-                _ = CheckServerConnectionAsync();
-            }
-            else
-            {
-                // Đóng form đăng nhập
-                this.Close();
-            }
-        }
-
 
         #endregion
 
