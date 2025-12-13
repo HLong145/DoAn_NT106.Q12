@@ -597,6 +597,7 @@ namespace DoAn_NT106
             // Reset all combat statuses
             player1State.IsStunned = false;
             player2State.IsStunned = false;
+            
             // Ensure health is positive (reset done above) and clear any lingering timers/states by forcing regen/update
             try { player1State.RegenerateResources(); } catch { }
             try { player2State.RegenerateResources(); } catch { }
@@ -627,6 +628,11 @@ namespace DoAn_NT106
             // Cleanup effects
             try { effectManager?.Cleanup(); } catch { }
             try { projectileManager?.Cleanup(); } catch { }
+
+            // ✅ LOG: Verify all states before starting new round
+            Console.WriteLine($"[StartNextRound] Round {_roundNumber} setup complete:");
+            Console.WriteLine($"  P1: HP={player1State.Health} IsDead={player1State.IsDead} Stamina={player1State.Stamina}");
+            Console.WriteLine($"  P2: HP={player2State.Health} IsDead={player2State.IsDead} Stamina={player2State.Stamina}");
 
             // Start round countdown animation
             DisplayRoundStartAnimation();
