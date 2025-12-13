@@ -203,6 +203,7 @@ namespace DoAn_NT106.Server
                 }
 
                 // Parse binary packet: [RoomCode(6)] [PlayerNum(1)] [X(2)] [Y(2)] [Health(1)] [Stamina(1)] [Mana(1)] [ActionLen(1)] [Action(var)]
+                // New: Action may encode immediate damage notifications: "DAMAGE:target:damage:resultingHealth"
                 string roomCode = System.Text.Encoding.UTF8.GetString(data, 0, 6).TrimEnd('\0');
                 int playerNum = data[6];
 
@@ -266,7 +267,34 @@ namespace DoAn_NT106.Server
                 {
                     try
                     {
-                        udpSocket.Send(data, data.Length, opponentEndpoint);
+                        // Inspect action field if present and handle damage notifications specially
+                        int actionLenIndex = 22; // matches UDPGameClient.BuildPacket
+                        if (data.Length > actionLenIndex)
+                        {
+                            int actionLen = data[actionLenIndex];
+                            if (actionLen > 0 && actionLen + 22 <= data.Length)
+                            {
+                                string action = System.Text.Encoding.UTF8.GetString(data, 22, actionLen);
+                                if (action.StartsWith("DAMAGE:", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    // Forward full packet to opponent so they can apply damage locally immediately
+                                    udpSocket.Send(data, data.Length, opponentEndpoint);
+                                    Log($"📤 Relayed DAMAGE notification from P{playerNum} to opponent at {opponentEndpoint}");
+                                }
+                                else
+                                {
+                                    udpSocket.Send(data, data.Length, opponentEndpoint);
+                                }
+                            }
+                            else
+                            {
+                                udpSocket.Send(data, data.Length, opponentEndpoint);
+                            }
+                        }
+                        else
+                        {
+                            udpSocket.Send(data, data.Length, opponentEndpoint);
+                        }
                         
                         // ✅ SPARSE LOG - mỗi 50 packets (roughly 2 seconds at 25 FPS)
                         if (DateTime.Now.Millisecond % 2000 < 100)

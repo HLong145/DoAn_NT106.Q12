@@ -39,6 +39,7 @@ namespace DoAn_NT106.Client
         private bool currentIsSkillActive = false;     // ✅ THÊM
         private bool currentIsCharging = false;        // ✅ THÊM
         private bool currentIsDashing = false;         // ✅ THÊM
+        private int currentLastDamagingAttackId = 0;   // ✅ THÊM: last damaging attack id
         private readonly object stateLock = new object();
 
         // Events
@@ -58,6 +59,54 @@ namespace DoAn_NT106.Client
             this.serverPort = serverPort;
             this.roomCode = roomCode;
             this.username = username;
+        }
+
+        /// <summary>
+        /// Send a damage notification via UDP. Format placed into action string so server will relay to opponent.
+        /// action format: "DAMAGE:{targetPlayerNum}:{damage}:{resultingHealth}"
+        /// </summary>
+        public void SendDamageNotification(int targetPlayerNum, int damage, int resultingHealth)
+        {
+            try
+            {
+                lock (stateLock)
+                {
+                    // Keep current health/stamina/mana as-is for sender; embed damage info into action
+                    currentLastDamagingAttackId++;
+                    currentAction = $"DAMAGE:{targetPlayerNum}:{damage}:{resultingHealth}";
+                }
+
+                byte[] packet = BuildPacket();
+                udpSocket?.Send(packet, packet.Length);
+                Log($"Sent DAMAGE notification: target={targetPlayerNum} dmg={damage} resHP={resultingHealth}");
+            }
+            catch (Exception ex)
+            {
+                Log($"SendDamageNotification error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Send immediate health update (used after local damage applied) to speed up sync
+        /// </summary>
+        public void SendImmediateHealthUpdate(int health, int attackId)
+        {
+            try
+            {
+                lock (stateLock)
+                {
+                    currentHealth = health;
+                    currentLastDamagingAttackId = attackId;
+                }
+
+                byte[] packet = BuildPacket();
+                udpSocket?.Send(packet, packet.Length);
+                Log($"Sent immediate health update: HP={health} attackId={attackId}");
+            }
+            catch (Exception ex)
+            {
+                Log($"SendImmediateHealthUpdate error: {ex.Message}");
+            }
         }
 
         #endregion
@@ -133,7 +182,7 @@ namespace DoAn_NT106.Client
         /// </summary>
         public void UpdateState(int x, int y, int health, int stamina, int mana, string action, 
             string facing = "right", bool isAttacking = false, bool isParrying = false,
-            bool isStunned = false, bool isSkillActive = false, bool isCharging = false, bool isDashing = false)
+            bool isStunned = false, bool isSkillActive = false, bool isCharging = false, bool isDashing = false, int lastDamagingAttackId = 0)
         {
             lock (stateLock)
             {
@@ -150,6 +199,7 @@ namespace DoAn_NT106.Client
                 currentIsSkillActive = isSkillActive;    // ✅ THÊM
                 currentIsCharging = isCharging;          // ✅ THÊM
                 currentIsDashing = isDashing;            // ✅ THÊM
+                currentLastDamagingAttackId = lastDamagingAttackId;
             }
         }
 
@@ -205,12 +255,12 @@ namespace DoAn_NT106.Client
             {
                 // ✅ UPDATED PACKET STRUCTURE:
                 // [RoomCode(6)] [PlayerNum(1)] [X(2)] [Y(2)] [Health(1)] [Stamina(1)] [Mana(1)] 
-                // [Facing(1)] [IsAttacking(1)] [IsParrying(1)] [IsStunned(1)] [IsSkillActive(1)] [IsCharging(1)] [IsDashing(1)] [ActionLen(1)] [Action(var)]
+                // [Facing(1)] [IsAttacking(1)] [IsParrying(1)] [IsStunned(1)] [IsSkillActive(1)] [IsCharging(1)] [IsDashing(1)] [LastDamagingAttackId(1)] [ActionLen(1)] [Action(var)]
 
                 byte[] actionBytes = System.Text.Encoding.UTF8.GetBytes(currentAction);
                 int actionLen = Math.Min(actionBytes.Length, 20); // Max 20 chars
 
-                byte[] packet = new byte[22 + actionLen];
+                byte[] packet = new byte[23 + actionLen];
 
                 // RoomCode (6 bytes, padded with nulls)
                 byte[] roomCodeBytes = System.Text.Encoding.UTF8.GetBytes(roomCode.PadRight(6, '\0'));

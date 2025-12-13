@@ -79,8 +79,10 @@ namespace DoAn_NT106.Services
                         HandleStartGame(data);
                         break;
                     
-                    // ✅ THÊM: Handle damage event
+                    // ✅ THÊM: Handle damage event (server may use GAME_DAMAGE or DAMAGE_EVENT)
                     case "DAMAGE_EVENT":
+                    case "GAME_DAMAGE":
+                    case "GAME_DAMAGE_EVENT":
                         HandleDamageEvent(data);
                         break;
                 }
@@ -213,8 +215,8 @@ namespace DoAn_NT106.Services
             return TcpClient.IsConnected;
         }
 
-        // ✅ THÊM: Broadcast damage event to server
-        public void BroadcastDamageEvent(int targetPlayerNum, int damage, bool isParried)
+        // ✅ THÊM: Broadcast damage event to server (reliable)
+        public async System.Threading.Tasks.Task BroadcastDamageEvent(string roomCode, string username, int targetPlayerNum, int damage, bool isParried)
         {
             try
             {
@@ -224,19 +226,21 @@ namespace DoAn_NT106.Services
                     return;
                 }
 
-                var damageEvent = new
+                var data = new Dictionary<string, object>
                 {
-                    targetPlayerNum,
-                    damage,
-                    isParried,
-                    timestamp = DateTime.UtcNow
+                    { "roomCode", roomCode },
+                    { "username", username },
+                    { "targetPlayerNum", targetPlayerNum },
+                    { "damage", damage },
+                    { "isParried", isParried }
                 };
 
-                string json = JsonSerializer.Serialize(damageEvent);
-                Console.WriteLine($"[GameClient] Broadcasting damage event: {json}");
-                
-                // Send as a broadcast message to server
-                TcpClient.SendBroadcast("DAMAGE_EVENT", json);
+                Console.WriteLine($"[GameClient] Sending GAME_DAMAGE to server: room={roomCode} target={targetPlayerNum} dmg={damage}");
+                var resp = await TcpClient.SendRequestAsync("GAME_DAMAGE", data, 3000).ConfigureAwait(false);
+                if (resp != null && !resp.Success)
+                {
+                    Console.WriteLine($"[GameClient] GAME_DAMAGE response failure: {resp.Message}");
+                }
             }
             catch (Exception ex)
             {

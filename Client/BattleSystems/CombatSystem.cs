@@ -9,6 +9,8 @@ namespace DoAn_NT106.Client.BattleSystems
 {
     public class CombatSystem
     {
+        // Event fired when damage is applied locally (targetPlayer, damage)
+        public event Action<int, int> DamageApplied;
         private PlayerState player1;
         private PlayerState player2;
         private CharacterAnimationManager player1AnimManager;
@@ -71,6 +73,12 @@ namespace DoAn_NT106.Client.BattleSystems
         };
 
         private Func<PlayerState, Rectangle> getPlayerHurtboxCallback;
+        // Network integration: when playing online, set these so CombatSystem will request
+        // network-sent damage instead of applying damage to remote opponent locally.
+        public bool IsNetworked { get; set; } = false;
+        public int LocalPlayerNumber { get; set; } = 0;
+        // targetPlayer, damage, knockback, resultingHealth
+        public Action<int, int, bool, int> SendDamageRequestCallback { get; set; } = null;
 
         public CombatSystem(
             PlayerState p1, PlayerState p2,
@@ -111,6 +119,7 @@ namespace DoAn_NT106.Client.BattleSystems
                     player1.ResetToIdle();
                 p1ParryCooldownTimer.Start();
                 invalidateCallback?.Invoke();
+            
             };
 
             p1ParryCooldownTimer = new Timer { Interval = PARRY_COOLDOWN_MS };
@@ -1312,6 +1321,31 @@ namespace DoAn_NT106.Client.BattleSystems
             bool wasCharging = target.IsCharging;
             
             // ✅ *** DAMAGE APPLIED NGAY - LOCAL FIRST ***
+            // If this is a networked game and this client is the attacker, DO NOT apply damage
+            // locally to the remote target. Instead request the server to deliver the damage
+            // to the authoritative client (the target). The authoritative client will apply
+            // damage locally when it receives the server broadcast.
+            if (IsNetworked && attacker != null && attacker.PlayerNumber == LocalPlayerNumber)
+            {
+                Console.WriteLine($"[ApplyDamage] Networked hit detected. Reporting damage to server: target={targetPlayer}, dmg={damage}");
+                try
+                {
+                    // compute resulting health for the target as if applied locally
+                    int resultingHealth = Math.Max(0, target.Health - damage);
+                    SendDamageRequestCallback?.Invoke(targetPlayer, damage, knockback, resultingHealth);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[ApplyDamage] SendDamageRequestCallback error: {ex.Message}");
+                }
+
+                // Show local hit effect for attacker but DO NOT change remote player's HP locally.
+                showHitEffectCallback?.Invoke($"-{damage}", Color.Red);
+                effectManager.ShowHitEffectAtPosition(target.CharacterType, target.X, target.Y, invalidateCallback);
+                invalidateCallback?.Invoke();
+                return;
+            }
+
             target.TakeDamage(damage);
             target.RegenerateManaOnHitMiss();
             Console.WriteLine($"[ApplyDamage] ✅✅✅ DAMAGE APPLIED - Health: {target.Health}");
@@ -1363,7 +1397,12 @@ namespace DoAn_NT106.Client.BattleSystems
             
             invalidateCallback?.Invoke();
 
-            // ✅ XÓA: TCP callback - UDP đã sync HP liên tục
+            // Notify listeners that damage was applied so network layer can sync immediately
+            try
+            {
+                DamageApplied?.Invoke(target.PlayerNumber, damage);
+            }
+            catch { }
 
             // ✅ SỬA: Chỉ set stun timer nếu không charging
             if (!target.IsCharging)
@@ -1689,3 +1728,4 @@ namespace DoAn_NT106.Client.BattleSystems
         }
     }
 }
+

@@ -23,6 +23,8 @@ namespace DoAn_NT106
 
         // ✅ THÊM: UDP Game Client
         private UDPGameClient udpClient;
+        // ✅ THÊM: TCP GameClient for reliable broadcast of damage events
+        private DoAn_NT106.Services.GameClient tcpGameClient;
         private bool isOnlineMode = false; // Track nếu đang chơi online
         private int myPlayerNumber = 0; // 1 or 2 assigned by server
         private bool isCreator = false; // ✅ THÊM: Track if this is Player 1
@@ -433,6 +435,41 @@ namespace DoAn_NT106
                     udpClient.OnLog += msg => Console.WriteLine(msg);
                     udpClient.OnOpponentState += OnOpponentUdpState;
                     udpClient.Connect();
+                    // Also prepare TCP GameClient for reliable messages
+                    try
+                    {
+                        tcpGameClient = new DoAn_NT106.Services.GameClient();
+                        var _ = tcpGameClient.ConnectAsync();
+                        tcpGameClient.OnError += (err) => Console.WriteLine($"[BattleForm][TCP] {err}");
+
+                        // Server will broadcast damage events to clients. When we receive one and
+                        // the target is this client, apply damage locally.
+                        tcpGameClient.OnDamageEvent += (d) =>
+                        {
+                            try
+                            {
+                                if (d.TargetPlayerNum == myPlayerNumber)
+                                {
+                                    Console.WriteLine($"[BattleForm] Received DAMAGE_EVENT from server target={d.TargetPlayerNum} dmg={d.Damage} parried={d.IsParried}");
+                                    this.BeginInvoke(new Action(() =>
+                                    {
+                                        combatSystem.IsNetworked = true;
+                                        combatSystem.LocalPlayerNumber = myPlayerNumber;
+                                        // When applying from server, ensure CombatSystem will apply locally
+                                        combatSystem.ApplyDamage(d.TargetPlayerNum, d.Damage);
+                                    }));
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"[BattleForm] OnDamageEvent handler error: {ex.Message}");
+                            }
+                        };
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[BattleForm] TCP GameClient init error: {ex.Message}");
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -622,6 +659,43 @@ namespace DoAn_NT106
                     GetAttackHitbox,
                     GetPlayerHitbox
                 );
+                // Provide network callbacks to CombatSystem
+                combatSystem.IsNetworked = isOnlineMode;
+                combatSystem.LocalPlayerNumber = myPlayerNumber;
+                combatSystem.SendDamageRequestCallback = (targetPlayer, damage, knockbackFlag, resultingHealth) =>
+                {
+                    try
+                    {
+                        // Send a UDP damage notification so opponent client can apply damage immediately
+                        udpClient?.SendDamageNotification(targetPlayer, damage, resultingHealth);
+
+                        // Also notify server via TCP GAME_DAMAGE for authoritative broadcast/persistence
+                        var _ = tcpGameClient?.BroadcastDamageEvent(roomCode, username, targetPlayer, damage, false);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[BattleForm] SendDamageRequestCallback error: {ex.Message}");
+                    }
+                };
+                // Subscribe to damage applied event to send immediate UDP damage packet
+                combatSystem.DamageApplied += (targetPlayer, damage) =>
+                {
+                    try
+                    {
+                        // Apply local sync already done in CombatSystem. Just send immediate packet with current health and attack id (0)
+                        var target = targetPlayer == 1 ? player1State : player2State;
+                        // 1) Send immediate UDP state update so opponent sees HP change fast
+                        udpClient?.SendImmediateHealthUpdate(target.Health, 0);
+
+                        // 2) Also notify server over TCP so it can persist/broadcast authoritative damage event
+                        try
+                        {
+                            tcpGameClient?.BroadcastDamageEvent(roomCode, username, targetPlayer, damage, false);
+                        }
+                        catch { }
+                    }
+                    catch { }
+                };
                 // =====================================
 
                 // ✅ THÊM DÒNG NÀY - SAU KHI ĐÃ CÓ physicsSystem!
@@ -944,6 +1018,47 @@ namespace DoAn_NT106
                 if (actionLen > 0 && 22 + actionLen <= data.Length)
                 {
                     action = System.Text.Encoding.UTF8.GetString(data, 22, actionLen);
+                }
+
+                // If action encodes a DAMAGE notification from opponent, parse and apply locally
+                if (!string.IsNullOrEmpty(action) && action.StartsWith("DAMAGE:", StringComparison.OrdinalIgnoreCase))
+                {
+                    try
+                    {
+                        // Format: DAMAGE:{targetPlayerNum}:{damage}:{resultingHealth}
+                        var parts = action.Split(':');
+                        if (parts.Length >= 4 && int.TryParse(parts[1], out int dmgTarget) && int.TryParse(parts[2], out int dmgAmount))
+                        {
+                            int dmgResulting = 0;
+                            int.TryParse(parts[3], out dmgResulting);
+
+                            // If the damage target is this client, apply damage locally via CombatSystem
+                            if (dmgTarget == myPlayerNumber)
+                            {
+                                Console.WriteLine($"[UDP] Received DAMAGE notification for me: dmg={dmgAmount} resultingHP={dmgResulting}");
+                                this.BeginInvoke(new Action(() =>
+                                {
+                                    try
+                                    {
+                                        // Let CombatSystem handle animation, stun and knockback
+                                        combatSystem.ApplyDamage(dmgTarget, dmgAmount);
+                                        // Immediately send a local UDP health update for faster sync
+                                        var me = myPlayerNumber == 1 ? player1State : player2State;
+                                        udpClient?.SendImmediateHealthUpdate(me.Health, 0);
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        Console.WriteLine($"[UDP] Error applying damage locally: {ex.Message}");
+                                    }
+                                }));
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[UDP] Parse DAMAGE action error: {ex.Message}");
+                    }
+                    // Continue processing to also update positional/state bytes below
                 }
 
                 // Cập nhật vào PlayerState đối thủ trên UI thread
