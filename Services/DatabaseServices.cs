@@ -213,6 +213,98 @@ namespace DoAn_NT106.Services
             }
         }
 
+        public int GetPlayerXp(string username)
+        {
+            // Example implementation: adjust table/column names as needed
+            using (var connection = new SqlConnection(connectionString))
+            {
+                connection.Open();
+                using (var command = new SqlCommand("SELECT XP FROM PLAYERS WHERE Username = @Username", connection))
+                {
+                    command.Parameters.AddWithValue("@Username", username);
+                    var result = command.ExecuteScalar();
+                    if (result != null && int.TryParse(result.ToString(), out int xp))
+                    {
+                        return xp;
+                    }
+                    return 0;
+                }
+            }
+        }
+
+        public bool UpdatePlayerXp(string username, int newXp, int totalXpForLevel)
+        {
+            // Example implementation, adjust table/column names as needed
+            using (var connection = new SqlConnection(connectionString))
+            {
+                connection.Open();
+                using (var command = new SqlCommand(
+                    "UPDATE PLAYERS SET XP = @xp, TOTAL_XP = @totalXp WHERE USERNAME = @username", connection))
+                {
+                    command.Parameters.AddWithValue("@xp", newXp);
+                    command.Parameters.AddWithValue("@totalXp", totalXpForLevel);
+                    command.Parameters.AddWithValue("@username", username);
+                    int rows = command.ExecuteNonQuery();
+                    return rows > 0;
+                }
+            }
+        }
+
+        public bool GetPlayerLevel(string username, out int level)
+        {
+            level = 1;
+            try
+            {
+                using (var connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    using (var command = new SqlCommand(
+                               "SELECT USER_LEVEL FROM PLAYERS WHERE USERNAME = @Username",
+                               connection))
+                    {
+                        command.Parameters.AddWithValue("@Username", username);
+                        var result = command.ExecuteScalar();
+                        if (result != null && int.TryParse(result.ToString(), out var lvl))
+                        {
+                            level = lvl <= 0 ? 1 : lvl;
+                        }
+                    }
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ GetPlayerLevel error for {username}: {ex.Message}");
+                level = 1;
+                return false;
+            }
+        }
+
+        public bool UpdatePlayerLevel(string username, int newLevel)
+        {
+            try
+            {
+                using (var connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    using (var command = new SqlCommand(
+                               "UPDATE PLAYERS SET USER_LEVEL = @Level WHERE USERNAME = @Username",
+                               connection))
+                    {
+                        command.Parameters.AddWithValue("@Level", newLevel);
+                        command.Parameters.AddWithValue("@Username", username);
+                        int rows = command.ExecuteNonQuery();
+                        return rows > 0;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ UpdatePlayerLevel error for {username}: {ex.Message}");
+                return false;
+            }
+        }
+
         // RESET PASSWORD 
         public bool ResetPassword(string username, string newPassword)
         {

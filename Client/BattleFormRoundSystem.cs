@@ -26,6 +26,9 @@ namespace DoAn_NT106
         private int _roundStartCountdownMs = 0;
         private Label _lblRoundStart; // Large "ROUND X" label
 
+        // Thời gian bắt đầu trận để tính tổng thời gian thi đấu
+        private DateTime _matchStartTime = DateTime.UtcNow;
+
         // ✅ THÊM: Lưu mana giữa các hiệp
         private int _player1ManaCarryover = 0;
         private int _player2ManaCarryover = 0;
@@ -532,9 +535,19 @@ namespace DoAn_NT106
 
             // Award win to survivor
             if (player1State.IsDead && !player2State.IsDead)
+            {
                 _player2Wins++;
+                player2RoundsWon++;
+                player2ConsecutiveWins++;
+                player1ConsecutiveWins = 0;
+            }
             else if (player2State.IsDead && !player1State.IsDead)
+            {
                 _player1Wins++;
+                player1RoundsWon++;
+                player1ConsecutiveWins++;
+                player2ConsecutiveWins = 0;
+            }
             // Both dead = tie, no win awarded
 
             // Check if match ends
@@ -633,7 +646,7 @@ namespace DoAn_NT106
             };
         }
 
-        /// <summary>Ends the match and shows winner dialog</summary>
+        /// <summary>Ends the match and shows XP result form instead of only a dialog</summary>
         private void EndMatch(string winner)
         {
             _roundInProgress = false;
@@ -641,21 +654,56 @@ namespace DoAn_NT106
             try { gameTimer?.Stop(); } catch { }
             try { walkAnimationTimer?.Stop(); } catch { }
 
-            string result = $"🎉 {winner} WINS THE MATCH!\n\n" +
-                            $"{username}: {_player1Wins} wins\n" +
-                            $"{opponent}: {_player2Wins} wins";
+            // Xác định người chơi hiện tại có phải là winner không
+            bool player1IsWinner = string.Equals(winner, username, StringComparison.OrdinalIgnoreCase);
+
+            // Tính tổng thời gian trận đấu
+            TimeSpan totalMatchTime;
+            try
+            {
+                totalMatchTime = DateTime.UtcNow - _matchStartTime;
+                if (totalMatchTime < TimeSpan.Zero) totalMatchTime = TimeSpan.Zero;
+            }
+            catch
+            {
+                totalMatchTime = TimeSpan.Zero;
+            }
+
+            // Tạo MatchResult để truyền sang form TinhXP
+            var result = new DoAn_NT106.Client.MatchResult
+            {
+                PlayerUsername = username,
+                OpponentUsername = opponent,
+                PlayerIsWinner = player1IsWinner,
+                MatchTime = totalMatchTime,
+                PlayerWins = _player1Wins,
+                OpponentWins = _player2Wins,
+                ParryCount = player1IsWinner ? player1ParryCount : player2ParryCount,
+                AttackCount = player1IsWinner ? player1State.AttackCount : player2State.AttackCount,
+                SkillCount = player1IsWinner ? player1SkillCount : player2SkillCount
+            };
+
+            // (Tuỳ bạn) vẫn hiện MessageBox thông báo thắng/thua
+            string msg = $"🎉 {winner} WINS THE MATCH!\n\n" +
+                         $"{username}: {_player1Wins} wins\n" +
+                         $"{opponent}: {_player2Wins} wins";
 
             MessageBox.Show(
-                result,
+                msg,
                 "MATCH FINISHED",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Exclamation
             );
 
-            // ✅ CLOSE battle form and return to lobby
+            // Mở form tính XP sau khi nhấn OK
+            using (var xpForm = new DoAn_NT106.Client.TinhXP(result))
+            {
+                xpForm.StartPosition = FormStartPosition.CenterScreen;
+                xpForm.ShowDialog(this);
+            }
+
+            // Đóng BattleForm và bật lại nhạc theme
             this.Close();
-            
-            // ✅ Resume theme music when returning to MainForm
             try { DoAn_NT106.SoundManager.PlayMusic(DoAn_NT106.Client.BackgroundMusic.ThemeMusic, loop: true); } catch { }
         }
 
