@@ -1321,29 +1321,41 @@ namespace DoAn_NT106.Client.BattleSystems
             bool wasCharging = target.IsCharging;
             
             // ✅ *** DAMAGE APPLIED NGAY - LOCAL FIRST ***
-            // If this is a networked game and this client is the attacker, DO NOT apply damage
-            // locally to the remote target. Instead request the server to deliver the damage
-            // to the authoritative client (the target). The authoritative client will apply
-            // damage locally when it receives the server broadcast.
-            if (IsNetworked && attacker != null && attacker.PlayerNumber == LocalPlayerNumber)
+            // Networked mode handling:
+            // - The authoritative client for a player's HP is the client that "owns" that player
+            //   (i.e. whose LocalPlayerNumber == target.PlayerNumber). Only the authoritative
+            //   client should actually change the target's Health locally.
+            // - Non-authoritative clients should send a damage request to the server and only
+            //   show local hit effects (no HP change).
+            if (IsNetworked)
             {
-                Console.WriteLine($"[ApplyDamage] Networked hit detected. Reporting damage to server: target={targetPlayer}, dmg={damage}");
                 try
                 {
-                    // compute resulting health for the target as if applied locally
-                    int resultingHealth = Math.Max(0, target.Health - damage);
-                    SendDamageRequestCallback?.Invoke(targetPlayer, damage, knockback, resultingHealth);
+                    // If this client is NOT authoritative for the target, forward request to server
+                    if (target.PlayerNumber != LocalPlayerNumber)
+                    {
+                        Console.WriteLine($"[ApplyDamage] Networked (non-authoritative). Reporting damage to server: target={targetPlayer}, dmg={damage}");
+                        int resultingHealth = Math.Max(0, target.Health - damage);
+                        SendDamageRequestCallback?.Invoke(targetPlayer, damage, knockback, resultingHealth);
+
+                        // Show hit effect locally for responsiveness but DO NOT modify HP
+                        showHitEffectCallback?.Invoke($"-{damage}", Color.Red);
+                        effectManager.ShowHitEffectAtPosition(target.CharacterType, target.X, target.Y, invalidateCallback);
+                        invalidateCallback?.Invoke();
+                        return;
+                    }
+                    // else: we are authoritative for the target -> fall through and apply damage locally
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"[ApplyDamage] SendDamageRequestCallback error: {ex.Message}");
+                    // If sending fails, still attempt to apply locally if authoritative
+                    if (target.PlayerNumber != LocalPlayerNumber)
+                    {
+                        // Not authoritative and couldn't report to server -> bail out to avoid desync
+                        return;
+                    }
                 }
-
-                // Show local hit effect for attacker but DO NOT change remote player's HP locally.
-                showHitEffectCallback?.Invoke($"-{damage}", Color.Red);
-                effectManager.ShowHitEffectAtPosition(target.CharacterType, target.X, target.Y, invalidateCallback);
-                invalidateCallback?.Invoke();
-                return;
             }
 
             target.TakeDamage(damage);

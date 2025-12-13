@@ -1040,10 +1040,16 @@ namespace DoAn_NT106
                                 {
                                     try
                                     {
-                                        // Let CombatSystem handle animation, stun and knockback
-                                        combatSystem.ApplyDamage(dmgTarget, dmgAmount);
-                                        // Immediately send a local UDP health update for faster sync
+                                        // UDP is only used for fast state sync. Do NOT call ApplyDamage here
+                                        // to avoid duplicate application — server/TCP is authoritative and
+                                        // will send the reliable GAME_DAMAGE which triggers the real apply.
                                         var me = myPlayerNumber == 1 ? player1State : player2State;
+                                        // Update HP immediately to keep UI responsive but do not run
+                                        // hurt animation or stun logic here.
+                                        me.Health = dmgResulting;
+                                        // Show a local hit effect for responsiveness
+                                        ShowHitEffect($"-{dmgAmount}", Color.Red);
+                                        // Also send immediate UDP health update to reinforce state to attacker
                                         udpClient?.SendImmediateHealthUpdate(me.Health, 0);
                                     }
                                     catch (Exception ex)

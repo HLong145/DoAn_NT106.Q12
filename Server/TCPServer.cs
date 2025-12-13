@@ -1517,24 +1517,36 @@ namespace DoAn_NT106.Server
                     var opponentUsername = senderUsername == room.Player1Username ? room.Player2Username : room.Player1Username;
                     var opponentClient = roomManager.GetClientHandler(roomCode, opponentUsername);
 
+                    // Send GAME_DAMAGE to both players so authoritative client (owner of target)
+                    // will apply and then broadcast. Also include the resultingHealth hint so
+                    // clients using UDP can update UI immediately.
+                    var damageNotification = new
+                    {
+                        Action = "GAME_DAMAGE",
+                        Data = new
+                        {
+                            targetPlayerNum = targetPlayerNum,
+                            damage = damage,
+                            isParried = isParried,
+                            attackerUsername = senderUsername
+                        }
+                    };
+
+                    string json = System.Text.Json.JsonSerializer.Serialize(damageNotification);
+
+                    // Send to opponent (if connected)
                     if (opponentClient != null)
                     {
-                        var damageNotification = new
-                        {
-                            Action = "GAME_DAMAGE",
-                            Data = new
-                            {
-                                targetPlayerNum = targetPlayerNum,
-                                damage = damage,
-                                isParried = isParried,
-                                attackerUsername = senderUsername
-                            }
-                        };
-
-                        string json = System.Text.Json.JsonSerializer.Serialize(damageNotification);
                         opponentClient.SendMessage(json);
-
                         server.Log($"📤 Relayed GAME_DAMAGE to {opponentUsername}");
+                    }
+
+                    // Also send to sender (ack) so attacker gets server confirmation
+                    var senderClient = roomManager.GetClientHandler(roomCode, senderUsername);
+                    if (senderClient != null)
+                    {
+                        senderClient.SendMessage(json);
+                        server.Log($"📤 Sent GAME_DAMAGE ack to attacker {senderUsername}");
                     }
                 }
 
