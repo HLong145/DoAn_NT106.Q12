@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Drawing;
 
 namespace DoAn_NT106.Client.BattleSystems
@@ -109,7 +110,17 @@ namespace DoAn_NT106.Client.BattleSystems
 
                     if (!player.IsAttacking && !player.IsStunned && !player.IsParrying)
                     {
-                        player.ResetToIdle();
+                        // ✅ FIX: Nếu đang bấm phím, set walk; nếu không thì stand
+                        // Kiểm tra key state để quyết định animation
+                        if (player.LeftKeyPressed || player.RightKeyPressed)
+                        {
+                            player.CurrentAnimation = "walk";
+                            player.IsWalking = true;
+                        }
+                        else
+                        {
+                            player.CurrentAnimation = "stand";
+                        }
                     }
                 }
             }
@@ -145,6 +156,8 @@ namespace DoAn_NT106.Client.BattleSystems
             player.Facing = direction > 0 ? "right" : "left";
             player.IsWalking = true;
 
+            // ✅ FIX: Only set walk animation if NOT jumping
+            // When jumping, keep jump animation (set by UpdateJump)
             if (!player.IsSkillActive && !player.IsJumping)
             {
                 player.CurrentAnimation = "walk";
@@ -159,6 +172,11 @@ namespace DoAn_NT106.Client.BattleSystems
             player.X = Math.Max(0, Math.Min(backgroundWidth - playerWidth, player.X));
         }
 
+        // ✅ THÊM: Track position để kiểm tra walk movement
+        private Dictionary<int, int> lastPlayerX = new Dictionary<int, int>();
+        // ✅ THÊM: Counter để kiểm tra mỗi 2 frame (32ms)
+        private Dictionary<int, int> walkCheckFrameCounter = new Dictionary<int, int>();
+
         /// <summary>
         /// Stop player movement
         /// </summary>
@@ -166,10 +184,73 @@ namespace DoAn_NT106.Client.BattleSystems
         {
             player.IsWalking = false;
 
+            // ✅ FIX: Only set animation to stand if not already in a looping walk/jump state
+            // Keep walk/jump animation running if that's what was playing
             if (!player.IsJumping && !player.IsAttacking && !player.IsParrying && !player.IsSkillActive)
             {
-                player.CurrentAnimation = "stand";
+                if (player.CurrentAnimation != "walk" && player.CurrentAnimation != "jump")
+                {
+                    player.CurrentAnimation = "stand";
+                }
             }
+        }
+
+        /// <summary>
+        /// ✅ THÊM: Kiểm tra vị trí walk - gọi từ GameTimer_Tick mỗi 16ms
+        /// Nhưng chỉ thực sự kiểm tra mỗi 2 frame (32ms) để tránh UDP chưa kịp
+        /// Nếu vị trí không đổi → quay về stand
+        /// </summary>
+        public void CheckWalkAnimation(PlayerState player)
+        {
+            int playerNum = player.PlayerNumber;
+
+            // ✅ ĐIỀU KIỆN: Chỉ kiểm tra nếu đang ở animation walk
+            if (player.CurrentAnimation != "walk")
+            {
+                // Xóa entry cũ nếu animation thay đổi
+                if (lastPlayerX.ContainsKey(playerNum))
+                    lastPlayerX.Remove(playerNum);
+                if (walkCheckFrameCounter.ContainsKey(playerNum))
+                    walkCheckFrameCounter.Remove(playerNum);
+                return;
+            }
+
+            // ✅ COUNTER: Kiểm tra mỗi 2 frame (32ms)
+            if (!walkCheckFrameCounter.ContainsKey(playerNum))
+                walkCheckFrameCounter[playerNum] = 0;
+
+            walkCheckFrameCounter[playerNum]++;
+
+            // ✅ Chỉ kiểm tra khi counter == 2
+            if (walkCheckFrameCounter[playerNum] < 2)
+                return; // Chưa đủ 2 frame, chờ frame tiếp theo
+
+            // Reset counter
+            walkCheckFrameCounter[playerNum] = 0;
+
+            // ✅ Lần đầu tiên: lưu vị trí hiện tại
+            if (!lastPlayerX.ContainsKey(playerNum))
+            {
+                lastPlayerX[playerNum] = player.X;
+                return;
+            }
+
+            // ✅ So sánh vị trí hiện tại vs vị trí trước (cách nhau 32ms)
+            int currentX = player.X;
+            int previousX = lastPlayerX[playerNum];
+
+            // Nếu vị trí KHÔNG đổi trong 32ms → quay về stand
+            if (currentX == previousX)
+            {
+                Console.WriteLine($"[PhysicsSystem] Player {playerNum} walk check: Position unchanged ({currentX}) after 32ms, setting to STAND");
+                player.CurrentAnimation = "stand";
+                lastPlayerX.Remove(playerNum);
+                walkCheckFrameCounter.Remove(playerNum);
+                return;
+            }
+
+            // Nếu vị trí ĐÃ ĐỔIE → cập nhật vị trí cũ
+            lastPlayerX[playerNum] = currentX;
         }
 
         /// <summary>

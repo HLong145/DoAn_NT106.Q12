@@ -182,8 +182,8 @@ namespace DoAn_NT106.Client
                         Log($"⚠️ Send error: {ex.Message}");
                     }
 
-                    // 40ms interval (~ 25 FPS)
-                    await Task.Delay(40, token);
+                    // ✅ SỬA: 50ms interval (20 lần/giây) - tần suất cao hơn để giảm giật
+                    await Task.Delay(16, token);
                 }
             }
             catch (OperationCanceledException)

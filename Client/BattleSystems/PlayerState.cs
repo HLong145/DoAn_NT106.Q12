@@ -98,6 +98,8 @@ namespace DoAn_NT106.Client.BattleSystems
         {
             if (!IsStunned && !IsParrying && !IsSkillActive && !IsJumping)
             {
+                // ✅ FIX: Nếu vừa từ jump sang idle, KHÔNG nhập khẩu animation jump
+                // Chỉ set animation dựa trên key press (walk hoặc stand)
                 CurrentAnimation = (LeftKeyPressed || RightKeyPressed) ? "walk" : "stand";
             }
         }

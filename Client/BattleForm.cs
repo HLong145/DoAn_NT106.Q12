@@ -734,6 +734,11 @@ namespace DoAn_NT106
                     physicsSystem.StopMovement(player2State);
             }
 
+            // ✅ THÊM: Check if walk animation should be converted to stand (every 16ms)
+            // Nếu đang ở animation walk nhưng vị trí không thay đổi → quay về stand
+            physicsSystem.CheckWalkAnimation(player1State);
+            physicsSystem.CheckWalkAnimation(player2State);
+
             // ===== JUMP PHYSICS =====
             physicsSystem.UpdateJump(player1State);
             physicsSystem.UpdateJump(player2State);
@@ -946,21 +951,68 @@ namespace DoAn_NT106
                 {
                     var opp = opponentNum == 1 ? player1State : player2State;
                     var oppAnimMgr = opponentNum == 1 ? player1AnimationManager : player2AnimationManager;
+                    var prevAnim = opponentNum == 1 ? _prevAnimPlayer1 : _prevAnimPlayer2;
                     
-                    // ✅ KIỂM TRA: Nếu animation thay đổi, RESET frame
-                    if (opp.CurrentAnimation != action && !string.IsNullOrEmpty(action))
+                    // ✅ LOGIC:
+                    // - Lần đầu (idle → walk): CẬP NHẬT + Reset
+                    // - Lần tiếp (walk → walk): KHÔNG cập nhật
+                    // - Thay đổi sang khác: CẬP NHẬT + Reset
+                    // - stand → stand: KHÔNG cập nhật (IGNORE idle updates)
+                    
+                    bool isWalkOrJump = action == "walk" || action == "jump";
+                    bool currentIsWalkOrJump = opp.CurrentAnimation == "walk" || opp.CurrentAnimation == "jump";
+                    bool animationChanged = opp.CurrentAnimation != action;
+                    
+                    // ✅ IGNORE: stand → stand (không cập nhật idle state từ opponent)
+                    if (action == "stand" && opp.CurrentAnimation == "stand")
                     {
-                        // Reset animation của đối thủ TRƯỚC khi thay đổi
-                        try
+                        // Bỏ qua - không làm gì
+                        Console.WriteLine($"[UDP] ⏭️ Ignored: stand → stand");
+                    }
+                    // Nếu animation thay đổi (và không phải stand → stand)
+                    else if (animationChanged)
+                    {
+                        // Nếu thay đổi sang walk/jump từ animation khác (lần đầu)
+                        if (isWalkOrJump && !currentIsWalkOrJump)
                         {
-                            oppAnimMgr.ResetAnimationToFirstFrame(action);
-                            Console.WriteLine($"[UDP] ✅ Reset opponent animation: {opp.CurrentAnimation} → {action}");
+                            try
+                            {
+                                oppAnimMgr.ResetAnimationToFirstFrame(action);
+                                opp.CurrentAnimation = action;
+                                Console.WriteLine($"[UDP] ✅ Changed to walk/jump: {prevAnim} → {action}");
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"[UDP] ⚠️ Reset animation error: {ex.Message}");
+                            }
                         }
-                        catch (Exception ex)
+                        // Nếu thay đổi sang animation khác (punch, kick, stand, etc.)
+                        else if (!isWalkOrJump)
                         {
-                            Console.WriteLine($"[UDP] ⚠️ Reset animation error: {ex.Message}");
+                            try
+                            {
+                                oppAnimMgr.ResetAnimationToFirstFrame(action);
+                                opp.CurrentAnimation = action;
+                                Console.WriteLine($"[UDP] ✅ Changed animation: {prevAnim} → {action}");
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"[UDP] ⚠️ Reset animation error: {ex.Message}");
+                            }
+                        }
+                        // walk → jump hoặc jump → walk: cập nhật nhưng KHÔNG reset
+                        else if (isWalkOrJump && currentIsWalkOrJump)
+                        {
+                            opp.CurrentAnimation = action;
+                            Console.WriteLine($"[UDP] → Changed within walk/jump: {prevAnim} → {action} (NO RESET)");
                         }
                     }
+                    
+                    // ✅ CẬP NHẬT animation trước đó cho lần tiếp theo
+                    if (opponentNum == 1)
+                        _prevAnimPlayer1 = action;
+                    else
+                        _prevAnimPlayer2 = action;
                     
                     opp.X = x;
                     opp.Y = y;
@@ -974,8 +1026,6 @@ namespace DoAn_NT106
                     opp.IsSkillActive = isSkillActive;  // ✅ THÊM
                     opp.IsCharging = isCharging;        // ✅ THÊM
                     opp.IsDashing = isDashing;          // ✅ THÊM
-                    if (!string.IsNullOrEmpty(action))
-                        opp.CurrentAnimation = action;
                 }));
             }
             catch (Exception ex)
