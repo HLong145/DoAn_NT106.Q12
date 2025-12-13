@@ -1,4 +1,5 @@
 ﻿using DoAn_NT106.Services;
+using DoAn_NT106.Client;
 using System;
 using System.Drawing;
 using System.Security.Cryptography;
