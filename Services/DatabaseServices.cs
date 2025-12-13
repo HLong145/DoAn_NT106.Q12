@@ -123,7 +123,7 @@ namespace DoAn_NT106.Services
         }
 
         // XÁC THỰC ĐĂNG NHẬP
-        public bool VerifyUserLogin(string username, string password)
+        public (bool Success, bool UserExists) VerifyUserLogin(string username, string password)
         {
             try
             {
@@ -140,16 +140,17 @@ namespace DoAn_NT106.Services
                         {
                             if (reader.Read())
                             {
+                                // User tồn tại, kiểm tra password
                                 string storedHash = reader["PASSWORDHASH"]?.ToString();
                                 string salt = reader["SALT"]?.ToString();
 
                                 if (string.IsNullOrEmpty(storedHash) || string.IsNullOrEmpty(salt))
-                                    return false;
+                                    return (false, true); // User exists but data corrupted
 
                                 string verifyHash = HashPassword_Sha256(password, salt);
-                                return verifyHash == storedHash;
+                                return (verifyHash == storedHash, true); 
                             }
-                            return false;
+                            return (false, false); //User không tồn tại
                         }
                     }
                 }
@@ -157,10 +158,9 @@ namespace DoAn_NT106.Services
             catch (Exception ex)
             {
                 Console.WriteLine($"❌ Login error: {ex.Message}");
-                return false;
+                return (false, false);
             }
         }
-
         // TÌM USERNAME BẰNG EMAIL/PHONE
         public string GetUsernameByContact(string contact, bool isEmail)
         {

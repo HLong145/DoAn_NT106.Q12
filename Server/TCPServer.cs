@@ -587,14 +587,23 @@ namespace DoAn_NT106.Server
                     return CreateResponse(false, "Username and password are required");
                 }
 
+                // Kiểm tra user có tồn tại không khi check lockout
+                var (loginSuccess, userExists) = dbService.VerifyUserLogin(username, password);
+
+                // Nếu user không tồn tại báo lỗi, không giảm attempt
+                if (!userExists)
+                {
+                    return CreateResponse(false, "Account does not exist.");
+                }
+
+                // User tồn tại thì kiểm tra lockout
                 if (!securityService.CheckLoginAttempts(username))
                 {
                     int remainingMinutes = securityService.GetLockoutMinutes(username);
                     return CreateResponse(false, $"Account locked. Try again in {remainingMinutes} minutes.");
                 }
 
-                bool loginSuccess = dbService.VerifyUserLogin(username, password);
-
+                // Chỉ record attempt khi user tồn tại
                 securityService.RecordLoginAttempt(username, loginSuccess);
 
                 if (loginSuccess)
@@ -604,15 +613,16 @@ namespace DoAn_NT106.Server
                     currentUsername = username;
 
                     return CreateResponse(true, "Login successful", new Dictionary<string, object>
-                    {
-                          { "token", token },
-                           { "username", username }
-                      });
+            {
+                { "token", token },
+                { "username", username }
+            });
                 }
                 else
                 {
+                    // Sai mật khẩu
                     int remaining = securityService.GetRemainingAttempts(username);
-                    return CreateResponse(false, $"Invalid credentials. {remaining} attempts remaining.");
+                    return CreateResponse(false, $"Wrong password. {remaining} attempts remaining.");
                 }
             }
             catch (Exception ex)
@@ -620,7 +630,6 @@ namespace DoAn_NT106.Server
                 return CreateResponse(false, $"Login error: {ex.Message}");
             }
         }
-
         private string HandleVerifyToken(Request request)
         {
             try
