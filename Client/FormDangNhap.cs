@@ -1,6 +1,8 @@
 ﻿using DoAn_NT106.Services;
 using System;
 using System.Drawing;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -37,6 +39,9 @@ namespace DoAn_NT106
 
             SetupFloatingAnimation();                         
             tcpClient = PersistentTcpClient.Instance;         
+            tcpClient = PersistentTcpClient.Instance;
+            this.Load += FormDangNhap_Load;
+            tcpClient.OnDisconnected += HandleServerDisconnected;
 
             if (!isAutoLoginPerformed)
             {
@@ -92,6 +97,112 @@ namespace DoAn_NT106
             this.BringToFront();
             this.Focus();
         }
+
+        private async void FormDangNhap_Load(object sender, EventArgs e)
+        {
+            // Kiểm tra kết nối server ngay khi form load
+            await CheckServerConnectionAsync();
+
+            await ConnectionHelper.CheckConnectionOnLoadAsync(
+            this,
+            onSuccess: () => SetControlsEnabled(true),  // Enable lại khi thành công
+            onFail: null
+            );// Mặc định sẽ hiện dialog retry/cancel
+        }
+
+        private void HandleServerDisconnected(string message)
+        {
+            ConnectionHelper.HandleDisconnect(
+                this,
+                message,
+                onRetrySuccess: () => SetControlsEnabled(true),
+                onCancel: () => this.Close()
+            );
+        }
+
+        private async Task CheckServerConnectionAsync()
+        {
+            // Disable các control trong khi kiểm tra
+            SetControlsEnabled(false);
+            this.Text = "Login - Checking Connection...";
+            this.Cursor = Cursors.WaitCursor;
+
+            try
+            {
+                Console.WriteLine("🔍 Checking server connection...");
+
+                // Thử kết nối đến server, timeout 5 giây trong PersistentTcpClient
+                bool isConnected = await tcpClient.ConnectAsync();
+
+                if (isConnected)
+                {
+                    Console.WriteLine("✅ Server connection successful!");
+                    this.Text = "Đăng Nhập";
+                    SetControlsEnabled(true);
+                }
+                else
+                {
+                    Console.WriteLine("❌ Server connection failed!");
+                    ShowConnectionError();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Connection check error: {ex.Message}");
+                ShowConnectionError();
+            }
+            finally
+            {
+                this.Cursor = Cursors.Default;
+            }
+        }
+
+        private void SetControlsEnabled(bool enabled)
+        {
+            if (this.InvokeRequired)
+            {
+                this.Invoke(new Action(() => SetControlsEnabled(enabled)));
+                return;
+            }
+
+            btn_Login.Enabled = enabled;
+            btn_Register.Enabled = enabled;
+            btn_Forgot.Enabled = enabled;
+            tb_Username.Enabled = enabled;
+            tb_Password.Enabled = enabled;
+            chk_Remember.Enabled = enabled;
+            chk_ShowPassword.Enabled = enabled;
+            chk_Captcha.Enabled = enabled;
+        }
+
+        private void ShowConnectionError()
+        {
+            this.Text = "Login - Unable to connect";
+
+            var result = MessageBox.Show(
+                "❌ Unable to connect to the server!\n\n" +
+                "Please check:\n" +
+                "• Is the server running?\n" +
+                "• Is your network connection stable?\n" +
+                "• Is the firewall blocking the connection?\n\n" +
+                "Do you want to try again?",
+                "⚠️ Connection Error",
+                MessageBoxButtons.RetryCancel,
+                MessageBoxIcon.Warning
+            );
+
+            if (result == DialogResult.Retry)
+            {
+                // Thử kết nối lại
+                _ = CheckServerConnectionAsync();
+            }
+            else
+            {
+                // Đóng form đăng nhập
+                this.Close();
+            }
+        }
+
 
         #endregion
 
@@ -387,6 +498,11 @@ namespace DoAn_NT106
             if (e.CloseReason == CloseReason.UserClosing)
             {
                 e.Cancel = false;
+            }
+
+            if (tcpClient != null)
+            {
+                tcpClient.OnDisconnected -= HandleServerDisconnected;
             }
 
             base.OnFormClosing(e);
