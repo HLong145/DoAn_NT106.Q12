@@ -16,6 +16,14 @@ namespace DoAn_NT106
         private int _roundNumber = 1;
         private int _player1Wins = 0;
         private int _player2Wins = 0;
+        // Number of rounds that have been completed
+        private int _roundsPlayed = 0;
+        // Guard to prevent double-processing of round end
+        private bool _roundEnding = false;
+        // Lock for round state updates to avoid race conditions
+        private readonly object _roundLock = new object();
+        // Timestamp when last round start animation was shown (ms)
+        private int _lastRoundStartShownMs = 0;
         private System.Windows.Forms.Timer _roundTimer;
         private int _roundTimeRemainingMs = 3 * 60 * 1000; // 3 minutes per round
         private Label _lblRoundCenter; // centered between HP/Stamina/Mana bars
@@ -106,6 +114,8 @@ namespace DoAn_NT106
             _roundNumber = 1;
             _player1Wins = 0;
             _player2Wins = 0;
+            _roundsPlayed = 0;
+            _roundEnding = false;
             _roundTimeRemainingMs = 3 * 60 * 1000; // 3 minutes per round
             _roundInProgress = false;
             _player1ManaCarryover = 0;
@@ -294,6 +304,8 @@ namespace DoAn_NT106
             }
             
             _roundStartCountdownMs = 1000; // 1 seconds
+            // Use 2s visible ROUND animation by default (matches comment)
+            _roundStartCountdownMs = 2000;
             _lblRoundStart.Text = $"ROUND {_roundNumber}";
             // ✅ Play round announcement sound (Stop only sound effects, NOT music)
             try
@@ -332,18 +344,20 @@ namespace DoAn_NT106
             _lblRoundStart.BringToFront();
             gameTimer?.Stop(); // Lock input during countdown
             
-            if (_roundStartTimer != null && !_roundStartTimer.Enabled)
-                _roundStartTimer.Start();
-            
-            if (_roundTimer != null && !_roundTimer.Enabled)
-                _roundTimer.Start();
-            
+            // Restart start countdown timer
+            try { _roundStartTimer?.Stop(); } catch { }
+            if (_roundStartTimer != null) _roundStartTimer.Start();
+
+            // Ensure round timer is stopped until gameplay actually begins
+            try { _roundTimer?.Stop(); } catch { }
+
             _roundInProgress = false; // Lock gameplay during countdown
             
             // ✅ Cập nhật lại center text với tên player
             UpdateRoundCenterText();
             
             Console.WriteLine($"[RoundSystem] Displaying ROUND {_roundNumber} at center");
+            Console.WriteLine($"[RoundSystem] Displaying ROUND {_roundNumber} at center (startCountdown={_roundStartCountdownMs}ms)");
         }
 
         // Safely attempt to play round announcement sound if enum/value exists
@@ -491,86 +505,150 @@ namespace DoAn_NT106
                 
                 // Enable gameplay
                 _roundInProgress = true;
+                // Start round countdown now that gameplay begins
+                try { if (_roundTimer != null && !_roundTimer.Enabled) _roundTimer.Start(); } catch { }
                 gameTimer?.Start();
+                Console.WriteLine($"[RoundSystem] RoundStartTimer finished -> roundInProgress={_roundInProgress}, roundNumber={_roundNumber}, roundsPlayed={_roundsPlayed}, P1wins={_player1Wins}, P2wins={_player2Wins}");
             }
         }
 
         /// <summary>Handles round timeout (time expired - lower HP loses)</summary>
         private void HandleRoundTimeout()
         {
-            _roundInProgress = false;
-            _roundTimer?.Stop();
-
-            // ✅ THÊM: Lưu mana hiện tại trước khi qua hiệp
-            _player1ManaCarryover = player1State.Mana;
-            _player2ManaCarryover = player2State.Mana;
-
-            // Determine winner by HP
-            if (player1State.Health < player2State.Health)
-                _player2Wins++;
-            else if (player2State.Health < player1State.Health)
-                _player1Wins++;
-            // Equal HP = tie, no win awarded
-
-            // Check if match ends (first to 2 wins)
-            if (_player1Wins >= 2 || _player2Wins >= 2)
+            // Ignore round end events while round isn't in progress (prevent handling during countdown/start)
+            if (!_roundInProgress)
             {
-                EndMatch(_player1Wins >= 2 ? username : opponent);
+                Console.WriteLine("[RoundSystem] Ignored HandleRoundTimeout because round is not in progress");
                 return;
             }
 
-            // If we've already played 3 rounds and nobody reached 2 wins -> draw
-            if (_roundNumber >= 3)
+            lock (_roundLock)
             {
-                EndMatchDraw();
-                return;
-            }
+                if (_roundEnding) return; // already handling
+                _roundEnding = true;
 
-            // Start next round (only if less than 3 rounds played)
-            _roundNumber++;
-            StartNextRound();
+                try
+                {
+                    _roundInProgress = false;
+                    try { _roundTimer?.Stop(); } catch { }
+
+                    // ✅ THÊM: Lưu mana hiện tại trước khi qua hiệp
+                    _player1ManaCarryover = player1State.Mana;
+                    _player2ManaCarryover = player2State.Mana;
+
+                    // Determine winner by HP
+                    if (player1State.Health < player2State.Health)
+                        _player2Wins++;
+                    else if (player2State.Health < player1State.Health)
+                        _player1Wins++;
+
+                    // Mark this round as completed
+                    _roundsPlayed++;
+
+                    Console.WriteLine($"[RoundSystem] Round ended. roundsPlayed={_roundsPlayed}, P1wins={_player1Wins}, P2wins={_player2Wins}");
+
+                    // Check if match ends (first to 2 wins). Require at least 2 rounds played
+                    if ((_player1Wins >= 2 || _player2Wins >= 2) && _roundsPlayed >= 2)
+                    {
+                        EndMatch(_player1Wins >= 2 ? username : opponent);
+                        return;
+                    }
+
+                    // If we've already completed 3 rounds and nobody reached 2 wins -> draw
+                    if (_roundsPlayed >= 3)
+                    {
+                        EndMatchDraw();
+                        return;
+                    }
+
+                    // Prepare for next round
+                    _roundNumber = _roundsPlayed + 1; // next round number (1-based)
+                    StartNextRound();
+                }
+                finally
+                {
+                    _roundEnding = false;
+                }
+            }
         }
 
         /// <summary>Handles round end by death (someone's HP reached 0)</summary>
         private void HandleRoundEndByDeath()
         {
-            _roundInProgress = false;
-            _roundTimer?.Stop();
-
-            // ✅ THÊM: Lưu mana hiện tại trước khi qua hiệp
-            _player1ManaCarryover = player1State.Mana;
-            _player2ManaCarryover = player2State.Mana;
-
-            // Award win to survivor
-            if (player1State.IsDead && !player2State.IsDead)
-                _player2Wins++;
-            else if (player2State.IsDead && !player1State.IsDead)
-                _player1Wins++;
-            // Both dead = tie, no win awarded
-
-            // Check if match ends
-            if (_player1Wins >= 2 || _player2Wins >= 2)
+            // Ignore death events while round isn't in progress (e.g., during countdown)
+            if (!_roundInProgress)
             {
-                EndMatch(_player1Wins >= 2 ? username : opponent);
+                Console.WriteLine("[RoundSystem] Ignored HandleRoundEndByDeath because round is not in progress");
                 return;
             }
 
-            // If we've already played 3 rounds and nobody reached 2 wins -> draw
-            if (_roundNumber >= 3)
+            lock (_roundLock)
             {
-                EndMatchDraw();
-                return;
-            }
+                if (_roundEnding) return; // already handling
+                _roundEnding = true;
 
-            // Start next round (only if less than 3 rounds played)
-            _roundNumber++;
-            StartNextRound();
+                try
+                {
+                    _roundInProgress = false;
+                    try { _roundTimer?.Stop(); } catch { }
+
+                    // ✅ THÊM: Lưu mana hiện tại trước khi qua hiệp
+                    _player1ManaCarryover = player1State.Mana;
+                    _player2ManaCarryover = player2State.Mana;
+
+                    // Award win to survivor
+                    if (player1State.IsDead && !player2State.IsDead)
+                        _player2Wins++;
+                    else if (player2State.IsDead && !player1State.IsDead)
+                        _player1Wins++;
+
+                    // Both dead = tie, no win awarded; check for double KO
+                    if (player1State.IsDead && player2State.IsDead)
+                    {
+                        Console.WriteLine("[RoundSystem] Double KO - no winner this round");
+                    }
+                    else
+                    {
+                        // Mark this round as completed
+                        _roundsPlayed++;
+                    }
+
+                    Console.WriteLine($"[RoundSystem] Round ended by death. roundsPlayed={_roundsPlayed}, P1wins={_player1Wins}, P2wins={_player2Wins}");
+
+                    // Check if match ends (first to 2 wins). Require at least 2 rounds played
+                    if ((_player1Wins >= 2 || _player2Wins >= 2) && _roundsPlayed >= 2)
+                    {
+                        EndMatch(_player1Wins >= 2 ? username : opponent);
+                        return;
+                    }
+
+                    // If we've already completed 3 rounds and nobody reached 2 wins -> draw
+                    if (_roundsPlayed >= 3)
+                    {
+                        EndMatchDraw();
+                        return;
+                    }
+
+                    // Prepare for next round
+                    _roundNumber = _roundsPlayed + 1; // next round number
+                    StartNextRound();
+                }
+                finally
+                {
+                    _roundEnding = false;
+                }
+            }
         }
 
         /// <summary>Resets game state and starts next round</summary>
         private void StartNextRound()
         {
-            // Reset round timer
+            // Ensure all timers stopped before preparing next round
+            try { gameTimer?.Stop(); } catch { }
+            try { _roundTimer?.Stop(); } catch { }
+            try { _roundStartTimer?.Stop(); } catch { }
+
+            // Reset round timer value
             _roundTimeRemainingMs = 3 * 60 * 1000;
             UpdateRoundCenterText();
 
@@ -635,7 +713,13 @@ namespace DoAn_NT106
             Console.WriteLine($"  P2: HP={player2State.Health} IsDead={player2State.IsDead} Stamina={player2State.Stamina}");
 
             // Start round countdown animation
+            // Ensure start countdown will run freshly
+            _roundStartCountdownMs = 2000;
+            // Prevent immediate EndMatch due to race by ensuring a short buffer before enabling gameplay
+            _lastRoundStartShownMs = Environment.TickCount;
             DisplayRoundStartAnimation();
+
+            Console.WriteLine($"[StartNextRound] Launched next round {_roundNumber} (roundsPlayed={_roundsPlayed}, P1wins={_player1Wins}, P2wins={_player2Wins})");
             this.Invalidate();
         }
 
