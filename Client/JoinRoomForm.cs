@@ -193,6 +193,38 @@ namespace PixelGameLobby
             }
         }
 
+        private async Task ReconnectRoomListClientAsync()
+        {
+            try
+            {
+                Console.WriteLine("[JoinRoomForm] Reconnecting RoomListClient...");
+
+                roomListClient = new RoomListClient();
+
+                // Đăng ký events
+                roomListClient.OnRoomListUpdated += HandleRoomListUpdate;
+                roomListClient.OnError += (error) =>
+                {
+                    Console.WriteLine($"❌ RoomListClient error: {error}");
+                };
+
+                // Connect và subscribe
+                bool connected = await roomListClient.ConnectAndSubscribeAsync(username, token);
+
+                if (connected)
+                {
+                    Console.WriteLine("[JoinRoomForm] ✅ RoomListClient reconnected successfully");
+                }
+                else
+                {
+                    Console.WriteLine("[JoinRoomForm] ❌ Failed to reconnect RoomListClient");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[JoinRoomForm] ❌ ReconnectRoomListClient error: {ex.Message}");
+            }
+        }
         #endregion
 
         #region Room Loading from Server
@@ -259,9 +291,72 @@ namespace PixelGameLobby
 
         private async void BtnRefresh_Click(object sender, EventArgs e)
         {
-            ShowMessage("Refreshing...");
-        }
+            if (isLoadingRooms) return;
 
+            try
+            {
+                isLoadingRooms = true;
+                btn_refresh.Enabled = false;
+                btn_refresh.Text = "⏳";
+
+                Console.WriteLine("[JoinRoomForm] Refreshing room list...");
+
+                // Gọi API lấy danh sách phòng từ server
+                var response = await TcpClient.GetRoomListAsync();
+
+                if (response.Success)
+                {
+                    // Parse dữ liệu phòng từ response
+                    var newRooms = new List<Room>();
+
+                    if (response.Data != null && response.Data.TryGetValue("rooms", out var roomsObj))
+                    {
+                        if (roomsObj is System.Text.Json.JsonElement jsonElement)
+                        {
+                            foreach (var item in jsonElement.EnumerateArray())
+                            {
+                                try
+                                {
+                                    var room = new Room
+                                    {
+                                        Code = item.GetProperty("RoomCode").GetString(),
+                                        Name = item.GetProperty("RoomName").GetString() ?? "Unnamed Room",
+                                        IsLocked = item.GetProperty("HasPassword").GetBoolean(),
+                                        Players = $"{item.GetProperty("PlayerCount").GetInt32()}/2"
+                                    };
+                                    newRooms.Add(room);
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine($"[JoinRoomForm] Parse room error: {ex.Message}");
+                                }
+                            }
+                        }
+                    }
+
+                    // Cập nhật danh sách phòng
+                    rooms.Clear();
+                    rooms.AddRange(newRooms);
+                    UpdateRoomsDisplay();
+
+                    Console.WriteLine($"[JoinRoomForm] ✅ Refreshed: {newRooms.Count} rooms found");
+                }
+                else
+                {
+                    Console.WriteLine($"[JoinRoomForm] ❌ Refresh failed: {response.Message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[JoinRoomForm] ❌ Refresh error: {ex.Message}");
+            }
+            finally
+            {
+                isLoadingRooms = false;
+                btn_refresh.Enabled = true;
+                btn_refresh.Text = "🔄";
+            }
+        }
         #endregion
 
         #region Rooms UI Rendering
@@ -474,27 +569,20 @@ namespace PixelGameLobby
         {
             try
             {
-                // Disable các nút join/create để tránh spam
                 SetJoinButtonsEnabled(false);
 
                 var response = await TcpClient.JoinRoomAsync(roomCode, password, username);
                 if (response.Success)
                 {
-                    // Ngắt global chat
-                    globalChatClient?.Dispose();
-                    globalChatClient = null;
+                    // Cleanup trước khi đóng form
+                    CleanupBeforeClose();
 
-                    // Mở GameLobbyForm
+                    // Mở GameLobbyForm với thông tin user
                     var lobbyForm = new GameLobbyForm(roomCode, username, token);
-                    lobbyForm.FormClosed += async (s, e) =>
-                    {
-                        // Khi đóng lobby, show lại JoinRoomForm và kết nối global chat
-                        this.Show();
-                        await ConnectGlobalChatAsync();
-                    };
-
                     lobbyForm.Show();
-                    this.Hide();
+
+                    // Đóng JoinRoomForm hoàn toàn
+                    this.Close();
                 }
                 else
                 {
@@ -954,20 +1042,31 @@ namespace PixelGameLobby
         {
             base.OnFormClosing(e);
 
+            // Cleanup khi form đóng
+            CleanupBeforeClose();
+        }
+
+        private void CleanupBeforeClose()
+        {
             try
             {
+                Console.WriteLine("[JoinRoomForm] Cleaning up before close...");
+
                 // Disconnect room list client
                 roomListClient?.Disconnect();
+                roomListClient = null;
 
                 // Disconnect global chat
                 globalChatClient?.Dispose();
+                globalChatClient = null;
+
+                Console.WriteLine("[JoinRoomForm] ✅ Cleanup complete");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Form closing error: {ex.Message}");
+                Console.WriteLine($"[JoinRoomForm] ⚠️ Cleanup error: {ex.Message}");
             }
         }
-
         #endregion
 
         #region Data Models
