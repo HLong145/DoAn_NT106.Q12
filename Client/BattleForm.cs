@@ -945,6 +945,23 @@ namespace DoAn_NT106
                 this.BeginInvoke(new Action(() =>
                 {
                     var opp = opponentNum == 1 ? player1State : player2State;
+                    var oppAnimMgr = opponentNum == 1 ? player1AnimationManager : player2AnimationManager;
+                    
+                    // ✅ KIỂM TRA: Nếu animation thay đổi, RESET frame
+                    if (opp.CurrentAnimation != action && !string.IsNullOrEmpty(action))
+                    {
+                        // Reset animation của đối thủ TRƯỚC khi thay đổi
+                        try
+                        {
+                            oppAnimMgr.ResetAnimationToFirstFrame(action);
+                            Console.WriteLine($"[UDP] ✅ Reset opponent animation: {opp.CurrentAnimation} → {action}");
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[UDP] ⚠️ Reset animation error: {ex.Message}");
+                        }
+                    }
+                    
                     opp.X = x;
                     opp.Y = y;
                     opp.Health = health;
