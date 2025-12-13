@@ -1047,17 +1047,28 @@ namespace DoAn_NT106
                                     {
                                         try
                                         {
-                                            // UDP is only used for fast state sync. Do NOT call ApplyDamage here
-                                            // to avoid duplicate application — server/TCP is authoritative and
-                                            // will send the reliable GAME_DAMAGE which triggers the real apply.
+                                            // ✅ SỬA: Gọi ApplyDamage() từ CombatSystem để xử lý animation hurt, stun, hit effect
+                                            // Điều này đảm bảo animation hurt được reset và hiệu ứng hit được hiển thị
+                                            combatSystem.IsNetworked = true;
+                                            combatSystem.LocalPlayerNumber = myPlayerNumber;
+                                            
                                             var me = myPlayerNumber == 1 ? player1State : player2State;
-                                            // Update HP immediately to keep UI responsive but do not run
-                                            // hurt animation or stun logic here.
-                                            me.Health = dmgResulting;
-                                            // Show a local hit effect for responsiveness
-                                            ShowHitEffect($"-{dmgAmount}", Color.Red);
-                                            // Also send immediate UDP health update to reinforce state to attacker
-                                            udpClient?.SendImmediateHealthUpdate(me.Health, 0);
+                                            var currentHealth = me.Health;
+                                            
+                                            // ApplyDamage sẽ xử lý:
+                                            // 1. Kiểm tra dash/parry
+                                            // 2. Cập nhật HP (TakeDamage)
+                                            // 3. Đặt IsStunned = true
+                                            // 4. Reset animation sang "hurt"
+                                            // 5. Hiển thị hit effect
+                                            // 6. Kích hoạt stun timer
+                                            
+                                            int damage = currentHealth - dmgResulting;
+                                            if (damage > 0)
+                                            {
+                                                // Chỉ gọi ApplyDamage nếu HP thực sự giảm
+                                                combatSystem.ApplyDamage(myPlayerNumber, damage, true);
+                                            }
                                         }
                                         catch (Exception ex)
                                         {
@@ -1083,65 +1094,75 @@ namespace DoAn_NT106
                     var prevAnim = opponentNum == 1 ? _prevAnimPlayer1 : _prevAnimPlayer2;
                     
                     // ✅ LOGIC:
+                    // - KHÔNG CẬP NHẬT NẾU ĐÃ ĐANG TẤN CÔNG - LET ANIMATION PLAY FULL
                     // - Lần đầu (idle → walk): CẬP NHẬT + Reset
                     // - Lần tiếp (walk → walk): KHÔNG cập nhật
                     // - Thay đổi sang khác: CẬP NHẬT + Reset
                     // - stand → stand: KHÔNG cập nhật (IGNORE idle updates)
                     
-                    bool isWalkOrJump = action == "walk" || action == "jump";
-                    bool currentIsWalkOrJump = opp.CurrentAnimation == "walk" || opp.CurrentAnimation == "jump";
-                    bool animationChanged = opp.CurrentAnimation != action;
-                    
-                    // ✅ IGNORE: stand → stand (không cập nhật idle state từ opponent)
-                    if (action == "stand" && opp.CurrentAnimation == "stand")
+                    // ✅ NẾU ĐÃ ATTACK: KHÔNG CẬP NHẬT - ĐỢI ANIMATION CHẠY XONG
+                    if (opp.IsAttacking && (opp.CurrentAnimation == "punch" || opp.CurrentAnimation == "kick" || opp.CurrentAnimation == "fireball"))
                     {
-                        // Bỏ qua - không làm gì
-                        Console.WriteLine($"[UDP] ⏭️ Ignored: stand → stand");
+                        Console.WriteLine($"[UDP] ⏭️ Skipped animation update during attack: {opp.CurrentAnimation} (stay in attack until done)");
+                        // KHÔNG cập nhật animation - để nó chạy hết
                     }
-                    // Nếu animation thay đổi (và không phải stand → stand)
-                    else if (animationChanged)
-                    {
-                        // Nếu thay đổi sang walk/jump từ animation khác (lần đầu)
-                        if (isWalkOrJump && !currentIsWalkOrJump)
-                        {
-                            try
-                            {
-                                oppAnimMgr.ResetAnimationToFirstFrame(action);
-                                opp.CurrentAnimation = action;
-                                Console.WriteLine($"[UDP] ✅ Changed to walk/jump: {prevAnim} → {action}");
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine($"[UDP] ⚠️ Reset animation error: {ex.Message}");
-                            }
-                        }
-                        // Nếu thay đổi sang animation khác (punch, kick, stand, etc.)
-                        else if (!isWalkOrJump)
-                        {
-                            try
-                            {
-                                oppAnimMgr.ResetAnimationToFirstFrame(action);
-                                opp.CurrentAnimation = action;
-                                Console.WriteLine($"[UDP] ✅ Changed animation: {prevAnim} → {action}");
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine($"[UDP] ⚠️ Reset animation error: {ex.Message}");
-                            }
-                        }
-                        // walk → jump hoặc jump → walk: cập nhật nhưng KHÔNG reset
-                        else if (isWalkOrJump && currentIsWalkOrJump)
-                        {
-                            opp.CurrentAnimation = action;
-                            Console.WriteLine($"[UDP] → Changed within walk/jump: {prevAnim} → {action} (NO RESET)");
-                        }
-                    }
-                    
-                    // ✅ CẬP NHẬT animation trước đó cho lần tiếp theo
-                    if (opponentNum == 1)
-                        _prevAnimPlayer1 = action;
                     else
-                        _prevAnimPlayer2 = action;
+                    {
+                        bool isWalkOrJump = action == "walk" || action == "jump";
+                        bool currentIsWalkOrJump = opp.CurrentAnimation == "walk" || opp.CurrentAnimation == "jump";
+                        bool animationChanged = opp.CurrentAnimation != action;
+                        
+                        // ✅ IGNORE: stand → stand (không cập nhật idle state từ opponent)
+                        if (action == "stand" && opp.CurrentAnimation == "stand")
+                        {
+                            // Bỏ qua - không làm gì
+                            Console.WriteLine($"[UDP] ⏭️ Ignored: stand → stand");
+                        }
+                        // Nếu animation thay đổi (và không phải stand → stand)
+                        else if (animationChanged)
+                        {
+                            // Nếu thay đổi sang walk/jump từ animation khác (lần đầu)
+                            if (isWalkOrJump && !currentIsWalkOrJump)
+                            {
+                                try
+                                {
+                                    oppAnimMgr.ResetAnimationToFirstFrame(action);
+                                    opp.CurrentAnimation = action;
+                                    Console.WriteLine($"[UDP] ✅ Changed to walk/jump: {prevAnim} → {action}");
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine($"[UDP] ⚠️ Reset animation error: {ex.Message}");
+                                }
+                            }
+                            // Nếu thay đổi sang animation khác (punch, kick, stand, etc.)
+                            else if (!isWalkOrJump)
+                            {
+                                try
+                                {
+                                    oppAnimMgr.ResetAnimationToFirstFrame(action);
+                                    opp.CurrentAnimation = action;
+                                    Console.WriteLine($"[UDP] ✅ Changed animation: {prevAnim} → {action}");
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine($"[UDP] ⚠️ Reset animation error: {ex.Message}");
+                                }
+                            }
+                            // walk → jump hoặc jump → walk: cập nhật nhưng KHÔNG reset
+                            else if (isWalkOrJump && currentIsWalkOrJump)
+                            {
+                                opp.CurrentAnimation = action;
+                                Console.WriteLine($"[UDP] → Changed within walk/jump: {prevAnim} → {action} (NO RESET)");
+                            }
+                        }
+                        
+                        // ✅ CẬP NHẬT animation trước đó cho lần tiếp theo
+                        if (opponentNum == 1)
+                            _prevAnimPlayer1 = action;
+                        else
+                            _prevAnimPlayer2 = action;
+                    }
                     
                     opp.X = x;
                     opp.Y = y;
@@ -1904,16 +1925,6 @@ namespace DoAn_NT106
                     g.SmoothingMode = prevSmoothing;
                     g.PixelOffsetMode = prevPixelOffset;
                     g.CompositingQuality = prevCompositing;
-                }
-            }
-            else
-            {
-                // If animation not available, draw subtle placeholder (avoid bright magenta flash)
-                using (var brush = new SolidBrush(Color.FromArgb(200, 34, 25, 18)))
-                using (var pen = new Pen(Color.FromArgb(220, 0, 0, 0), 2))
-                {
-                    g.FillRectangle(brush, screenX, y, PLAYER_WIDTH, PLAYER_HEIGHT);
-                    g.DrawRectangle(pen, screenX, y, PLAYER_WIDTH - 1, PLAYER_HEIGHT - 1);
                 }
             }
         }
