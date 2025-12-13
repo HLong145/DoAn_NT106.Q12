@@ -1035,28 +1035,36 @@ namespace DoAn_NT106
                             // If the damage target is this client, apply damage locally via CombatSystem
                             if (dmgTarget == myPlayerNumber)
                             {
-                                Console.WriteLine($"[UDP] Received DAMAGE notification for me: dmg={dmgAmount} resultingHP={dmgResulting}");
-                                this.BeginInvoke(new Action(() =>
+                                // If we are currently in round transition/countdown, ignore late UDP damage
+                                if (!_roundInProgress)
                                 {
-                                    try
+                                    Console.WriteLine("[UDP] Ignored DAMAGE during round transition/countdown");
+                                }
+                                else
+                                {
+                                    Console.WriteLine($"[UDP] Received DAMAGE notification for me: dmg={dmgAmount} resultingHP={dmgResulting}");
+                                    this.BeginInvoke(new Action(() =>
                                     {
-                                        // UDP is only used for fast state sync. Do NOT call ApplyDamage here
-                                        // to avoid duplicate application — server/TCP is authoritative and
-                                        // will send the reliable GAME_DAMAGE which triggers the real apply.
-                                        var me = myPlayerNumber == 1 ? player1State : player2State;
-                                        // Update HP immediately to keep UI responsive but do not run
-                                        // hurt animation or stun logic here.
-                                        me.Health = dmgResulting;
-                                        // Show a local hit effect for responsiveness
-                                        ShowHitEffect($"-{dmgAmount}", Color.Red);
-                                        // Also send immediate UDP health update to reinforce state to attacker
-                                        udpClient?.SendImmediateHealthUpdate(me.Health, 0);
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        Console.WriteLine($"[UDP] Error applying damage locally: {ex.Message}");
-                                    }
-                                }));
+                                        try
+                                        {
+                                            // UDP is only used for fast state sync. Do NOT call ApplyDamage here
+                                            // to avoid duplicate application — server/TCP is authoritative and
+                                            // will send the reliable GAME_DAMAGE which triggers the real apply.
+                                            var me = myPlayerNumber == 1 ? player1State : player2State;
+                                            // Update HP immediately to keep UI responsive but do not run
+                                            // hurt animation or stun logic here.
+                                            me.Health = dmgResulting;
+                                            // Show a local hit effect for responsiveness
+                                            ShowHitEffect($"-{dmgAmount}", Color.Red);
+                                            // Also send immediate UDP health update to reinforce state to attacker
+                                            udpClient?.SendImmediateHealthUpdate(me.Health, 0);
+                                        }
+                                        catch (Exception ex)
+                                        {
+                                            Console.WriteLine($"[UDP] Error applying damage locally: {ex.Message}");
+                                        }
+                                    }));
+                                }
                             }
                         }
                     }
@@ -1900,9 +1908,12 @@ namespace DoAn_NT106
             }
             else
             {
-                using (var brush = new SolidBrush(Color.Magenta))
+                // If animation not available, draw subtle placeholder (avoid bright magenta flash)
+                using (var brush = new SolidBrush(Color.FromArgb(200, 34, 25, 18)))
+                using (var pen = new Pen(Color.FromArgb(220, 0, 0, 0), 2))
                 {
                     g.FillRectangle(brush, screenX, y, PLAYER_WIDTH, PLAYER_HEIGHT);
+                    g.DrawRectangle(pen, screenX, y, PLAYER_WIDTH - 1, PLAYER_HEIGHT - 1);
                 }
             }
         }

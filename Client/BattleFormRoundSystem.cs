@@ -146,7 +146,7 @@ namespace DoAn_NT106
                     Size = new Size(600, 200),
                     ForeColor = Color.Red,
                     Font = new Font("Arial", 80, FontStyle.Bold),
-                    BackColor = Color.Transparent,
+                    BackColor = Color.FromArgb(200, 0, 0, 0), // semi-transparent black to avoid flash
                     TextAlign = ContentAlignment.MiddleCenter,
                     Visible = false
                 };
@@ -597,6 +597,9 @@ namespace DoAn_NT106
             // Reset all combat statuses
             player1State.IsStunned = false;
             player2State.IsStunned = false;
+            // Ensure health is positive (reset done above) and clear any lingering timers/states by forcing regen/update
+            try { player1State.RegenerateResources(); } catch { }
+            try { player2State.RegenerateResources(); } catch { }
             player1State.IsAttacking = false;
             player2State.IsAttacking = false;
             player1State.IsParrying = false;
