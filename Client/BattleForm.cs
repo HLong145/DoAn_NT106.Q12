@@ -1745,9 +1745,66 @@ namespace DoAn_NT106
                                 else
                                 {
                                     // Online room lobby
-                                    var lobbyForm = new PixelGameLobby.GameLobbyForm(roomCode, username, token);
-                                    lobbyForm.StartPosition = FormStartPosition.CenterScreen;
-                                    lobbyForm.Show();
+                                    try
+                                    {
+                                        var tcp = DoAn_NT106.Services.PersistentTcpClient.Instance;
+                                        // Leave the lobby on server in background
+                                        _ = System.Threading.Tasks.Task.Run(async () =>
+                                        {
+                                            try
+                                            {
+                                                var r = await tcp.LeaveRoomAsync(roomCode, username);
+                                                Console.WriteLine($"[BattleForm] LeaveRoomAsync: {r.Success} - {r.Message}");
+                                            }
+                                            catch (Exception ex)
+                                            {
+                                                Console.WriteLine($"[BattleForm] LeaveRoomAsync error: {ex.Message}");
+                                            }
+                                        });
+
+                                        // Close any open lobby windows (GameLobby / PixelGameLobby) so we return cleanly
+                                        try
+                                        {
+                                            var open = Application.OpenForms.OfType<Form>().ToList();
+                                            foreach (var f in open)
+                                            {
+                                                var t = f.GetType().Name ?? "";
+                                                if (t.Contains("GameLobby") || t.Contains("PixelGameLobby") || t.Contains("LobbyForm"))
+                                                {
+                                                    try { if (!f.IsDisposed && f != this) f.Close(); } catch { }
+                                                }
+                                            }
+                                        }
+                                        catch { }
+
+                                        // Return to JoinRoomForm so player sees lobby list
+                                        try
+                                        {
+                                            var existing = Application.OpenForms.OfType<PixelGameLobby.JoinRoomForm>().FirstOrDefault();
+                                            if (existing != null)
+                                            {
+                                                if (existing.WindowState == FormWindowState.Minimized) existing.WindowState = FormWindowState.Normal;
+                                                existing.Show();
+                                                existing.BringToFront();
+                                            }
+                                            else
+                                            {
+                                                var join = new PixelGameLobby.JoinRoomForm(username, token)
+                                                {
+                                                    StartPosition = FormStartPosition.CenterScreen
+                                                };
+                                                join.Show();
+                                            }
+                                        }
+                                        catch (Exception ex)
+                                        {
+                                            Console.WriteLine($"[BattleForm] Error showing JoinRoomForm: {ex.Message}");
+                                        }
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        Console.WriteLine($"[BattleForm] Error returning to lobby: {ex.Message}");
+                                    }
                                 }
                             }
                             else
@@ -1759,8 +1816,8 @@ namespace DoAn_NT106
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine("Main menu open error: " + ex.Message);
-                    ResumeGame();
+                    Console.WriteLine($"[BattleForm] Escape menu error: {ex.Message}");
+                    try { ResumeGame(); } catch { }
                 }
             }
 
@@ -2042,7 +2099,7 @@ namespace DoAn_NT106
             Rectangle p1Hb = GetPlayerHitbox(player1State);
             Rectangle p2Hb = GetPlayerHitbox(player2State);
             
-            // ✅ PRIMARY: Identify local and remote player
+            //  ✅ PRIMARY: Identify local and remote player
             PlayerState localPlayer = myPlayerNumber == 1 ? player1State : player2State;
             PlayerState remotePlayer = localPlayer == player1State ? player2State : player1State;
             Rectangle localHb = myPlayerNumber == 1 ? p1Hb : p2Hb;
