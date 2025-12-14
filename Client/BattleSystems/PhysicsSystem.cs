@@ -263,5 +263,65 @@ namespace DoAn_NT106.Client.BattleSystems
                 player.Y = groundLevel - playerHeight;
             }
         }
+
+        /// <summary>
+        /// ✅ THÊM: Áp dụng world boundaries - ngăn player đi ra ngoài bản đồ
+        /// </summary>
+        public void ApplyWorldBoundaries(PlayerState player, int worldWidth, int playerWidth)
+        {
+            // Ngăn player đi ra ngoài trái
+            if (player.X < 0)
+            {
+                player.X = 0;
+            }
+            
+            // Ngăn player đi ra ngoài phải
+            if (player.X > worldWidth - playerWidth)
+            {
+                player.X = worldWidth - playerWidth;
+            }
+        }
+
+        /// <summary>
+        /// ✅ THÊM: Áp dụng knockback với dự đoán boundary
+        /// Giảm knockback nếu dự đoán vị trí vượt biên
+        /// </summary>
+        public void ApplyKnockbackWithBoundary(PlayerState player, int knockbackForce, string direction, 
+                                              int worldWidth, int playerWidth)
+        {
+            // Dự đoán vị trí sau knockback
+            int predictedX = direction == "left" ? 
+                player.X - (knockbackForce * 2) : 
+                player.X + (knockbackForce * 2);
+            
+            // Nếu dự đoán ra ngoài biên, giảm knockback
+            if (predictedX < 0)
+            {
+                // Giảm knockback để dừng ở biên
+                int movement = player.X > 0 ? -player.X / 2 : 0;
+                player.X += movement;
+                Console.WriteLine($"[Physics] Reduced left knockback to avoid boundary");
+            }
+            else if (predictedX > worldWidth - playerWidth)
+            {
+                // Giảm knockback để dừng ở biên
+                int remaining = worldWidth - playerWidth - player.X;
+                int movement = remaining > 0 ? remaining / 2 : 0;
+                player.X += movement;
+                Console.WriteLine($"[Physics] Reduced right knockback to avoid boundary");
+            }
+            else
+            {
+                // Áp dụng knockback bình thường
+                if (direction == "left")
+                {
+                    player.X -= knockbackForce;
+                }
+                else
+                {
+                    player.X += knockbackForce;
+                }
+            }
+        }
     }
 }

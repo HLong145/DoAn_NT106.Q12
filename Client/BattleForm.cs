@@ -52,7 +52,7 @@ namespace DoAn_NT106
         private int playerSpeed = 14;
 
         // Kích thước background và viewport
-        private int backgroundWidth = 2000;
+        private int backgroundWidth = 2400; // ✅ TĂNG từ 2000 → 2400 để cover camera khi soft-overshoot
         private int viewportX = 0;
         private int groundLevel = 520;            // cập nhật động theo kích thước form
         private int groundOffset = 150;           // khoảng cách từ đáy cửa sổ tới "mặt đất" (tùy chỉnh theo background)
@@ -821,6 +821,56 @@ namespace DoAn_NT106
 
         // In BattleForm.cs - GameTimer_Tick() - VERSION CLEAN
 
+        // ===== NETWORK INTERPOLATION =====
+        /// <summary>
+        /// Interpolates opponent position between UDP packets to smooth out network lag
+        /// </summary>
+        private void InterpolateOpponentPosition()
+        {
+            if (!isOnlineMode || opponentPositionQueue.Count < 2) return;
+            
+            PlayerState opponent = myPlayerNumber == 1 ? player2State : player1State;
+            
+            long currentTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            long targetTime = currentTime - 50; // Delay 50ms để interpolation
+            
+            // Tìm 2 positions gần nhất để interpolate
+            (int x1, int y1, long t1) = opponentPositionQueue.Peek();
+            (int x2, int y2, long t2) = (0, 0, 0);
+            
+            // Lấy position thứ 2
+            var tempQueue = new Queue<(int x, int y, long timestamp)>(opponentPositionQueue);
+            tempQueue.Dequeue(); // Bỏ position đầu
+            if (tempQueue.Count > 0)
+            {
+                (x2, y2, t2) = tempQueue.Peek();
+            }
+            else
+            {
+                return; // Không đủ dữ liệu
+            }
+            
+            // Interpolation linear
+            if (t2 > t1 && targetTime >= t1 && targetTime <= t2)
+            {
+                float t = (float)(targetTime - t1) / (t2 - t1);
+                t = Math.Max(0, Math.Min(1, t));
+                
+                int interpolatedX = (int)(x1 + (x2 - x1) * t);
+                int interpolatedY = (int)(y1 + (y2 - y1) * t);
+                
+                opponent.X = interpolatedX;
+                opponent.Y = interpolatedY;
+            }
+            
+            // Xóa positions cũ (> 200ms)
+            while (opponentPositionQueue.Count > 0 && 
+                   currentTime - opponentPositionQueue.Peek().timestamp > 200)
+            {
+                opponentPositionQueue.Dequeue();
+            }
+        }
+
         private void GameTimer_Tick(object sender, EventArgs e)
         {
             // ===== MOVEMENT LOGIC =====
@@ -848,11 +898,17 @@ namespace DoAn_NT106
             physicsSystem.CheckWalkAnimation(player1State);
             physicsSystem.CheckWalkAnimation(player2State);
 
-            // ===== JUMP PHYSICS =====
-            physicsSystem.UpdateJump(player1State);
-            physicsSystem.UpdateJump(player2State);
+        // ===== JUMP PHYSICS =====
+        physicsSystem.UpdateJump(player1State);
+        physicsSystem.UpdateJump(player2State);
 
-            // ===== SYNC OLD VARIABLES =====
+        // ===== NETWORK INTERPOLATION: Smooth remote player movement =====
+        if (isOnlineMode)
+        {
+            InterpolateOpponentPosition();
+        }
+
+        // ===== SYNC OLD VARIABLES =====
             player1X = player1State.X;
             player1Y = player1State.Y;
             player2X = player2State.X;
@@ -885,6 +941,7 @@ namespace DoAn_NT106
             player2Mana = player2State.Mana;
 
             // ===== ONLINE SYNC: gửi state local cho server qua UDP =====
+            // ✅ SỬA: Gửi position cập nhật ngay lập tức mỗi frame, không buffer
             if (isOnlineMode && udpClient != null && udpClient.IsConnected)
             {
                 try
@@ -994,6 +1051,9 @@ namespace DoAn_NT106
                     projectile2Active = false;
             }
 
+            // ===== WORLD BOUNDARIES: Handled by PhysicsSystem.MovePlayer via hurtbox =====
+            // ✅ REMOVED: ApplyWorldBoundaries - hurtbox-based clamping in MovePlayer is sufficient
+
             // ===== UPDATE CAMERA =====
             UpdateCamera();
 
@@ -1013,6 +1073,11 @@ namespace DoAn_NT106
         }
 
         // ✅ THÊM: Xử lý state nhận từ UDP (đối thủ)
+        // ✅ NEW: Network interpolation fields for smooth remote player movement
+        private Queue<(int x, int y, long timestamp)> opponentPositionQueue = new Queue<(int, int, long)>();
+        private long lastOpponentUpdateTime = 0;
+        private int lastRemoteX = 0;
+        
         private void OnOpponentUdpState(byte[] data)
         {
             try
@@ -1038,6 +1103,20 @@ namespace DoAn_NT106
                 int health = data[11];
                 int stamina = data[12];
                 int mana = data[13];
+
+                // ✅ NEW: Queue position for interpolation
+                long timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                lock (opponentPositionQueue)
+                {
+                    opponentPositionQueue.Enqueue((x, y, timestamp));
+                    
+                    // Limit queue size to prevent memory leak
+                    if (opponentPositionQueue.Count > 10)
+                    {
+                        opponentPositionQueue.Dequeue();
+                    }
+                }
+                lastOpponentUpdateTime = timestamp;
 
                 // ✅ EXPANDED: Parse all combat flags (bytes 14-20)
                 string facing = data[14] == 'L' ? "left" : "right";
@@ -1433,6 +1512,9 @@ namespace DoAn_NT106
         {
             base.OnPaint(e);
 
+            // ✅ FIX: Fill background đầu tiên để không có lỗ đen
+            e.Graphics.Clear(Color.Black);
+
             // Draw background
             if (background != null)
             {
@@ -1440,6 +1522,11 @@ namespace DoAn_NT106
                     new Rectangle(0, 0, this.ClientSize.Width, this.ClientSize.Height),
                     new Rectangle(viewportX, 0, this.ClientSize.Width, this.ClientSize.Height),
                     GraphicsUnit.Pixel);
+            }
+            else
+            {
+                // ✅ Fallback: Fill color nếu không có background
+                e.Graphics.Clear(Color.DarkGreen);
             }
 
             // ===== ✅ MIGRATED: Draw effects (behind characters) =====
@@ -1582,48 +1669,364 @@ namespace DoAn_NT106
             }
             // Debug hitbox/hurtbox/skill drawing removed
         }
+        /// <summary>
+        /// ✅ THÊM: Emergency camera fix - đảm bảo cả hai player luôn visible
+        /// Gọi sau UpdateCameraWithSoftBoundaries
+        /// </summary>
+        private void EmergencyCameraFix()
+        {
+            int viewWidth = this.ClientSize.Width;
+            int screenLeft = viewportX;
+            int screenRight = viewportX + viewWidth;
+            
+            // Kiểm tra cả hai players
+            Rectangle p1Hb = GetPlayerHitbox(player1State);
+            Rectangle p2Hb = GetPlayerHitbox(player2State);
+            
+            bool p1Visible = p1Hb.Right >= screenLeft && p1Hb.Left <= screenRight;
+            bool p2Visible = p2Hb.Right >= screenLeft && p2Hb.Left <= screenRight;
+            
+            // Nếu có player không visible, điều chỉnh camera ngay lập tức
+            if (!p1Visible || !p2Visible)
+            {
+                Console.WriteLine($"[EMERGENCY CAMERA] Player invisible! P1Visible={p1Visible}, P2Visible={p2Visible}. Adjusting...");
+                
+                // Tìm bounding box chứa cả hai
+                int minX = Math.Min(p1Hb.Left, p2Hb.Left);
+                int maxX = Math.Max(p1Hb.Right, p2Hb.Right);
+                int centerX = (minX + maxX) / 2;
+                
+                // Đặt camera ngay lập tức (không smoothing)
+                viewportX = centerX - viewWidth / 2;
+                
+                // Clamp với soft boundaries
+                int softLeft = -viewWidth / 3;
+                int softRight = backgroundWidth - viewWidth + viewWidth / 3;
+                viewportX = Math.Max(softLeft, Math.Min(softRight, viewportX));
+                
+                Console.WriteLine($"  New viewport: {viewportX}, P1: [{p1Hb.Left}-{p1Hb.Right}], P2: [{p2Hb.Left}-{p2Hb.Right}]");
+            }
+        }
+
         private void UpdateCamera()
         {
-            // If online mode, focus camera on the local player (myPlayerNumber)
-            if (isOnlineMode && (myPlayerNumber == 1 || myPlayerNumber == 2))
+            // ✅ SỬA: Use network-aware camera for online mode
+            if (isOnlineMode)
             {
-                var me = myPlayerNumber == 1 ? player1State : player2State;
-                var other = myPlayerNumber == 1 ? player2State : player1State;
-
-                // Aim to keep local player near center but bias slightly toward opponent so both remain visible
-                int targetCenter = me.X + PLAYER_WIDTH / 2;
-                int bias = (other.X - me.X) / 4; // small bias toward opponent
-                targetCenter += bias;
-
-                viewportX = targetCenter - this.ClientSize.Width / 2;
-
-                // Clamp to map bounds
-                viewportX = Math.Max(0, Math.Min(backgroundWidth - this.ClientSize.Width, viewportX));
-
-                // Prevent local player from being too close to edges
-                int minAllowed = viewportX + 80;
-                int maxAllowed = viewportX + this.ClientSize.Width - 80;
-                if (me.X < minAllowed) viewportX = Math.Max(0, me.X - 80);
-                if (me.X > maxAllowed) viewportX = Math.Min(backgroundWidth - this.ClientSize.Width, me.X - this.ClientSize.Width + 80);
+                UpdateCameraNetworkSync();
             }
             else
             {
-                // Default behaviour: center between both players
-                int centerX = (player1State.X + player2State.X) / 2;
-                viewportX = centerX - this.ClientSize.Width / 2;
-                viewportX = Math.Max(0, Math.Min(backgroundWidth - this.ClientSize.Width, viewportX));
+                UpdateCameraNoOvershoot();
+            }
+        }
 
-                int minPlayerX = Math.Min(player1State.X, player2State.X);
-                int maxPlayerX = Math.Max(player1State.X + PLAYER_WIDTH, player2State.X + PLAYER_WIDTH);
-                if (minPlayerX < viewportX + 100)
+        /// <summary>
+        /// ✅ LOCAL-FIRST CAMERA: Focus on local player, then keep edge player visible
+        /// Priority: 1) Center local player  2) Ensure edge player (left) visible  3) Both on screen
+        /// </summary>
+        private void UpdateCameraNetworkSync()
+        {
+            if (player1State == null || player2State == null) return;
+            
+            int viewWidth = this.ClientSize.Width;
+            int worldWidth = backgroundWidth;
+            int maxViewport = Math.Max(0, worldWidth - viewWidth);
+            
+            Rectangle p1Hb = GetPlayerHitbox(player1State);
+            Rectangle p2Hb = GetPlayerHitbox(player2State);
+            
+            // ✅ PRIMARY: Identify local and remote player
+            PlayerState localPlayer = myPlayerNumber == 1 ? player1State : player2State;
+            PlayerState remotePlayer = localPlayer == player1State ? player2State : player1State;
+            Rectangle localHb = myPlayerNumber == 1 ? p1Hb : p2Hb;
+            Rectangle remoteHb = localPlayer == player1State ? p2Hb : p1Hb;
+            
+            // SECONDARY: Identify who's nearest to left edge for safety check
+            PlayerState edgePlayer = p1Hb.Left <= p2Hb.Left ? player1State : player2State;
+            Rectangle edgeHb = p1Hb.Left <= p2Hb.Left ? p1Hb : p2Hb;
+            
+            int desired;
+            int safeMarginLeft = 80;   // Keep players 80px from left edge
+            int safeMarginRight = 80;  // Keep players 80px from right edge
+            
+            // Check if both players fit in viewport
+            int leftMost = Math.Min(p1Hb.Left, p2Hb.Left);
+            int rightMost = Math.Max(p1Hb.Right, p2Hb.Right);
+            int widthNeeded = rightMost - leftMost;
+            
+            if (widthNeeded <= viewWidth)
+            {
+                // CASE 1: Both fit → center both
+                int centerX = (leftMost + rightMost) / 2;
+                desired = centerX - viewWidth / 2;
+            }
+            else
+            {
+                // CASE 2: Too far apart → LOCAL PLAYER FIRST
+                // Start from local-centered viewport
+                int centerLocal = localHb.Left + localHb.Width / 2;
+                desired = centerLocal - viewWidth / 2;
+
+                // Ensure REMOTE stays visible: nudge minimally if remote would go off-screen
+                // Compute remote edges on screen for this desired
+                int remoteLeftOnScreen = remoteHb.Left - desired;
+                int remoteRightOnScreen = remoteHb.Right - desired;
+
+                // If remote's left edge would be left of safe margin, shift viewport left (decrease desired)
+                if (remoteLeftOnScreen < safeMarginLeft)
                 {
-                    viewportX = Math.Max(0, minPlayerX - 100);
+                    int shift = safeMarginLeft - remoteLeftOnScreen; // positive amount to move viewport left
+                    // Moving viewport left means decreasing desired
+                    int maxShift = Math.Max(1, viewWidth / 3);
+                    desired -= Math.Min(shift, maxShift);
                 }
-                if (maxPlayerX > viewportX + this.ClientSize.Width - 100)
+
+                // Recompute remote right on screen after possible shift
+                remoteRightOnScreen = remoteHb.Right - desired;
+
+                // If remote's right edge would be right of allowed area, shift viewport right (increase desired)
+                if (remoteRightOnScreen > viewWidth - safeMarginRight)
                 {
-                    viewportX = Math.Min(backgroundWidth - this.ClientSize.Width, maxPlayerX - this.ClientSize.Width + 100);
+                    int shift = remoteRightOnScreen - (viewWidth - safeMarginRight);
+                    int maxShift = Math.Max(1, viewWidth / 3);
+                    desired += Math.Min(shift, maxShift);
+                }
+
+                // Secondary: if edge player (near left world edge) is critical, and currently would be off-screen, try to keep them visible
+                if (edgeHb.Left < 50)
+                {
+                    int edgeLeftOnScreen = edgeHb.Left - desired;
+                    if (edgeLeftOnScreen < safeMarginLeft)
+                    {
+                        int shift = safeMarginLeft - edgeLeftOnScreen;
+                        int maxShift = Math.Max(1, viewWidth / 4);
+                        // move viewport left a bit to reveal edge player but keep remote visible
+                        int newDesired = desired - Math.Min(shift, maxShift);
+                        // apply only if remote still visible after this
+                        int newRemoteLeft = remoteHb.Left - newDesired;
+                        int newRemoteRight = remoteHb.Right - newDesired;
+                        if (newRemoteLeft >= -50 && newRemoteRight <= viewWidth + 50)
+                        {
+                            desired = newDesired;
+                        }
+                    }
                 }
             }
+            
+            // Hard clamp to world bounds
+            desired = Math.Max(0, Math.Min(maxViewport, desired));
+            
+            // Smooth interpolation with adaptive speed
+            float delta = desired - viewportX;
+            float smoothing;
+            
+            // Faster response when local player is near edge
+            if (localHb.Left < 150 || localHb.Right > worldWidth - 150)
+            {
+                smoothing = Math.Abs(delta) > 150 ? 0.4f : 0.3f;
+            }
+            else if (Math.Abs(delta) > 200)
+            {
+                smoothing = 0.3f;
+            }
+            else
+            {
+                smoothing = 0.15f;
+            }
+            
+            viewportX += (int)(delta * smoothing);
+            viewportX = Math.Max(0, Math.Min(maxViewport, viewportX));
+            
+            // Debug logging
+            if (Math.Abs(delta) > 50 || edgeHb.Left < 150)
+            {
+                int p1ScreenX = p1Hb.Left - viewportX;
+                int p2ScreenX = p2Hb.Left - viewportX;
+                bool p1Visible = p1ScreenX + p1Hb.Width > 0 && p1ScreenX < viewWidth;
+                bool p2Visible = p2ScreenX + p2Hb.Width > 0 && p2ScreenX < viewWidth;
+                
+                Console.WriteLine($"[CAMERA LOCAL-FIRST] Local: {localPlayer.PlayerName}(X={localHb.Left}), Edge: {edgePlayer.PlayerName}(X={edgeHb.Left}), P1Vis={p1Visible}, P2Vis={p2Visible}, VP={viewportX}");
+            }
+        }
+
+
+        /// <summary>
+        /// ✅ FIX: Camera with AGGRESSIVE edge detection + network lag compensation
+        /// - Detect when player near edge → FAST camera response
+        /// - Use larger safety margin → prevent overshoot
+        /// - Handle network delay by extrapolating position
+        /// </summary>
+        private void UpdateCameraNoOvershoot()
+        {
+            if (player1State == null || player2State == null) return;
+            int viewWidth = this.ClientSize.Width;
+            int worldWidth = backgroundWidth;
+            
+            Rectangle p1Hb = GetPlayerHitbox(player1State);
+            Rectangle p2Hb = GetPlayerHitbox(player2State);
+            
+            int leftMost = Math.Min(p1Hb.Left, p2Hb.Left);
+            int rightMost = Math.Max(p1Hb.Right, p2Hb.Right);
+            int widthNeeded = rightMost - leftMost;
+            
+            int desired;
+            int safeMargin = 100;  // ✅ TĂNG: 50 → 100px (bigger safety margin)
+            int edgeThreshold = 150;  // ✅ NEW: Detect if player within 150px of edge
+            
+            // ✅ KEY: Detect if ANY player is near edge → use AGGRESSIVE camera
+            bool p1NearLeft = leftMost < edgeThreshold;
+            bool p2NearRight = (worldWidth - rightMost) < edgeThreshold;
+            bool playerNearEdge = p1NearLeft || p2NearRight;
+            
+            if (widthNeeded <= viewWidth)
+            {
+                // Both players fit in viewport → center them
+                int centerX = (leftMost + rightMost) / 2;
+                desired = centerX - viewWidth / 2;
+            }
+            else
+            {
+                // Both players too far apart
+                
+                if (p1NearLeft)
+                {
+                    // P1 near LEFT edge → CRITICAL: shift camera left immediately
+                    desired = leftMost - safeMargin;
+                }
+                else if (p2NearRight)
+                {
+                    // P2 near RIGHT edge → CRITICAL: shift camera right immediately
+                    desired = rightMost - viewWidth + safeMargin;
+                }
+                else
+                {
+                    // Both far from edges → center between them
+                    int centerX = (leftMost + rightMost) / 2;
+                    desired = centerX - viewWidth / 2;
+                }
+            }
+            
+            // ✅ Hard clamp viewport vào world bounds
+            int minViewport = 0;
+            int maxViewport = Math.Max(0, worldWidth - viewWidth);
+            desired = Math.Max(minViewport, Math.Min(maxViewport, desired));
+            
+            // ✅ FIX: AGGRESSIVE smoothing when near edge (network lag compensation)
+            // When player near edge, use FAST camera to compensate for network delay
+            float delta = desired - viewportX;
+            float smoothing;
+            
+            if (playerNearEdge)
+            {
+                // ✅ AGGRESSIVE: 0.4-0.5 (faster response to edge cases)
+                smoothing = Math.Abs(delta) > 150 ? 0.5f : 0.4f;
+            }
+            else if (Math.Abs(delta) > 200)
+            {
+                // Normal large movement
+                smoothing = 0.3f;
+            }
+            else
+            {
+                // Normal small movement
+                smoothing = 0.15f;
+            }
+            
+            viewportX += (int)(delta * smoothing);
+            viewportX = Math.Max(minViewport, Math.Min(maxViewport, viewportX));
+            
+            Console.WriteLine($"[CAMERA] P1Hb.Left={p1Hb.Left}, P2Hb.Right={p2Hb.Right}, near_edge={playerNearEdge}, smoothing={smoothing}, viewport={viewportX}");
+        }
+
+        private void UpdateCameraWithSoftBoundaries()
+        {
+            if (player1State == null || player2State == null) return;
+            
+            int viewWidth = Math.Max(1, this.ClientSize.Width);
+            int worldWidth = backgroundWidth;
+            
+            // Xác định players
+            PlayerState local, opponent;
+            if (isOnlineMode && myPlayerNumber > 0)
+            {
+                local = myPlayerNumber == 1 ? player1State : player2State;
+                opponent = local == player1State ? player2State : player1State;
+            }
+            else
+            {
+                local = player1State;
+                opponent = player2State;
+            }
+            
+            Rectangle localHb = GetPlayerHitbox(local);
+            Rectangle opponentHb = GetPlayerHitbox(opponent);
+            
+            // 1. TÍNH DESIRED VIEWPORT (Center cả hai players)
+            int leftMost = Math.Min(localHb.Left, opponentHb.Left);
+            int rightMost = Math.Max(localHb.Right, opponentHb.Right);
+            int widthNeeded = rightMost - leftMost;
+            
+            int desired;
+            
+            if (widthNeeded <= viewWidth)
+            {
+                // Cả hai fit trong màn hình → center
+                int centerX = (leftMost + rightMost) / 2;
+                desired = centerX - viewWidth / 2;
+            }
+            else
+            {
+                // Không fit → ưu tiên local player nhưng đảm bảo thấy opponent
+                desired = (localHb.Left + localHb.Width / 2) - viewWidth / 2;
+                
+                // Đảm bảo opponent không ra khỏi màn hình quá xa
+                int opponentScreenX = opponentHb.Left - desired;
+                if (opponentScreenX < 100) // Opponent sắp ra khỏi bên trái
+                {
+                    desired = opponentHb.Right - 100;
+                }
+                else if (opponentScreenX > viewWidth - 100) // Opponent sắp ra khỏi bên phải
+                {
+                    desired = opponentHb.Left - viewWidth + 100;
+                }
+            }
+            
+            // 2. SOFT CLAMPING (cho phép vượt biên một chút)
+            int softLeftBoundary = -viewWidth / 4;  // Cho phép âm 25% màn hình
+            int softRightBoundary = worldWidth - viewWidth + viewWidth / 4; // Cho phép vượt 25%
+            
+            // Nếu players ở gần biên, cho phép camera vượt biên
+            if (localHb.Left < 100 || opponentHb.Left < 100)
+            {
+                // Players gần biên trái → cho phép camera âm hơn
+                softLeftBoundary = -viewWidth / 2;
+            }
+            
+            if (localHb.Right > worldWidth - 100 || opponentHb.Right > worldWidth - 100)
+            {
+                // Players gần biên phải → cho phép camera vượt hơn
+                softRightBoundary = worldWidth - viewWidth / 2;
+            }
+            
+            // Apply soft clamp
+            desired = Math.Max(softLeftBoundary, Math.Min(softRightBoundary, desired));
+            
+            // 3. SMOOTH INTERPOLATION
+            float delta = desired - viewportX;
+            float smoothing = 0.15f;
+            
+            // Nếu khoảng cách lớn (do knockback), tăng tốc độ
+            if (Math.Abs(delta) > 300)
+            {
+                smoothing = 0.4f;
+            }
+            else if (local.IsStunned || opponent.IsStunned)
+            {
+                smoothing = 0.25f; // Nhanh hơn khi stun
+            }
+            
+            viewportX += (int)(delta * smoothing);
         }
 
         private void BattleForm_Resize(object sender, EventArgs e)
