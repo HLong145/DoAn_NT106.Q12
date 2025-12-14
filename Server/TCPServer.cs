@@ -1489,6 +1489,17 @@ namespace DoAn_NT106.Server
                     server.Log($"⚠️ Failed to end UDP match: {udpResult.Message}");
                 }
 
+                // ✅ RESET LOBBY: Reset ready status và character selections
+                var resetResult = lobbyManager.ResetLobbyForRematch(roomCode);
+                if (resetResult.Success)
+                {
+                    server.Log($"✅ Lobby {roomCode} reset for rematch");
+                }
+                else
+                {
+                    server.Log($"⚠️ Failed to reset lobby: {resetResult.Message}");
+                }
+
                 // Update room status về WAITING (keep room alive for rematch)
                 var room = roomManager.GetRoom(roomCode);
                 if (room != null)

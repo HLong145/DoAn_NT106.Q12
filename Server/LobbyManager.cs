@@ -656,5 +656,44 @@ namespace DoAn_NT106.Server
                 }
             }
         }
+
+        // ✅ THÊM: Reset lobby sau khi game kết thúc (rematch hoặc return to lobby)
+        public (bool Success, string Message) ResetLobbyForRematch(string roomCode)
+        {
+            try
+            {
+                if (!lobbies.TryGetValue(roomCode, out var lobby))
+                    return (false, "Lobby not found");
+
+                lock (lobby.Lock)
+                {
+                    // Reset ready status
+                    lobby.Player1Ready = false;
+                    lobby.Player2Ready = false;
+                    Log($"✅ Reset ready status for lobby {roomCode}");
+
+                    // Reset character selections (xóa dữ liệu cũ)
+                    if (characterSelectByRoom.TryGetValue(roomCode, out var charState))
+                    {
+                        charState.Player1Character = null;
+                        charState.Player2Character = null;
+                        charState.Player1Selected = false;
+                        charState.Player2Selected = false;
+                        Log($"✅ Reset character selections for lobby {roomCode}");
+                    }
+
+                    // Broadcast trạng thái mới (cả 2 đều NOT READY)
+                    BroadcastLobbyState(lobby, excludeUsername: null);
+
+                    Log($"🔄 Lobby {roomCode} reset to initial state (ready for rematch or return)");
+                    return (true, "Lobby reset for rematch");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"❌ ResetLobbyForRematch error: {ex.Message}");
+                return (false, ex.Message);
+            }
+        }
     }
 }

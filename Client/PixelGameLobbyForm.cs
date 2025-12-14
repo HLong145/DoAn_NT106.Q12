@@ -389,6 +389,8 @@ namespace PixelGameLobby
                     {
                         startGameButton.Enabled = true;
                         startGameButton.BackColor = Color.Green;
+                        // ✅ RESET BUTTON TEXT
+                        startGameButton.Text = "START GAME";
                     }
                     else
                     {
@@ -400,6 +402,8 @@ namespace PixelGameLobby
                     bothPlayersReady = false;
                     startGameButton.Enabled = false;
                     startGameButton.BackColor = Color.Gray;
+                    // ✅ RESET BUTTON TEXT WHEN NOT READY
+                    startGameButton.Text = "START GAME";
                 }
 
                 UpdatePlayersDisplay();
@@ -520,6 +524,9 @@ namespace PixelGameLobby
                 bothPlayersReady = true;
                 Console.WriteLine("[GameLobby] Both players are ready!");
                 AddSystemMessage("✅ Both players are ready!");
+
+                // ✅ RESET BUTTON TEXT
+                startGameButton.Text = "START GAME";
 
                 // Chỉ enable nút Start cho host (Player 1)
                 if (isHost)

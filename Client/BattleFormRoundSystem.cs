@@ -7,6 +7,7 @@ using System.Windows.Forms;
 using System.Threading.Tasks;
 using System.Reflection;
 using System.Drawing;
+using DoAn_NT106.Services;
 
 namespace DoAn_NT106
 {
@@ -847,6 +848,28 @@ namespace DoAn_NT106
             try { gameTimer?.Stop(); } catch { }
             try { walkAnimationTimer?.Stop(); } catch { }
 
+            // ✅ THÊM: Gửi GAME_END để server reset phòng
+            if (isOnlineMode && !string.IsNullOrEmpty(roomCode) && roomCode != "000000")
+            {
+                try
+                {
+                    var _ = PersistentTcpClient.Instance.SendRequestAsync(
+                        "GAME_END",
+                        new Dictionary<string, object>
+                        {
+                            { "roomCode", roomCode },
+                            { "username", username }
+                        },
+                        5000  // 5 second timeout
+                    );
+                    Console.WriteLine($"[BattleForm] Sent GAME_END to server for room {roomCode}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[BattleForm] Failed to send GAME_END: {ex.Message}");
+                }
+            }
+
             string result = $"🎉 {winner} WINS THE MATCH!\n\n" +
                             $"{username}: {_player1Wins} wins\n" +
                             $"{opponent}: {_player2Wins} wins";
@@ -872,6 +895,28 @@ namespace DoAn_NT106
             try { _roundTimer?.Stop(); } catch { }
             try { gameTimer?.Stop(); } catch { }
             try { walkAnimationTimer?.Stop(); } catch { }
+
+            // ✅ THÊM: Gửi GAME_END để server reset phòng
+            if (isOnlineMode && !string.IsNullOrEmpty(roomCode) && roomCode != "000000")
+            {
+                try
+                {
+                    var _ = PersistentTcpClient.Instance.SendRequestAsync(
+                        "GAME_END",
+                        new Dictionary<string, object>
+                        {
+                            { "roomCode", roomCode },
+                            { "username", username }
+                        },
+                        5000
+                    );
+                    Console.WriteLine($"[BattleForm] Sent GAME_END to server for room {roomCode}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[BattleForm] Failed to send GAME_END: {ex.Message}");
+                }
+            }
 
             string result = $"🤝 MATCH DRAW!\n\n" +
                             $"{username}: {_player1Wins} wins\n" +
