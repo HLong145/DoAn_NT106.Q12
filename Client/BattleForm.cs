@@ -999,20 +999,51 @@ namespace DoAn_NT106
             player1State.IsWalking = false;
             player2State.IsWalking = false;
 
-            if (player1State.CanMove)
+            // ✅ ONLINE MODE: Only the local player can be moved by local input
+            // ✅ OFFLINE MODE: Player 1 uses A/D, Player 2 uses Left/Right
+            
+            if (isOnlineMode)
             {
-                if (aPressed) physicsSystem.MovePlayer(player1State, -1);
-                else if (dPressed) physicsSystem.MovePlayer(player1State, 1);
-                else if (!player1State.IsJumping && !player1State.IsParrying && !player1State.IsSkillActive)
-                    physicsSystem.StopMovement(player1State);
+                // ONLINE MODE: Only move the local player based on input
+                if (myPlayerNumber == 1)
+                {
+                    if (player1State.CanMove)
+                    {
+                        if (aPressed) physicsSystem.MovePlayer(player1State, -1);
+                        else if (dPressed) physicsSystem.MovePlayer(player1State, 1);
+                        else if (!player1State.IsJumping && !player1State.IsParrying && !player1State.IsSkillActive)
+                            physicsSystem.StopMovement(player1State);
+                    }
+                }
+                else if (myPlayerNumber == 2)
+                {
+                    if (player2State.CanMove)
+                    {
+                        if (aPressed) physicsSystem.MovePlayer(player2State, -1);
+                        else if (dPressed) physicsSystem.MovePlayer(player2State, 1);
+                        else if (!player2State.IsJumping && !player2State.IsParrying && !player2State.IsSkillActive)
+                            physicsSystem.StopMovement(player2State);
+                    }
+                }
             }
-
-            if (player2State.CanMove)
+            else
             {
-                if (leftPressed) physicsSystem.MovePlayer(player2State, -1);
-                else if (rightPressed) physicsSystem.MovePlayer(player2State, 1);
-                else if (!player2State.IsJumping && !player2State.IsParrying && !player2State.IsSkillActive)
-                    physicsSystem.StopMovement(player2State);
+                // OFFLINE MODE: Both players can move with their own keys
+                if (player1State.CanMove)
+                {
+                    if (aPressed) physicsSystem.MovePlayer(player1State, -1);
+                    else if (dPressed) physicsSystem.MovePlayer(player1State, 1);
+                    else if (!player1State.IsJumping && !player1State.IsParrying && !player1State.IsSkillActive)
+                        physicsSystem.StopMovement(player1State);
+                }
+
+                if (player2State.CanMove)
+                {
+                    if (leftPressed) physicsSystem.MovePlayer(player2State, -1);
+                    else if (rightPressed) physicsSystem.MovePlayer(player2State, 1);
+                    else if (!player2State.IsJumping && !player2State.IsParrying && !player2State.IsSkillActive)
+                        physicsSystem.StopMovement(player2State);
+                }
             }
 
             // ✅ THÊM: Check if walk animation should be converted to stand (every 16ms)
@@ -1507,8 +1538,82 @@ namespace DoAn_NT106
 
         private void BattleForm_KeyDown(object sender, KeyEventArgs e)
         {
-            // ✅ Map local input based on myPlayerNumber so each client controls only their own avatar
-            if (myPlayerNumber == 1)
+            // ✅ OFFLINE MODE: Accept inputs for both players locally
+            if (!isOnlineMode)
+            {
+                // Player1 controls (left side) - WASD + JKLUÍ
+                switch (e.KeyCode)
+                {
+                    case Keys.A:
+                        if (player1State.CanMove) { aPressed = true; player1State.LeftKeyPressed = true; }
+                        break;
+                    case Keys.D:
+                        if (player1State.CanMove) { dPressed = true; player1State.RightKeyPressed = true; }
+                        break;
+                    case Keys.W:
+                        physicsSystem.Jump(player1State);
+                        break;
+                    case Keys.J:
+                        if (player1State.CanAttack) ExecuteAttackWithHitbox(1, "punch", 10, 15);
+                        break;
+                    case Keys.K:
+                        if (player1State.CanAttack) ExecuteAttackWithHitbox(1, "kick", 15, 20);
+                        break;
+                    case Keys.L:
+                        if (player1State.CanDash) combatSystem.ExecuteDash(1);
+                        break;
+                    case Keys.U:
+                        if (player1State.CanParry) combatSystem.StartParry(1);
+                        break;
+                    case Keys.I:
+                        if (player1State.CanAttack) combatSystem.ToggleSkill(1);
+                        break;
+                }
+
+                // Player2 controls (right side) - Arrow keys + D1-D5 or NumPad1-5
+                switch (e.KeyCode)
+                {
+                    case Keys.Left:
+                        if (player2State.CanMove) { leftPressed = true; player2State.LeftKeyPressed = true; }
+                        break;
+                    case Keys.Right:
+                        if (player2State.CanMove) { rightPressed = true; player2State.RightKeyPressed = true; }
+                        break;
+                    case Keys.Up:
+                        physicsSystem.Jump(player2State);
+                        break;
+                    case Keys.Down:
+                        // Reserved for future use (crouch, etc.)
+                        break;
+
+                    // Allow both top-row numbers and numpad for player2 actions
+                    case Keys.D1:
+                    case Keys.NumPad1:
+                        if (player2State.CanAttack) ExecuteAttackWithHitbox(2, "punch", 10, 15);
+                        break;
+                    case Keys.D2:
+                    case Keys.NumPad2:
+                        if (player2State.CanAttack) ExecuteAttackWithHitbox(2, "kick", 15, 20);
+                        break;
+                    case Keys.D3:
+                    case Keys.NumPad3:
+                        if (player2State.CanDash) combatSystem.ExecuteDash(2);
+                        break;
+                    case Keys.D4:
+                    case Keys.NumPad4:
+                        if (player2State.CanAttack) combatSystem.ToggleSkill(2);
+                        break;
+                    case Keys.D5:
+                    case Keys.NumPad5:
+                        if (player2State.CanParry) combatSystem.StartParry(2);
+                        break;
+                }
+
+                e.Handled = true;
+                // Don't return - allow Escape handling below
+            }
+            // ✅ ONLINE MODE: Each client controls ONLY their own player
+            else if (myPlayerNumber == 1)
             {
                 switch (e.KeyCode)
                 {
@@ -1537,17 +1642,19 @@ namespace DoAn_NT106
                         if (player1State.CanAttack) combatSystem.ToggleSkill(1);
                         break;
                 }
+                e.Handled = true;
+                // Don't return - allow Escape handling below
             }
             else if (myPlayerNumber == 2)
             {
-                // Cho phép Player2 dùng cùng layout WASD nếu muốn, hoặc bộ NumPad hiện tại
+                // ✅ ONLINE MODE: Player 2 (use WASD like Player 1)
                 switch (e.KeyCode)
                 {
                     case Keys.A:
-                        if (player2State.CanMove) { leftPressed = true; player2State.LeftKeyPressed = true; }
+                        if (player2State.CanMove) { aPressed = true; player2State.LeftKeyPressed = true; }
                         break;
                     case Keys.D:
-                        if (player2State.CanMove) { rightPressed = true; player2State.RightKeyPressed = true; }
+                        if (player2State.CanMove) { dPressed = true; player2State.RightKeyPressed = true; }
                         break;
                     case Keys.W:
                         physicsSystem.Jump(player2State);
@@ -1568,9 +1675,11 @@ namespace DoAn_NT106
                         if (player2State.CanAttack) combatSystem.ToggleSkill(2);
                         break;
                 }
+                e.Handled = true;
+                // Don't return - allow Escape handling below
             }
 
-            // Escape/menu handling remains shared
+            // Escape/menu handling remains shared for all modes
             if (e.KeyCode == Keys.Escape)
             {
                 // Open main menu: Back to Lobby (go to PixelGameLobbyForm) or Continued
@@ -1660,24 +1769,64 @@ namespace DoAn_NT106
 
         private void BattleForm_KeyUp(object sender, KeyEventArgs e)
         {
-            if (myPlayerNumber == 1)
+            // ✅ FIX: Handle offline mode where myPlayerNumber might be 0
+            // In offline mode, handle all player controls
+            // In online mode, only handle your own controls
+            
+            if (!isOnlineMode)
             {
+                // OFFLINE MODE: Handle both players
+                switch (e.KeyCode)
+                {
+                    // Player 1 controls
+                    case Keys.A:
+                        aPressed = false;
+                        if (player1State != null) player1State.LeftKeyPressed = false;
+                        break;
+                    case Keys.D:
+                        dPressed = false;
+                        if (player1State != null) player1State.RightKeyPressed = false;
+                        break;
+                    
+                    // Player 2 controls
+                    case Keys.Left:
+                        leftPressed = false;
+                        if (player2State != null) player2State.LeftKeyPressed = false;
+                        break;
+                    case Keys.Right:
+                        rightPressed = false;
+                        if (player2State != null) player2State.RightKeyPressed = false;
+                        break;
+                }
+            }
+            else if (myPlayerNumber == 1)
+            {
+                // ONLINE MODE: Player 1
                 switch (e.KeyCode)
                 {
                     case Keys.A:
-                        aPressed = false; player1State.LeftKeyPressed = false; break;
+                        aPressed = false;
+                        if (player1State != null) player1State.LeftKeyPressed = false;
+                        break;
                     case Keys.D:
-                        dPressed = false; player1State.RightKeyPressed = false; break;
+                        dPressed = false;
+                        if (player1State != null) player1State.RightKeyPressed = false;
+                        break;
                 }
             }
             else if (myPlayerNumber == 2)
             {
+                // ONLINE MODE: Player 2
                 switch (e.KeyCode)
                 {
                     case Keys.A:
-                        leftPressed = false; player2State.LeftKeyPressed = false; break;
+                        aPressed = false;
+                        if (player2State != null) player2State.LeftKeyPressed = false;
+                        break;
                     case Keys.D:
-                        rightPressed = false; player2State.RightKeyPressed = false; break;
+                        dPressed = false;
+                        if (player2State != null) player2State.RightKeyPressed = false;
+                        break;
                 }
             }
 
