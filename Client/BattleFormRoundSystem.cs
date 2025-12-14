@@ -41,6 +41,9 @@ namespace DoAn_NT106
         private byte[] _round1AudioBytes;
         private byte[] _round2AudioBytes;
         private byte[] _round3AudioBytes;
+        // ✅ THÊM: Cooldown system để ngăn win count bị tăng quá lố (10 seconds = 10000ms)
+        private int _winCooldownMs = 3000;
+        private long _lastWinCountTimeMs = 0;
 
         /// <summary>Gets formatted round info text with round number, timer, and scores</summary>
         private string GetRoundCenterText()
@@ -120,6 +123,7 @@ namespace DoAn_NT106
             _roundInProgress = false;
             _player1ManaCarryover = 0;
             _player2ManaCarryover = 0;
+            _lastWinCountTimeMs = 0;  // ✅ THÊM: Reset win cooldown counter
 
             // Create center label if not already created
             if (_lblRoundCenter == null)
@@ -538,9 +542,35 @@ namespace DoAn_NT106
 
                     // Determine winner by HP
                     if (player1State.Health < player2State.Health)
-                        _player2Wins++;
+                    {
+                        // ✅ THÊM: Check cooldown before counting win
+                        if (CanCountWin())
+                        {
+                            _player2Wins++;
+                            Console.WriteLine($"[RoundSystem] ✅ PLAYER 2 WINS BY TIMEOUT");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"[RoundSystem] ⏱️ PLAYER 2 WIN REJECTED - Win cooldown still active");
+                        }
+                    }
                     else if (player2State.Health < player1State.Health)
-                        _player1Wins++;
+                    {
+                        // ✅ THÊM: Check cooldown before counting win
+                        if (CanCountWin())
+                        {
+                            _player1Wins++;
+                            Console.WriteLine($"[RoundSystem] ✅ PLAYER 1 WINS BY TIMEOUT");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"[RoundSystem] ⏱️ PLAYER 1 WIN REJECTED - Win cooldown still active");
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine($"[RoundSystem] 🤝 TIMEOUT TIE - Both have equal HP, no winner");
+                    }
 
                     // Mark this round as completed
                     _roundsPlayed++;
@@ -598,14 +628,36 @@ namespace DoAn_NT106
 
                     // Award win to survivor
                     if (player1State.IsDead && !player2State.IsDead)
-                        _player2Wins++;
+                    {
+                        // ✅ THÊM: Check cooldown before counting win
+                        if (CanCountWin())
+                        {
+                            _player2Wins++;
+                            Console.WriteLine($"[RoundSystem] ✅ PLAYER 2 WINS ROUND (Player 1 died)");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"[RoundSystem] ⏱️ PLAYER 2 WIN REJECTED - Win cooldown still active");
+                        }
+                    }
                     else if (player2State.IsDead && !player1State.IsDead)
-                        _player1Wins++;
+                    {
+                        // ✅ THÊM: Check cooldown before counting win
+                        if (CanCountWin())
+                        {
+                            _player1Wins++;
+                            Console.WriteLine($"[RoundSystem] ✅ PLAYER 1 WINS ROUND (Player 2 died)");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"[RoundSystem] ⏱️ PLAYER 1 WIN REJECTED - Win cooldown still active");
+                        }
+                    }
 
                     // Both dead = tie, no win awarded; check for double KO
                     if (player1State.IsDead && player2State.IsDead)
                     {
-                        Console.WriteLine("[RoundSystem] Double KO - no winner this round");
+                        Console.WriteLine("[RoundSystem] 💥 Double KO - no winner this round");
                     }
                     else
                     {
@@ -693,7 +745,7 @@ namespace DoAn_NT106
             player1State.ResetToIdle();
             player2State.ResetToIdle();
 
-            // Reset positions - ✅ SỬA: X = 150 và 900, force reset Y position
+            // Reset positions - ✅ SỬA: X = 150 và 900, force reset Y vị trí
             player1State.X = 150;
             player1State.Y = groundLevel - PLAYER_HEIGHT;
             
@@ -711,6 +763,35 @@ namespace DoAn_NT106
             Console.WriteLine($"[StartNextRound] Round {_roundNumber} setup complete:");
             Console.WriteLine($"  P1: HP={player1State.Health} IsDead={player1State.IsDead} Stamina={player1State.Stamina}");
             Console.WriteLine($"  P2: HP={player2State.Health} IsDead={player2State.IsDead} Stamina={player2State.Stamina}");
+
+            // ✅ THÊM: Send updated state via UDP immediately so opponent sees HP reset
+            if (isOnlineMode && udpClient != null && udpClient.IsConnected)
+            {
+                try
+                {
+                    var me = myPlayerNumber == 1 ? player1State : player2State;
+                    udpClient.UpdateState(
+                        me.X,
+                        me.Y,
+                        me.Health,          // ✅ GỬI HP MỚI (đã reset)
+                        me.Stamina,
+                        me.Mana,
+                        "stand",
+                        me.Facing ?? "right",
+                        false,              // isAttacking
+                        false,              // isParrying
+                        false,              // isStunned
+                        false,              // isSkillActive
+                        false,              // isCharging
+                        false);             // isDashing
+                    
+                    Console.WriteLine($"[StartNextRound] Sent UDP state update: P{myPlayerNumber} HP={me.Health}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[StartNextRound] UDP update error: {ex.Message}");
+                }
+            }
 
             // Start round countdown animation
             // Ensure start countdown will run freshly
@@ -735,6 +816,27 @@ namespace DoAn_NT106
                 "knightgirl" => 100,
                 _ => 100
             };
+        }
+
+        // ✅ THÊM: Helper function to check if can count win (cooldown protection)
+        private bool CanCountWin()
+        {
+            long currentTimeMs = Environment.TickCount64; // Use 64-bit for larger time range
+            long timeSinceLastWinMs = currentTimeMs - _lastWinCountTimeMs;
+            
+            if (timeSinceLastWinMs >= _winCooldownMs)
+            {
+                // Cooldown expired, can count new win
+                _lastWinCountTimeMs = currentTimeMs;  // Update timestamp IMMEDIATELY
+                Console.WriteLine($"[RoundSystem] ✅ WIN COOLDOWN EXPIRED - Can count new win (waited {timeSinceLastWinMs}ms)");
+                return true;
+            }
+            else
+            {
+                // Still in cooldown, reject
+                Console.WriteLine($"[RoundSystem] ⏱️ WIN COOLDOWN ACTIVE - Wait {_winCooldownMs - timeSinceLastWinMs}ms more");
+                return false;
+            }
         }
 
         /// <summary>Ends the match and shows winner dialog</summary>
