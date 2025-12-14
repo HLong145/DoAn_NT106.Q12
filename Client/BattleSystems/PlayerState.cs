@@ -45,6 +45,9 @@ namespace DoAn_NT106.Client.BattleSystems
         // Charge state (for Goatman)
         public float ChargeSpeed { get; set; }
 
+        // Horizontal velocity for simple physics/corrections
+        public float VelocityX { get; set; }
+
         // Key states
         public bool LeftKeyPressed { get; set; }
         public bool RightKeyPressed { get; set; }

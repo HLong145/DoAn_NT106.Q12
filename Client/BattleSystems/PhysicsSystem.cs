@@ -13,7 +13,7 @@ namespace DoAn_NT106.Client.BattleSystems
         private const float JUMP_FORCE = -10f;
 
         private int groundLevel;
-        private int playerSpeed = 14;
+        private int playerSpeed = 18; // increased base speed from 14 -> 18
         private int backgroundWidth;
         private int playerWidth;
         private int playerHeight;
@@ -149,15 +149,28 @@ namespace DoAn_NT106.Client.BattleSystems
                 moveSpeed = (int)(playerSpeed * 1.2f); // ✅ SỬA: Warrior 1.2x speed
             }
 
-            player.X += moveSpeed * direction;
+            // Smooth horizontal movement: interpolate toward desired position to reduce jitter
+            int prevX = player.X;
+            float desiredX = player.X + moveSpeed * direction;
+
+            // smoothing factor: closer to 1 -> snappier (faster response)
+            const float smoothing = 0.9f; // increased to make movement more responsive
+
+            float newXf = player.X + (desiredX - player.X) * smoothing;
+            int newX = (int)Math.Round(newXf);
+
+            player.X = newX;
+
+            // update velocity estimate
+            player.VelocityX = player.X - prevX;
+
             var boundary = GetBoundaryFromHurtbox(player);
             player.X = Math.Max(boundary.minX, Math.Min(boundary.maxX, player.X));
 
             player.Facing = direction > 0 ? "right" : "left";
             player.IsWalking = true;
 
-            // ✅ FIX: Only set walk animation if NOT jumping
-            // When jumping, keep jump animation (set by UpdateJump)
+            // Only set walk animation if NOT jumping or in a skill
             if (!player.IsSkillActive && !player.IsJumping)
             {
                 player.CurrentAnimation = "walk";
@@ -183,9 +196,25 @@ namespace DoAn_NT106.Client.BattleSystems
         public void StopMovement(PlayerState player)
         {
             player.IsWalking = false;
+            // Apply soft deceleration to create smoother stopping
+            // If there's residual horizontal velocity, apply a damped step
+            if (Math.Abs(player.VelocityX) > 0.5f)
+            {
+                // apply velocity and damp
+                player.X += (int)Math.Round(player.VelocityX);
+                player.VelocityX *= 0.55f; // damping factor
 
-            // ✅ FIX: Only set animation to stand if not already in a looping walk/jump state
-            // Keep walk/jump animation running if that's what was playing
+                // keep walk animation while still sliding
+                if (!player.IsJumping && !player.IsSkillActive)
+                {
+                    player.CurrentAnimation = "walk";
+                    player.IsWalking = true;
+                }
+                return;
+            }
+
+            // No residual velocity: fully stop
+            player.VelocityX = 0;
             if (!player.IsJumping && !player.IsAttacking && !player.IsParrying && !player.IsSkillActive)
             {
                 if (player.CurrentAnimation != "walk" && player.CurrentAnimation != "jump")

@@ -247,6 +247,63 @@ namespace DoAn_NT106
             public Image EffectImage { get; set; }
         }
 
+        // Simple camera used in offline mode: center midpoint of both players
+        private void UpdateCameraSimple()
+        {
+            if (player1State == null || player2State == null) return;
+            int viewWidth = Math.Max(1, this.ClientSize.Width);
+            int worldWidth = backgroundWidth;
+
+            var p1Hb = GetPlayerHitbox(player1State);
+            var p2Hb = GetPlayerHitbox(player2State);
+            int leftMost = Math.Min(p1Hb.Left, p2Hb.Left);
+            int rightMost = Math.Max(p1Hb.Right, p2Hb.Right);
+            int centerX = (leftMost + rightMost) / 2;
+
+            int desired = centerX - viewWidth / 2;
+            int maxViewport = Math.Max(0, worldWidth - viewWidth);
+            desired = Math.Max(0, Math.Min(maxViewport, desired));
+
+            float delta = desired - viewportX;
+            float smoothing = 0.15f;
+            viewportX += (int)(delta * smoothing);
+            viewportX = Math.Max(0, Math.Min(maxViewport, viewportX));
+        }
+
+        private void EnsurePlayersInWorld()
+        {
+            int minX = 0;
+            int maxX = Math.Max(0, backgroundWidth - PLAYER_WIDTH);
+
+            if (player1State != null)
+            {
+                if (player1State.X < minX)
+                {
+                    player1State.X = minX;
+                    player1State.VelocityX = 0;
+                }
+                else if (player1State.X > maxX)
+                {
+                    player1State.X = maxX;
+                    player1State.VelocityX = 0;
+                }
+            }
+
+            if (player2State != null)
+            {
+                if (player2State.X < minX)
+                {
+                    player2State.X = minX;
+                    player2State.VelocityX = 0;
+                }
+                else if (player2State.X > maxX)
+                {
+                    player2State.X = maxX;
+                    player2State.VelocityX = 0;
+                }
+            }
+        }
+
         public class AttackHitboxConfig
         {
             public float WidthPercent { get; set; }      // Chiều rộng vùng tấn công
@@ -1055,7 +1112,19 @@ namespace DoAn_NT106
             // ✅ REMOVED: ApplyWorldBoundaries - hurtbox-based clamping in MovePlayer is sufficient
 
             // ===== UPDATE CAMERA =====
-            UpdateCamera();
+            if (isOnlineMode)
+            {
+                // Online: use network-aware camera
+                UpdateCameraNetworkSync();
+            }
+            else
+            {
+                // Offline: use no-overshoot camera
+                UpdateCameraNoOvershoot();
+            }
+
+            // ===== ENSURE PLAYERS STAY IN WORLD =====
+            EnsurePlayersInWorld();
 
             // ===== REGENERATE RESOURCES =====
             resourceSystem.RegenerateResources();
@@ -1816,25 +1885,39 @@ namespace DoAn_NT106
             
             // Hard clamp to world bounds
             desired = Math.Max(0, Math.Min(maxViewport, desired));
-            
-            // Smooth interpolation with adaptive speed
+
+            // Smooth interpolation with adaptive speed and deadzone to avoid jitter from network noise
             float delta = desired - viewportX;
+            float absDelta = Math.Abs(delta);
+
+            // Deadzone: ignore tiny adjustments to prevent camera jitter
+            const float deadzone = 6f;
+            if (absDelta < deadzone)
+            {
+                // small movement — do nothing
+                return;
+            }
+
             float smoothing;
-            
-            // Faster response when local player is near edge
+            // If local near edge respond faster
             if (localHb.Left < 150 || localHb.Right > worldWidth - 150)
             {
-                smoothing = Math.Abs(delta) > 150 ? 0.4f : 0.3f;
+                smoothing = absDelta > 150 ? 0.5f : 0.35f;
             }
-            else if (Math.Abs(delta) > 200)
+            else if (absDelta > 300)
             {
-                smoothing = 0.3f;
+                // Very large jump (teleport/respawn) — snap faster
+                smoothing = 0.6f;
+            }
+            else if (absDelta > 120)
+            {
+                smoothing = 0.35f;
             }
             else
             {
-                smoothing = 0.15f;
+                smoothing = 0.18f;
             }
-            
+
             viewportX += (int)(delta * smoothing);
             viewportX = Math.Max(0, Math.Min(maxViewport, viewportX));
             
@@ -1860,83 +1943,131 @@ namespace DoAn_NT106
         private void UpdateCameraNoOvershoot()
         {
             if (player1State == null || player2State == null) return;
+
             int viewWidth = this.ClientSize.Width;
             int worldWidth = backgroundWidth;
-            
-            Rectangle p1Hb = GetPlayerHitbox(player1State);
-            Rectangle p2Hb = GetPlayerHitbox(player2State);
-            
-            int leftMost = Math.Min(p1Hb.Left, p2Hb.Left);
-            int rightMost = Math.Max(p1Hb.Right, p2Hb.Right);
-            int widthNeeded = rightMost - leftMost;
-            
-            int desired;
-            int safeMargin = 100;  // ✅ TĂNG: 50 → 100px (bigger safety margin)
-            int edgeThreshold = 150;  // ✅ NEW: Detect if player within 150px of edge
-            
-            // ✅ KEY: Detect if ANY player is near edge → use AGGRESSIVE camera
-            bool p1NearLeft = leftMost < edgeThreshold;
-            bool p2NearRight = (worldWidth - rightMost) < edgeThreshold;
-            bool playerNearEdge = p1NearLeft || p2NearRight;
-            
-            if (widthNeeded <= viewWidth)
+
+            // Xác định local player
+            PlayerState local, opponent;
+            if (isOnlineMode && myPlayerNumber > 0)
             {
-                // Both players fit in viewport → center them
-                int centerX = (leftMost + rightMost) / 2;
+                local = myPlayerNumber == 1 ? player1State : player2State;
+                opponent = local == player1State ? player2State : player1State;
+            }
+            else
+            {
+                local = player1State;
+                opponent = player2State;
+            }
+
+            Rectangle localHb = GetPlayerHitbox(local);
+            Rectangle opponentHb = GetPlayerHitbox(opponent);
+
+            // 1. TÍNH CAMERA TARGET BÌNH THƯỜNG
+            int desired;
+
+            // Ưu tiên: Luôn hiển thị cả hai player
+            int leftMost = Math.Min(localHb.Left, opponentHb.Left);
+            int rightMost = Math.Max(localHb.Right, opponentHb.Right);
+            int centerX = (leftMost + rightMost) / 2;
+
+            // Nếu cả hai fit trong màn hình
+            if ((rightMost - leftMost) <= viewWidth)
+            {
                 desired = centerX - viewWidth / 2;
             }
             else
             {
-                // Both players too far apart
-                
-                if (p1NearLeft)
+                // Không fit → ưu tiên local player nhưng đảm bảo thấy opponent
+                int localCenter = localHb.Left + localHb.Width / 2;
+                desired = localCenter - viewWidth / 2;
+
+                // Đảm bảo opponent không ra khỏi màn hình
+                int opponentScreenX = opponentHb.Left - desired;
+                if (opponentScreenX < 80)
                 {
-                    // P1 near LEFT edge → CRITICAL: shift camera left immediately
-                    desired = leftMost - safeMargin;
+                    desired = opponentHb.Right - 80;
                 }
-                else if (p2NearRight)
+                else if (opponentScreenX > viewWidth - 80)
                 {
-                    // P2 near RIGHT edge → CRITICAL: shift camera right immediately
-                    desired = rightMost - viewWidth + safeMargin;
-                }
-                else
-                {
-                    // Both far from edges → center between them
-                    int centerX = (leftMost + rightMost) / 2;
-                    desired = centerX - viewWidth / 2;
+                    desired = opponentHb.Left - viewWidth + 80;
                 }
             }
-            
-            // ✅ Hard clamp viewport vào world bounds
+
+            // 2. QUAN TRỌNG: KHÔNG CHO OVERSHOOT!
             int minViewport = 0;
             int maxViewport = Math.Max(0, worldWidth - viewWidth);
+
+            // Clamp desired into world bounds
             desired = Math.Max(minViewport, Math.Min(maxViewport, desired));
-            
-            // ✅ FIX: AGGRESSIVE smoothing when near edge (network lag compensation)
-            // When player near edge, use FAST camera to compensate for network delay
-            float delta = desired - viewportX;
-            float smoothing;
-            
-            if (playerNearEdge)
+
+            // Assign camera immediately to desired (avoid using stale viewportX when checking)
+            viewportX = desired;
+
+            // If camera at bounds, push players inside viewport instead of moving camera
+            if (viewportX == minViewport || viewportX == maxViewport)
             {
-                // ✅ AGGRESSIVE: 0.4-0.5 (faster response to edge cases)
-                smoothing = Math.Abs(delta) > 150 ? 0.5f : 0.4f;
+                PushPlayersIntoViewport();
+                return;
             }
-            else if (Math.Abs(delta) > 200)
-            {
-                // Normal large movement
-                smoothing = 0.3f;
-            }
-            else
-            {
-                // Normal small movement
-                smoothing = 0.15f;
-            }
-            
-            viewportX += (int)(delta * smoothing);
+
+            // 4. SMOOTH CAMERA MOVEMENT (chỉ khi không ở biên)
+            float delta = desired - viewportX; // will be zero because we assigned, but keep for compatibility with other branches
+            float smoothing = 0.15f;
+            // choose smoothing based on distance between players
+            if (Math.Abs((localHb.Left + localHb.Width / 2) - centerX) > 200) smoothing = 0.3f;
+            if (local.IsDashing || opponent.IsDashing) smoothing = 0.25f;
+
+            // In practice we've already set viewportX to desired; optionally apply slight interpolation
+            // Keep viewportX clamped
             viewportX = Math.Max(minViewport, Math.Min(maxViewport, viewportX));
-            
-            Console.WriteLine($"[CAMERA] P1Hb.Left={p1Hb.Left}, P2Hb.Right={p2Hb.Right}, near_edge={playerNearEdge}, smoothing={smoothing}, viewport={viewportX}");
+        }
+
+        private void PushPlayersIntoViewport()
+        {
+            int viewWidth = this.ClientSize.Width;
+            int screenLeft = viewportX;
+            int screenRight = viewportX + viewWidth;
+            int safeMargin = 60; // Giữ players cách biên ít nhất 60px
+
+            if (player1State == null || player2State == null) return;
+
+            // Determine local and remote based on online mode
+            PlayerState local = (isOnlineMode && myPlayerNumber > 0) ? (myPlayerNumber == 1 ? player1State : player2State) : player1State;
+            PlayerState remote = (local == player1State) ? player2State : player1State;
+
+            // Adjust local player to keep inside viewport (safe, won't desync since local is authoritative for its client)
+            Rectangle lhb = GetPlayerHitbox(local);
+            if (lhb.Right < screenLeft + safeMargin)
+            {
+                int pushAmount = (screenLeft + safeMargin) - lhb.Right;
+                local.X += pushAmount;
+                Console.WriteLine($"[Camera] Pushed local player right by {pushAmount}px");
+            }
+            else if (lhb.Left > screenRight - safeMargin)
+            {
+                int pushAmount = lhb.Left - (screenRight - safeMargin);
+                local.X -= pushAmount;
+                Console.WriteLine($"[Camera] Pushed local player left by {pushAmount}px");
+            }
+
+            // If offline adjust remote as well; if online do not mutate remote (avoid desync)
+            if (!isOnlineMode)
+            {
+                Rectangle rhb = GetPlayerHitbox(remote);
+                if (rhb.Right < screenLeft + safeMargin)
+                {
+                    int pushAmount = (screenLeft + safeMargin) - rhb.Right;
+                    remote.X += pushAmount;
+                    Console.WriteLine($"[Camera] Pushed remote player right by {pushAmount}px");
+                }
+                else if (rhb.Left > screenRight - safeMargin)
+                {
+                    int pushAmount = rhb.Left - (screenRight - safeMargin);
+                    remote.X -= pushAmount;
+                    Console.WriteLine($"[Camera] Pushed remote player left by {pushAmount}px");
+                }
+            }
         }
 
         private void UpdateCameraWithSoftBoundaries()
