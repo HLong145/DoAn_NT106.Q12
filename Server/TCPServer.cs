@@ -68,6 +68,8 @@ namespace DoAn_NT106.Server
             udpGameServer.OnLog += LogMessage;
         }
 
+        
+
         #endregion
 
 
@@ -518,6 +520,25 @@ namespace DoAn_NT106.Server
 
                     case "LOBBY_LEAVE":
                         return HandleLobbyLeave(request);
+
+                    case "LOBBY_SET_MAP":
+                        // Inline handling for setting map to keep CreateResponse in scope
+                        try
+                        {
+                            var rc = request.Data?["roomCode"]?.ToString();
+                            var un = request.Data?["username"]?.ToString();
+                            var sm = request.Data?["selectedMap"]?.ToString();
+                            if (string.IsNullOrEmpty(rc) || string.IsNullOrEmpty(un) || string.IsNullOrEmpty(sm))
+                                return CreateResponse(false, "Missing parameters");
+
+                            var setRes = lobbyManager.SetLobbyMap(rc, un, sm);
+                            return CreateResponse(setRes.Success, setRes.Message);
+                        }
+                        catch (Exception ex)
+                        {
+                            server.Log($"❌ HandleLobbySetMap inline error: {ex.Message}");
+                            return CreateResponse(false, ex.Message);
+                        }
 
                     case "LOBBY_SET_READY":
                         return HandleLobbySetReady(request);

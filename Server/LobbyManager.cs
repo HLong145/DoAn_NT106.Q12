@@ -46,6 +46,62 @@ namespace DoAn_NT106.Server
 
         #endregion
 
+        // SET MAP
+        public (bool Success, string Message) SetLobbyMap(string roomCode, string username, string selectedMap)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(roomCode) || string.IsNullOrEmpty(username) || string.IsNullOrEmpty(selectedMap))
+                    return (false, "Missing parameters");
+
+                if (!lobbies.TryGetValue(roomCode, out var lobby))
+                    return (false, "Lobby not found");
+
+                lock (lobby.Lock)
+                {
+                    // Only host can change map (player1)
+                    if (lobby.Player1Username != username)
+                    {
+                        return (false, "Only host can change map");
+                    }
+
+                    lobby.SelectedMap = selectedMap;
+                    Log($"🗺 Lobby {roomCode} map changed to {selectedMap} by {username}");
+
+                    // Broadcast map change to both players
+                    BroadcastMapChanged(lobby);
+                }
+
+                return (true, "Map updated");
+            }
+            catch (Exception ex)
+            {
+                Log($"❌ SetLobbyMap error: {ex.Message}");
+                return (false, ex.Message);
+            }
+        }
+
+        private void BroadcastMapChanged(LobbyData lobby)
+        {
+            var broadcast = new
+            {
+                Action = "LOBBY_MAP_CHANGED",
+                Data = new
+                {
+                    roomCode = lobby.RoomCode,
+                    selectedMap = lobby.SelectedMap
+                }
+            };
+
+            string json = JsonSerializer.Serialize(broadcast);
+
+            if (lobby.Player1Client != null)
+                SafeSend(lobby.Player1Client, json);
+
+            if (lobby.Player2Client != null)
+                SafeSend(lobby.Player2Client, json);
+        }
+
         #region Join and leave lobby
         public (bool Success, string Message, LobbyData Lobby) JoinLobby(
             string roomCode,
@@ -363,6 +419,7 @@ namespace DoAn_NT106.Server
                 {
                     roomCode = lobby.RoomCode,
                     roomName = lobby.RoomName,
+                    selectedMap = lobby.SelectedMap,
                     player1 = lobby.Player1Username,
                     player2 = lobby.Player2Username,
                     player1Ready = lobby.Player1Ready,
@@ -440,6 +497,8 @@ namespace DoAn_NT106.Server
                     roomCode = lobby.RoomCode,
                     player1 = lobby.Player1Username,
                     player2 = lobby.Player2Username
+                    ,
+                    selectedMap = lobby.SelectedMap
                 }
             };
 
@@ -493,6 +552,9 @@ namespace DoAn_NT106.Server
         {
             public string RoomCode { get; set; }
             public string RoomName { get; set; }
+
+            // Selected map for this lobby (e.g. "battleground1")
+            public string SelectedMap { get; set; } = "battleground1";
 
             public string Player1Username { get; set; }
             public ClientHandler Player1Client { get; set; }
@@ -573,6 +635,8 @@ namespace DoAn_NT106.Server
                             player2 = lobby.Player2Username,
                             player1Character = state.Player1Character,
                             player2Character = state.Player2Character
+                            ,
+                            selectedMap = lobby.SelectedMap
                         }
                     };
 

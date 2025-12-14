@@ -100,6 +100,9 @@ namespace DoAn_NT106
                 string p2Name = GetStringOrNull(data, "player2");
                 string p1Char = GetStringOrNull(data, "player1Character") ?? "girlknight";
                 string p2Char = GetStringOrNull(data, "player2Character") ?? "girlknight";
+                // Map provided by server (preferred)
+                string mapFromServer = GetStringOrNull(data, "selectedMap");
+                string mapToUse = !string.IsNullOrEmpty(mapFromServer) ? mapFromServer : selectedMap;
 
                 // ✅ DETERMINE MY PLAYER NUMBER BASED ON USERNAME MATCH
                 if (string.Equals(p1Name, username, StringComparison.OrdinalIgnoreCase))
@@ -132,13 +135,17 @@ namespace DoAn_NT106
                         {
                             // ✅ PLAYER 1: CREATE NEW BATTLEFORM
                             Console.WriteLine($"[CharacterSelectForm] Player 1 creating new BattleForm for room {roomCode}");
+                            // Prefer server-provided map if present in START_GAME payload
+                            var mapFromServer = GetStringOrNull(data, "selectedMap");
+                            var mapToUse = !string.IsNullOrEmpty(mapFromServer) ? mapFromServer : selectedMap;
+
                             var battleForm = new BattleForm(
                                 username,
                                 token,
                                 opponentName,
                                 p1Char,  // Player 1's selected character
                                 p2Char,  // Player 2's selected character
-                                selectedMap,
+                                mapToUse,
                                 roomCode,
                                 myPlayerNumber,
                                 isCreator: true  // ✅ PASS FLAG: I'm the creator
@@ -172,6 +179,9 @@ namespace DoAn_NT106
                             {
                                 // ✅ JOIN EXISTING BATTLEFORM
                                 Console.WriteLine($"[CharacterSelectForm] Found existing BattleForm, joining...");
+                                // Ensure existing form uses server map
+                                try { existingBattleForm.UpdateSelectedMap(mapToUse); } catch { }
+
                                 existingBattleForm.JoinAsPlayer2(
                                     username,
                                     token,
@@ -216,13 +226,18 @@ namespace DoAn_NT106
                                 {
                                     // ✅ FALLBACK: CREATE OWN BATTLEFORM IF PLAYER 1 FAILED
                                     Console.WriteLine($"[CharacterSelectForm] BattleForm still not found, creating fallback...");
-                                    var battleForm = new BattleForm(
+                                // For fallback or when creating as player2 with no existing BattleForm,
+                                // prefer server map
+                                var mapFromServer2 = GetStringOrNull(data, "selectedMap");
+                                var mapToUse2 = !string.IsNullOrEmpty(mapFromServer2) ? mapFromServer2 : selectedMap;
+
+                                var battleForm = new BattleForm(
                                         username,
                                         token,
                                         opponentName,
                                         p1Char,
                                         p2Char,
-                                        selectedMap,
+                                    mapToUse2,
                                         roomCode,
                                         myPlayerNumber,
                                         isCreator: false

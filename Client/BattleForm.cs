@@ -478,13 +478,13 @@ namespace DoAn_NT106
                 }
             }
 
-            // ✅ Set map background based on selectedMap ("battleground1" format)
-            // ✅ FIX: selectedMap is already "battleground1" format, find its index
+            // ✅ Normalize selectedMap and set map background
+            selectedMap = (selectedMap ?? "battleground1").Trim().ToLowerInvariant();
             int mapIndex = -1;
             if (!string.IsNullOrEmpty(selectedMap))
             {
                 // Extract number from "battleground4" → 4
-                string mapNumberStr = selectedMap.Replace("battleground", "");
+                string mapNumberStr = selectedMap.Replace("battleground", "", StringComparison.OrdinalIgnoreCase);
                 if (int.TryParse(mapNumberStr, out int mapNum) && mapNum >= 1 && mapNum <= 4)
                 {
                     mapIndex = mapNum - 1;  // 1 → index 0, 4 → index 3
@@ -580,6 +580,41 @@ namespace DoAn_NT106
             this.Show();
 
             Console.WriteLine($"[BattleForm] Player 2 joined successfully");
+        }
+
+        // Allow updating selected map at runtime (used when Player2 joins an existing BattleForm)
+        public void UpdateSelectedMap(string selectedMap)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(selectedMap)) return;
+
+                int mapIndex = -1;
+                string mapNumberStr = selectedMap.Replace("battleground", "");
+                if (int.TryParse(mapNumberStr, out int mapNum) && mapNum >= 1 && mapNum <= 4)
+                {
+                    mapIndex = mapNum - 1;
+                }
+
+                currentBackground = (mapIndex >= 0 && mapIndex < 4) ? mapIndex : 0;
+                string backgroundName = $"battleground{currentBackground + 1}";
+
+                // Ensure call on UI thread
+                if (this.InvokeRequired)
+                {
+                    this.BeginInvoke(new Action(() => SetBackground(backgroundName)));
+                }
+                else
+                {
+                    SetBackground(backgroundName);
+                }
+
+                Console.WriteLine($"[BattleForm] UpdateSelectedMap applied: {backgroundName}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[BattleForm] UpdateSelectedMap error: {ex.Message}");
+            }
         }
 
         private void SetupGame()
@@ -1944,6 +1979,29 @@ namespace DoAn_NT106
         {
             try
             {
+                // Normalize common variants: accept "battlefield2", "battleground2", with any case/whitespace
+                if (!string.IsNullOrEmpty(backgroundName))
+                {
+                    var bn = backgroundName.Trim().ToLowerInvariant();
+                    if (bn.StartsWith("battlefield"))
+                    {
+                        var num = bn.Replace("battlefield", "").Trim();
+                        if (int.TryParse(num, out int n) && n >= 1 && n <= 4)
+                        {
+                            backgroundName = $"battleground{n}";
+                        }
+                    }
+                    else if (bn.StartsWith("battleground"))
+                    {
+                        // ensure canonical form
+                        var num = bn.Replace("battleground", "").Trim();
+                        if (int.TryParse(num, out int n) && n >= 1 && n <= 4)
+                        {
+                            backgroundName = $"battleground{n}";
+                        }
+                    }
+                }
+
                 // KIỂM TRA 1: Form đã sẵn sàng chưa?
                 if (this.ClientSize.Height <= 100 || this.IsDisposed || !this.IsHandleCreated)
                 {
@@ -1966,7 +2024,7 @@ namespace DoAn_NT106
                 }
 
                 Image originalBg = null;
-                switch (backgroundName.ToLower())
+                switch ((backgroundName ?? "").ToLower())
                 {
                     case "battleground1": originalBg = Properties.Resources.battleground1; break;
                     case "battleground2": originalBg = Properties.Resources.battleground2; break;

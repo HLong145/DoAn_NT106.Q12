@@ -520,6 +520,14 @@ namespace DoAn_NT106.Services
                 { "username", username }
             });
 
+        public Task<ServerResponse> LobbySetMapAsync(string roomCode, string username, string selectedMap)
+            => SendRequestAsync("LOBBY_SET_MAP", new Dictionary<string, object>
+            {
+                { "roomCode", roomCode },
+                { "username", username },
+                { "selectedMap", selectedMap }
+            });
+
         #endregion
 
         #region API methods - game

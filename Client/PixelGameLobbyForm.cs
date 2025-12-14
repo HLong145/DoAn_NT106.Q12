@@ -66,6 +66,34 @@ namespace PixelGameLobby
             this.FormClosing += GameLobbyForm_FormClosing;
         }
 
+        private void HandleMapChanged(JsonElement data)
+        {
+            try
+            {
+                string msgRoomCode = GetStringOrNull(data, "roomCode");
+                if (!string.IsNullOrEmpty(msgRoomCode) && msgRoomCode != roomCode) return;
+
+                var map = GetStringOrNull(data, "selectedMap");
+                if (string.IsNullOrEmpty(map)) return;
+
+                selectedMap = map;
+                if (selectedMap.StartsWith("battleground") && int.TryParse(selectedMap.Replace("battleground", ""), out int mapNum))
+                {
+                    mapLabel.Text = "Map: Battlefield " + mapNum;
+                }
+                else
+                {
+                    mapLabel.Text = "Map: " + selectedMap;
+                }
+
+                AddSystemMessage($"🗺️ Map changed to {mapLabel.Text} (synced)");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GameLobby] HandleMapChanged error: {ex.Message}");
+            }
+        }
+
         public GameLobbyForm(string roomCode = null) : this(roomCode, "Guest", "")
         {
         }
@@ -243,6 +271,9 @@ namespace PixelGameLobby
                 case "LOBBY_STATE_UPDATE":
                     UpdateFromServerState(data);
                     break;
+                case "LOBBY_MAP_CHANGED":
+                    HandleMapChanged(data);
+                    break;
                 case "LOBBY_PLAYER_LEFT":
                     HandlePlayerLeft(data);
                     break;
@@ -262,6 +293,21 @@ namespace PixelGameLobby
         {
             try
             {
+                // Sync selected map if server provided it in state
+                var mapFromServer = GetStringOrNull(data, "selectedMap");
+                if (!string.IsNullOrEmpty(mapFromServer))
+                {
+                    selectedMap = mapFromServer;
+                    try
+                    {
+                        if (selectedMap.StartsWith("battleground") && int.TryParse(selectedMap.Replace("battleground", ""), out int mnum))
+                            mapLabel.Text = "Map: Battlefield " + mnum;
+                        else
+                            mapLabel.Text = "Map: " + selectedMap;
+                    }
+                    catch { }
+                }
+
                 string msgRoomCode = GetStringOrNull(data, "roomCode");
                 if (!string.IsNullOrEmpty(msgRoomCode) && msgRoomCode != roomCode)
                 {
@@ -523,11 +569,13 @@ namespace PixelGameLobby
                     isLeaving = true;
 
                     // ✅ PASS MAP TO CHARACTER SELECT FORM
-                    // selectedMap is already "battleground1" format from chooseMapButton_Click
+                    // Use server-provided map if present
                     string opponent = opponentName ?? "Opponent";
+                    var mapFromServer = GetStringOrNull(data, "selectedMap");
+                    var mapToPass = !string.IsNullOrEmpty(mapFromServer) ? mapFromServer : selectedMap;
 
-                    Console.WriteLine($"[GameLobby] Passing selectedMap='{selectedMap}' to CharacterSelectForm");
-                    var selectForm = new CharacterSelectForm(username, token, roomCode, opponent, true, selectedMap);
+                    Console.WriteLine($"[GameLobby] Passing selectedMap='{mapToPass}' to CharacterSelectForm");
+                    var selectForm = new CharacterSelectForm(username, token, roomCode, opponent, true, mapToPass);
 
                     selectForm.FormClosed += (s2, args) =>
                     {
@@ -811,6 +859,14 @@ namespace PixelGameLobby
                         
                         Console.WriteLine($"[GameLobby.chooseMapButton_Click] MapSelectForm returned: '{f.SelectedMap}'");
                         Console.WriteLine($"[GameLobby.chooseMapButton_Click] selectedMap now = '{selectedMap}'");
+
+                        // Notify server about map change
+                        var mapResp = await TcpClient.LobbySetMapAsync(roomCode, username, selectedMap);
+                        Console.WriteLine($"[GameLobby] LobbySetMap response: {mapResp.Success} - {mapResp.Message}");
+                        if (!mapResp.Success)
+                        {
+                            AddSystemMessage("⚠️ Failed to sync map to server");
+                        }
                     }
                 }
             }
