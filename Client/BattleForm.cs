@@ -279,66 +279,55 @@ namespace DoAn_NT106
                 // Single source of truth: use PhysicsSystem boundaries when available
                 if (physicsSystem != null)
                 {
-                    var b1 = physicsSystem.GetBoundaryFromHurtboxPublic(player1State);
-                    var b2 = physicsSystem.GetBoundaryFromHurtboxPublic(player2State);
+                    // Only enforce boundary/wrap for the local player.
+                    // Remote (opponent) positions arrive via UDP and are
+                    // already clamped on their side; re-clamping here can
+                    // create off-by-one blocking behavior. We'll still
+                    // optionally log if remote goes out of expected bounds.
 
-                    // Detect wrap-around/teleport: large jump compared to previous frame
-                    int prev1 = player1X; // previous tick value
-                    int prev2 = player2X;
+                    var local = myPlayerNumber == 1 ? player1State : player2State;
+                    var remote = local == player1State ? player2State : player1State;
+                    int prevLocal = local == player1State ? player1X : player2X;
                     int wrapThreshold = Math.Max(100, backgroundWidth / 2);
 
-                    // Player1: handle wrap or clamp
-                    if (Math.Abs(player1State.X - prev1) > wrapThreshold)
+                    var localBounds = physicsSystem.GetBoundaryFromHurtboxPublic(local);
+
+                    // Handle wrap/teleport for local only
+                    if (Math.Abs(local.X - prevLocal) > wrapThreshold)
                     {
-                        // Large jump detected → assume wrap, snap to nearest boundary based on direction
-                        if (player1State.X > prev1)
+                        if (local.X > prevLocal)
                         {
-                            Console.WriteLine($"[EnsurePlayersInWorld] P1 wrap detected (rightward). Snapping to max {b1.maxX}");
-                            player1State.X = b1.maxX;
+                            Console.WriteLine($"[EnsurePlayersInWorld] Local wrap detected (rightward). Snapping to max {localBounds.maxX}");
+                            local.X = localBounds.maxX;
                         }
                         else
                         {
-                            Console.WriteLine($"[EnsurePlayersInWorld] P1 wrap detected (leftward). Snapping to min {b1.minX}");
-                            player1State.X = b1.minX;
+                            Console.WriteLine($"[EnsurePlayersInWorld] Local wrap detected (leftward). Snapping to min {localBounds.minX}");
+                            local.X = localBounds.minX;
                         }
-                        player1State.VelocityX = 0;
+                        local.VelocityX = 0;
                     }
                     else
                     {
-                        int clamped1 = Math.Max(b1.minX, Math.Min(b1.maxX, player1State.X));
-                        if (clamped1 != player1State.X)
+                        int clamped = Math.Max(localBounds.minX, Math.Min(localBounds.maxX, local.X));
+                        if (clamped != local.X)
                         {
-                            Console.WriteLine($"[EnsurePlayersInWorld] P1 clamped X: {player1State.X} -> {clamped1} using bounds [{b1.minX},{b1.maxX}]");
-                            player1State.X = clamped1;
-                            player1State.VelocityX = 0;
+                            Console.WriteLine($"[EnsurePlayersInWorld] Local clamped X: {local.X} -> {clamped} using bounds [{localBounds.minX},{localBounds.maxX}]");
+                            local.X = clamped;
+                            local.VelocityX = 0;
                         }
                     }
 
-                    // Player2: handle wrap or clamp
-                    if (Math.Abs(player2State.X - prev2) > wrapThreshold)
+                    // Light sanity-check logging for remote (do NOT modify remote.X)
+                    try
                     {
-                        if (player2State.X > prev2)
+                        var remoteBounds = physicsSystem.GetBoundaryFromHurtboxPublic(remote);
+                        if (remote.X < remoteBounds.minX || remote.X > remoteBounds.maxX)
                         {
-                            Console.WriteLine($"[EnsurePlayersInWorld] P2 wrap detected (rightward). Snapping to max {b2.maxX}");
-                            player2State.X = b2.maxX;
-                        }
-                        else
-                        {
-                            Console.WriteLine($"[EnsurePlayersInWorld] P2 wrap detected (leftward). Snapping to min {b2.minX}");
-                            player2State.X = b2.minX;
-                        }
-                        player2State.VelocityX = 0;
-                    }
-                    else
-                    {
-                        int clamped2 = Math.Max(b2.minX, Math.Min(b2.maxX, player2State.X));
-                        if (clamped2 != player2State.X)
-                        {
-                            Console.WriteLine($"[EnsurePlayersInWorld] P2 clamped X: {player2State.X} -> {clamped2} using bounds [{b2.minX},{b2.maxX}]");
-                            player2State.X = clamped2;
-                            player2State.VelocityX = 0;
+                            Console.WriteLine($"[EnsurePlayersInWorld] WARNING: Remote X out of bounds: remote.X={remote.X}, bounds=[{remoteBounds.minX},{remoteBounds.maxX}]");
                         }
                     }
+                    catch { }
                 }
                 else
                 {
@@ -1087,23 +1076,48 @@ namespace DoAn_NT106
                     // IMPORTANT: Ensure we send WORLD POSITION over UDP (not screen coordinates).
                     // Heuristic: if X looks like a screen coordinate (within ClientSize.Width)
                     // and adding viewportX keeps it inside world bounds, convert it to world X.
+                    // Send world coordinates directly. The local PlayerState.X is
+                    // already a world position (not a screen coordinate), so avoid
+                    // heuristic conversion which may double-add viewportX and cause
+                    // incorrect positions to be transmitted.
                     int sendX = me.X;
                     int sendY = me.Y; // vertical camera locked to 0 in this game (world Y == screen Y)
 
-                    bool looksLikeScreenX = (me.X >= 0 && me.X <= this.ClientSize.Width);
-                    if (looksLikeScreenX)
+                    // Clamp to valid world play range to avoid sending invalid positions
+                    // Use PhysicsSystem boundary (hurtbox-based) when available so we
+                    // send the same allowed range as local movement (may include
+                    // negative sprite.X values). Fall back to 0..(backgroundWidth-PLAYER_WIDTH).
+                    try
                     {
-                        int converted = me.X + viewportX;
-                        if (converted >= 0 && converted <= backgroundWidth)
+                        if (physicsSystem != null)
                         {
-                            Console.WriteLine($"[UDP] Detected possible screen X={me.X}; converting to world X={converted} by adding viewportX={viewportX}");
-                            sendX = converted;
+                            var b = physicsSystem.GetBoundaryFromHurtboxPublic(me);
+                            sendX = Math.Max(b.minX, Math.Min(b.maxX, sendX));
+                        }
+                        else
+                        {
+                            sendX = Math.Max(0, Math.Min(Math.Max(0, backgroundWidth - PLAYER_WIDTH), sendX));
                         }
                     }
-
-                    // Clamp to valid world range
-                    sendX = Math.Max(0, Math.Min(backgroundWidth, sendX));
+                    catch
+                    {
+                        sendX = Math.Max(0, Math.Min(Math.Max(0, backgroundWidth - PLAYER_WIDTH), sendX));
+                    }
                     sendY = Math.Max(0, Math.Min(Math.Max(0, this.ClientSize.Height), sendY));
+
+                    // DEBUG: Log sendX near edges to help diagnose boundary sync issues
+                    try
+                    {
+                        if (physicsSystem != null)
+                        {
+                            var localBounds = physicsSystem.GetBoundaryFromHurtboxPublic(me);
+                            if (sendX <= localBounds.minX + 8 || sendX >= localBounds.maxX - 8)
+                            {
+                                Console.WriteLine($"[UDP DEBUG] Sending pos near edge: sendX={sendX}, localBounds=[{localBounds.minX},{localBounds.maxX}], viewportX={viewportX}");
+                            }
+                        }
+                    }
+                    catch { }
 
                     udpClient.UpdateState(
                         sendX,
@@ -1264,8 +1278,11 @@ namespace DoAn_NT106
                 if (remotePlayerNum != opponentNum)
                     return;
 
-                int x = data[7] | (data[8] << 8);
-                int y = data[9] | (data[10] << 8);
+                // Decode signed 16-bit little-endian values for X/Y (supports negative world X)
+                short sx = (short)(data[7] | (data[8] << 8));
+                short sy = (short)(data[9] | (data[10] << 8));
+                int x = sx;
+                int y = sy;
                 int health = data[11];
                 int stamina = data[12];
                 int mana = data[13];
@@ -1378,51 +1395,31 @@ namespace DoAn_NT106
                     opp.X = x;
                     opp.Y = y;
                     
-                    // ✅ FIX: Use PhysicsSystem boundary (from hurtbox) to clamp opponent position
+                    // NOTE: Do NOT re-apply local PhysicsSystem boundaries here.
+                    // The remote client already clamps its own position before
+                    // sending via UDP. Re-clamping on the receiver causes a
+                    // "one-space" early block at the edges. Always trust the
+                    // opponent's sent world position and only update state below.
+
+                    // DEBUG: Log received position vs computed hurtbox/bounds for investigation
                     try
                     {
                         if (physicsSystem != null)
                         {
-                            var bounds = physicsSystem.GetBoundaryFromHurtboxPublic(opp);
-                            int minX = bounds.minX;
-                            int maxX = bounds.maxX;
-
-                            if (opp.X < minX)
-                            {
-                                Console.WriteLine($"[UDP] Clamping opponent LEFT via Physics bounds: X={opp.X} -> {minX}");
-                                opp.X = minX;
-                            }
-                            else if (opp.X > maxX)
-                            {
-                                Console.WriteLine($"[UDP] Clamping opponent RIGHT via Physics bounds: X={opp.X} -> {maxX}");
-                                opp.X = maxX;
-                            }
+                            // opp.X already set to received x
+                            var recvBounds = physicsSystem.GetBoundaryFromHurtboxPublic(opp);
+                            var hb = GetPlayerHitbox(opp);
+                            Console.WriteLine($"[UDP DEBUG] Received opponent pos X={opp.X} Y={opp.Y}; hurtboxLeft={hb.Left} hurtboxRight={hb.Right}; bounds=[{recvBounds.minX},{recvBounds.maxX}]");
                         }
                         else
                         {
-                            // fallback to hurtbox clamp
-                            Rectangle oppHb = GetPlayerHitbox(opp);
-                            int minX = 0;
-                            int maxX = backgroundWidth - 1;
-                            if (oppHb.Left < minX)
-                            {
-                                int shift = minX - oppHb.Left;
-                                opp.X += shift;
-                                Console.WriteLine($"[UDP] Clamped opponent LEFT (fallback): shift={shift}, newX={opp.X}");
-                            }
-                            else if (oppHb.Right > maxX)
-                            {
-                                int shift = oppHb.Right - maxX;
-                                opp.X -= shift;
-                                Console.WriteLine($"[UDP] Clamped opponent RIGHT (fallback): shift={shift}, newX={opp.X}");
-                            }
+                            Console.WriteLine($"[UDP DEBUG] Received opponent pos X={opp.X} Y={opp.Y} (no physics)");
                         }
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"[UDP] Boundary clamp error: {ex.Message}");
+                        Console.WriteLine($"[UDP DEBUG] Bound debug error: {ex.Message}");
                     }
-                    
                     
                     // ✅ ALWAYS UPDATE STATE (health, stamina, etc.)
                     opp.Health = health;
@@ -1435,7 +1432,7 @@ namespace DoAn_NT106
                     opp.IsSkillActive = isSkillActive;
                     opp.IsCharging = isCharging;
                     opp.IsDashing = isDashing;
-                    
+
                     // ✅ ANIMATION UPDATE (only update when needed, separate from position)
                     // NẾU ĐÃ ATTACK: KHÔNG CẬP NHẬT - ĐỢI ANIMATION CHẠY XONG
                     if (opp.IsAttacking && (opp.CurrentAnimation == "punch" || opp.CurrentAnimation == "kick" || opp.CurrentAnimation == "fireball"))
@@ -1910,6 +1907,7 @@ namespace DoAn_NT106
             int safeMarginLeft = 80;   // Keep players 80px from left edge
             int safeMarginRight = 80;  // Keep players 80px from right edge
             
+
             // Check if both players fit in viewport
             int leftMost = Math.Min(p1Hb.Left, p2Hb.Left);
             int rightMost = Math.Max(p1Hb.Right, p2Hb.Right);

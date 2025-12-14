@@ -163,7 +163,9 @@ namespace DoAn_NT106.Client.BattleSystems
             try
             {
                 var bounds = GetBoundaryFromHurtbox(player);
-                const int TOL = 4;
+                // Tolerance prevents jitter when network/inputs are noisy.
+                // Reduce tolerance to 0 to avoid blocking 1px before actual boundary.
+                const int TOL = 0;
                 if (direction < 0 && player.X <= bounds.minX + TOL)
                 {
                     // At left boundary - block further left movement
