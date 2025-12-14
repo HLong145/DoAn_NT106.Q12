@@ -231,13 +231,14 @@ namespace DoAn_NT106
                                 var mapFromServer2 = GetStringOrNull(data, "selectedMap");
                                 var mapToUse2 = !string.IsNullOrEmpty(mapFromServer2) ? mapFromServer2 : selectedMap;
 
+                                // Create BattleForm with correct player ordering: pass Player1 name first
                                 var battleForm = new BattleForm(
-                                        username,
+                                        p1Name,      // Player 1 (host) - must be first param
                                         token,
-                                        opponentName,
+                                        p2Name,      // Player 2 (opponent)
                                         p1Char,
                                         p2Char,
-                                    mapToUse2,
+                                        mapToUse2,
                                         roomCode,
                                         myPlayerNumber,
                                         isCreator: false

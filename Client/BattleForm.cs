@@ -1584,32 +1584,45 @@ namespace DoAn_NT106
         }
         private void UpdateCamera()
         {
-            // ✅ Calculate center point between two players
-            int centerX = (player1State.X + player2State.X) / 2;
-            
-            // ✅ Center viewport on players
-            viewportX = centerX - this.ClientSize.Width / 2;
-            
-            // ✅ CLAMP VIEWPORT: Ensure map boundaries are respected
-            // - Minimum: viewport starts at 0 (left edge of map)
-            // - Maximum: viewport ends at backgroundWidth (right edge of map)
-            viewportX = Math.Max(0, Math.Min(backgroundWidth - this.ClientSize.Width, viewportX));
-            
-            // ✅ ADDITIONAL CHECK: If a player is too close to map edge, adjust viewport
-            // This prevents players from appearing to go "outside" the visible screen
-            int minPlayerX = Math.Min(player1State.X, player2State.X);
-            int maxPlayerX = Math.Max(player1State.X + PLAYER_WIDTH, player2State.X + PLAYER_WIDTH);
-            
-            // If left player is too close to left edge
-            if (minPlayerX < viewportX + 100)
+            // If online mode, focus camera on the local player (myPlayerNumber)
+            if (isOnlineMode && (myPlayerNumber == 1 || myPlayerNumber == 2))
             {
-                viewportX = Math.Max(0, minPlayerX - 100);
+                var me = myPlayerNumber == 1 ? player1State : player2State;
+                var other = myPlayerNumber == 1 ? player2State : player1State;
+
+                // Aim to keep local player near center but bias slightly toward opponent so both remain visible
+                int targetCenter = me.X + PLAYER_WIDTH / 2;
+                int bias = (other.X - me.X) / 4; // small bias toward opponent
+                targetCenter += bias;
+
+                viewportX = targetCenter - this.ClientSize.Width / 2;
+
+                // Clamp to map bounds
+                viewportX = Math.Max(0, Math.Min(backgroundWidth - this.ClientSize.Width, viewportX));
+
+                // Prevent local player from being too close to edges
+                int minAllowed = viewportX + 80;
+                int maxAllowed = viewportX + this.ClientSize.Width - 80;
+                if (me.X < minAllowed) viewportX = Math.Max(0, me.X - 80);
+                if (me.X > maxAllowed) viewportX = Math.Min(backgroundWidth - this.ClientSize.Width, me.X - this.ClientSize.Width + 80);
             }
-            
-            // If right player is too close to right edge
-            if (maxPlayerX > viewportX + this.ClientSize.Width - 100)
+            else
             {
-                viewportX = Math.Min(backgroundWidth - this.ClientSize.Width, maxPlayerX - this.ClientSize.Width + 100);
+                // Default behaviour: center between both players
+                int centerX = (player1State.X + player2State.X) / 2;
+                viewportX = centerX - this.ClientSize.Width / 2;
+                viewportX = Math.Max(0, Math.Min(backgroundWidth - this.ClientSize.Width, viewportX));
+
+                int minPlayerX = Math.Min(player1State.X, player2State.X);
+                int maxPlayerX = Math.Max(player1State.X + PLAYER_WIDTH, player2State.X + PLAYER_WIDTH);
+                if (minPlayerX < viewportX + 100)
+                {
+                    viewportX = Math.Max(0, minPlayerX - 100);
+                }
+                if (maxPlayerX > viewportX + this.ClientSize.Width - 100)
+                {
+                    viewportX = Math.Min(backgroundWidth - this.ClientSize.Width, maxPlayerX - this.ClientSize.Width + 100);
+                }
             }
         }
 
