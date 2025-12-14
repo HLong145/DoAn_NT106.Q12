@@ -87,7 +87,6 @@ namespace PixelGameLobby
         private async void GameLobbyForm_FormClosing(object sender, FormClosingEventArgs e)
         {
             // Unsubscribe events ngay lập tức
-            TcpClient.OnDisconnected -= HandleDisconnected;
             TcpClient.OnBroadcast -= HandleBroadcast;
 
             // Tránh gọi nhiều lần
@@ -126,6 +125,8 @@ namespace PixelGameLobby
                 OpenNewJoinRoomForm();
             }
         }
+
+
         #endregion
 
         #region Join Leave lobby logic

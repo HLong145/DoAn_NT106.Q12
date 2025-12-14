@@ -525,10 +525,10 @@ namespace DoAn_NT106
         {
             JoinRoomForm joinForm = new JoinRoomForm(username, token);
             joinForm.Show();
-            this.Hide();
+            this.Close();  // ĐÓNG hoàn toàn MainForm
         }
 
-        // ✅ Avatar available in game (use avt_* resources)
+        //  Avatar available in game (use avt_* resources)
         private readonly Image[] gameAvatars =
         {
             Properties.Resources.avt_knightgirl,

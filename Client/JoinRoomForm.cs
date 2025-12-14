@@ -574,14 +574,14 @@ namespace PixelGameLobby
                 var response = await TcpClient.JoinRoomAsync(roomCode, password, username);
                 if (response.Success)
                 {
-                    // Cleanup trước khi đóng form
+                    // Cleanup trước khi đóng
                     CleanupBeforeClose();
 
-                    // Mở GameLobbyForm với thông tin user
+                    // Mở GameLobbyForm
                     var lobbyForm = new GameLobbyForm(roomCode, username, token);
                     lobbyForm.Show();
 
-                    // Đóng JoinRoomForm hoàn toàn
+                    // ĐÓNG JoinRoomForm hoàn toàn
                     this.Close();
                 }
                 else
@@ -806,12 +806,14 @@ namespace PixelGameLobby
 
         private void BtnBack_Click(object sender, EventArgs e)
         {
-            globalChatClient?.Dispose();
-            globalChatClient = null;
+            // Cleanup trước khi đóng
+            CleanupBeforeClose();
 
+            // Mở MainForm MỚI
             MainForm mainForm = new MainForm(username, token);
             mainForm.Show();
-            this.Close();
+
+            this.Close();  //ĐÓNG hoàn toàn
         }
 
         #endregion
@@ -1040,10 +1042,8 @@ namespace PixelGameLobby
 
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
-            base.OnFormClosing(e);
-
-            // Cleanup khi form đóng
             CleanupBeforeClose();
+            base.OnFormClosing(e);
         }
 
         private void CleanupBeforeClose()
@@ -1053,12 +1053,23 @@ namespace PixelGameLobby
                 Console.WriteLine("[JoinRoomForm] Cleaning up before close...");
 
                 // Disconnect room list client
-                roomListClient?.Disconnect();
-                roomListClient = null;
+                if (roomListClient != null)
+                {
+                    roomListClient.OnRoomListUpdated -= HandleRoomListUpdate;
+                    roomListClient.Disconnect();
+                    roomListClient = null;
+                }
 
                 // Disconnect global chat
-                globalChatClient?.Dispose();
-                globalChatClient = null;
+                if (globalChatClient != null)
+                {
+                    globalChatClient.OnChatMessage -= GlobalChat_OnChatMessage;
+                    globalChatClient.OnOnlineCountUpdate -= GlobalChat_OnOnlineCountUpdate;
+                    globalChatClient.OnError -= GlobalChat_OnError;
+                    globalChatClient.OnDisconnected -= GlobalChat_OnDisconnected;
+                    globalChatClient.Dispose();
+                    globalChatClient = null;
+                }
 
                 Console.WriteLine("[JoinRoomForm] ✅ Cleanup complete");
             }
@@ -1066,7 +1077,8 @@ namespace PixelGameLobby
             {
                 Console.WriteLine($"[JoinRoomForm] ⚠️ Cleanup error: {ex.Message}");
             }
-        }
+        }        
+        
         #endregion
 
         #region Data Models
