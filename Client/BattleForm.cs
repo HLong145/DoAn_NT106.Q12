@@ -1781,21 +1781,57 @@ namespace DoAn_NT106
                     // Player 1 controls
                     case Keys.A:
                         aPressed = false;
-                        if (player1State != null) player1State.LeftKeyPressed = false;
+                        if (player1State != null)
+                        {
+                            player1State.LeftKeyPressed = false;
+                            // ✅ THÊM: Gọi ngay StopMovement để dừng liền
+                            if (player1State.CanMove && !player1State.IsJumping && 
+                                !player1State.IsAttacking && !player1State.IsParrying && !player1State.IsSkillActive)
+                            {
+                                physicsSystem.StopMovement(player1State);
+                            }
+                        }
                         break;
                     case Keys.D:
                         dPressed = false;
-                        if (player1State != null) player1State.RightKeyPressed = false;
+                        if (player1State != null)
+                        {
+                            player1State.RightKeyPressed = false;
+                            // ✅ THÊM: Gọi ngay StopMovement để dừng liền
+                            if (player1State.CanMove && !player1State.IsJumping && 
+                                !player1State.IsAttacking && !player1State.IsParrying && !player1State.IsSkillActive)
+                            {
+                                physicsSystem.StopMovement(player1State);
+                            }
+                        }
                         break;
                     
                     // Player 2 controls
                     case Keys.Left:
                         leftPressed = false;
-                        if (player2State != null) player2State.LeftKeyPressed = false;
+                        if (player2State != null)
+                        {
+                            player2State.LeftKeyPressed = false;
+                            // ✅ THÊM: Gọi ngay StopMovement để dừng liền
+                            if (player2State.CanMove && !player2State.IsJumping && 
+                                !player2State.IsAttacking && !player2State.IsParrying && !player2State.IsSkillActive)
+                            {
+                                physicsSystem.StopMovement(player2State);
+                            }
+                        }
                         break;
                     case Keys.Right:
                         rightPressed = false;
-                        if (player2State != null) player2State.RightKeyPressed = false;
+                        if (player2State != null)
+                        {
+                            player2State.RightKeyPressed = false;
+                            // ✅ THÊM: Gọi ngay StopMovement để dừng liền
+                            if (player2State.CanMove && !player2State.IsJumping && 
+                                !player2State.IsAttacking && !player2State.IsParrying && !player2State.IsSkillActive)
+                            {
+                                physicsSystem.StopMovement(player2State);
+                            }
+                        }
                         break;
                 }
             }
@@ -1806,11 +1842,29 @@ namespace DoAn_NT106
                 {
                     case Keys.A:
                         aPressed = false;
-                        if (player1State != null) player1State.LeftKeyPressed = false;
+                        if (player1State != null)
+                        {
+                            player1State.LeftKeyPressed = false;
+                            // ✅ THÊM: Gọi ngay StopMovement để dừng liền
+                            if (player1State.CanMove && !player1State.IsJumping && 
+                                !player1State.IsAttacking && !player1State.IsParrying && !player1State.IsSkillActive)
+                            {
+                                physicsSystem.StopMovement(player1State);
+                            }
+                        }
                         break;
                     case Keys.D:
                         dPressed = false;
-                        if (player1State != null) player1State.RightKeyPressed = false;
+                        if (player1State != null)
+                        {
+                            player1State.RightKeyPressed = false;
+                            // ✅ THÊM: Gọi ngay StopMovement để dừng liền
+                            if (player1State.CanMove && !player1State.IsJumping && 
+                                !player1State.IsAttacking && !player1State.IsParrying && !player1State.IsSkillActive)
+                            {
+                                physicsSystem.StopMovement(player1State);
+                            }
+                        }
                         break;
                 }
             }
@@ -1821,11 +1875,29 @@ namespace DoAn_NT106
                 {
                     case Keys.A:
                         aPressed = false;
-                        if (player2State != null) player2State.LeftKeyPressed = false;
+                        if (player2State != null)
+                        {
+                            player2State.LeftKeyPressed = false;
+                            // ✅ THÊM: Gọi ngay StopMovement để dừng liền
+                            if (player2State.CanMove && !player2State.IsJumping && 
+                                !player2State.IsAttacking && !player2State.IsParrying && !player2State.IsSkillActive)
+                            {
+                                physicsSystem.StopMovement(player2State);
+                            }
+                        }
                         break;
                     case Keys.D:
                         dPressed = false;
-                        if (player2State != null) player2State.RightKeyPressed = false;
+                        if (player2State != null)
+                        {
+                            player2State.RightKeyPressed = false;
+                            // ✅ THÊM: Gọi ngay StopMovement để dừng liền
+                            if (player2State.CanMove && !player2State.IsJumping && 
+                                !player2State.IsAttacking && !player2State.IsParrying && !player2State.IsSkillActive)
+                            {
+                                physicsSystem.StopMovement(player2State);
+                            }
+                        }
                         break;
                 }
             }
