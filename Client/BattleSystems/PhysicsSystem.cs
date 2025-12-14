@@ -39,19 +39,45 @@ namespace DoAn_NT106.Client.BattleSystems
 
             Rectangle hurtbox = getPlayerHurtboxCallback(player);
 
-            // Tính toán dựa trên hurtbox thực tế
-            // hurtbox.X là vị trí thực tế của nhân vật
-            // player.X là vị trí góc trái sprite
+            // ✅ FIX: Tính toán boundary dựa trên hurtbox thực tế
+            // Khi hurtbox.Left = 0 → hurtbox đã chạm biên trái
+            // Khi hurtbox.Right = backgroundWidth → hurtbox đã chạm biên phải
+            
+            // Offset giữa sprite.X và hurtbox.X (có thể âm hoặc dương)
+            int hurtboxOffsetX = hurtbox.X - player.X;
+            
+            // MinX: đặt sao cho hurtbox.Left = 0
+            // hurtbox.Left = player.X + hurtboxOffsetX = 0
+            // => player.X = -hurtboxOffsetX
+            int minX = -hurtboxOffsetX;
+            
+            // MaxX: đặt sao cho hurtbox.Right = backgroundWidth
+            // hurtbox.Right = player.X + hurtboxOffsetX + hurtbox.Width = backgroundWidth
+            // => player.X = backgroundWidth - hurtboxOffsetX - hurtbox.Width
+            int maxX = backgroundWidth - hurtboxOffsetX - hurtbox.Width;
 
-            int offsetFromSprite = hurtbox.X - player.X;
+            // ✅ FIX: Đảm bảo minX <= maxX (swap nếu cần)
+            if (minX > maxX)
+            {
+                Console.WriteLine($"[PhysicsSystem] WARNING: P{player.PlayerNumber} minX({minX}) > maxX({maxX}), swapping!");
+                int temp = minX;
+                minX = maxX;
+                maxX = temp;
+            }
 
-            // MinX: khi hurtbox chạm biên trái
-            int minX = 0 - offsetFromSprite;
-
-            // MaxX: khi hurtbox chạm biên phải
-            int maxX = backgroundWidth - hurtbox.Width - offsetFromSprite;
-
+            // ✅ DEBUG: Log boundary calculations for debugging
+            Console.WriteLine($"[PhysicsSystem] P{player.PlayerNumber} Boundary: minX={minX}, maxX={maxX}, " +
+               $"offsetX={hurtboxOffsetX}, hurtboxW={hurtbox.Width}, playerX={player.X}, hurtboxLeft={hurtbox.Left}");
+            
             return (minX, maxX);
+        }
+
+        /// <summary>
+        /// Public wrapper for other systems to get movement boundary for a player based on hurtbox.
+        /// </summary>
+        public (int minX, int maxX) GetBoundaryFromHurtboxPublic(PlayerState player)
+        {
+            return GetBoundaryFromHurtbox(player);
         }
       
         /// <summary>
@@ -133,6 +159,29 @@ namespace DoAn_NT106.Client.BattleSystems
         {
             if (!player.CanMove) return;
 
+            // Prevent movement if already touching boundary (small tolerance)
+            try
+            {
+                var bounds = GetBoundaryFromHurtbox(player);
+                const int TOL = 4;
+                if (direction < 0 && player.X <= bounds.minX + TOL)
+                {
+                    // At left boundary - block further left movement
+                    player.VelocityX = 0;
+                    // keep facing left but do not change position
+                    player.Facing = "left";
+                    return;
+                }
+                if (direction > 0 && player.X >= bounds.maxX - TOL)
+                {
+                    // At right boundary - block further right movement
+                    player.VelocityX = 0;
+                    player.Facing = "right";
+                    return;
+                }
+            }
+            catch { }
+
             // ✅ THÊM: Character-specific movement speeds
             int moveSpeed = playerSpeed;
             if (player.CharacterType == "bringerofdeath")
@@ -165,7 +214,15 @@ namespace DoAn_NT106.Client.BattleSystems
             player.VelocityX = player.X - prevX;
 
             var boundary = GetBoundaryFromHurtbox(player);
-            player.X = Math.Max(boundary.minX, Math.Min(boundary.maxX, player.X));
+            
+            // ✅ DEBUG: Log clamping operations when at boundaries
+            int clampedX = Math.Max(boundary.minX, Math.Min(boundary.maxX, player.X));
+            if (clampedX != player.X)
+            {
+                Console.WriteLine($"[PhysicsSystem] P{player.PlayerNumber} CLAMPED: X={player.X} → {clampedX}, " +
+                    $"boundary=[{boundary.minX}, {boundary.maxX}], dir={direction}");
+            }
+            player.X = clampedX;
 
             player.Facing = direction > 0 ? "right" : "left";
             player.IsWalking = true;

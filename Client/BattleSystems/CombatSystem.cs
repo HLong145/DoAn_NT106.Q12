@@ -928,6 +928,18 @@ namespace DoAn_NT106.Client.BattleSystems
                 return;
             }
 
+            // Check boundary first to avoid consuming stamina when at wall
+            var bounds = GetBoundaryFromHurtbox(player);
+            const int BOUNDARY_TOLERANCE = 4; // px tolerance
+            int dashDir = player.Facing == "right" ? 1 : -1;
+            if ((dashDir < 0 && player.X <= bounds.minX + BOUNDARY_TOLERANCE) ||
+                (dashDir > 0 && player.X >= bounds.maxX - BOUNDARY_TOLERANCE))
+            {
+                showHitEffectCallback?.Invoke("Hit Wall!", Color.Gray);
+                Console.WriteLine($"[ExecuteDash] Player{playerNum} blocked by boundary (X={player.X}, bounds=[{bounds.minX},{bounds.maxX}])");
+                return;
+            }
+
             if (!player.ConsumeStamina(20))
             {
                 showHitEffectCallback?.Invoke("No Stamina!", Color.Gray);
@@ -1505,6 +1517,16 @@ namespace DoAn_NT106.Client.BattleSystems
 
             // MaxX: khi hurtbox chạm biên phải
             int maxX = backgroundWidth - hurtbox.Width - offsetFromSprite;
+
+            // Safety: ensure minX <= maxX. If computed incorrectly (e.g., due to invalid hurtbox)
+            // swap values to avoid inverted bounds which cause players to be pushed to the opposite side.
+            if (minX > maxX)
+            {
+                Console.WriteLine($"[CombatSystem] WARNING: P{player.PlayerNumber} minX({minX}) > maxX({maxX}), swapping to avoid inverted bounds.");
+                int tmp = minX;
+                minX = maxX;
+                maxX = tmp;
+            }
 
             return (minX, maxX);
         }

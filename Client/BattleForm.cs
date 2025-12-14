@@ -272,35 +272,111 @@ namespace DoAn_NT106
 
         private void EnsurePlayersInWorld()
         {
-            int minX = 0;
-            int maxX = Math.Max(0, backgroundWidth - PLAYER_WIDTH);
+            if (player1State == null || player2State == null) return;
 
-            if (player1State != null)
+            try
             {
-                if (player1State.X < minX)
+                // Single source of truth: use PhysicsSystem boundaries when available
+                if (physicsSystem != null)
                 {
-                    player1State.X = minX;
-                    player1State.VelocityX = 0;
+                    var b1 = physicsSystem.GetBoundaryFromHurtboxPublic(player1State);
+                    var b2 = physicsSystem.GetBoundaryFromHurtboxPublic(player2State);
+
+                    // Detect wrap-around/teleport: large jump compared to previous frame
+                    int prev1 = player1X; // previous tick value
+                    int prev2 = player2X;
+                    int wrapThreshold = Math.Max(100, backgroundWidth / 2);
+
+                    // Player1: handle wrap or clamp
+                    if (Math.Abs(player1State.X - prev1) > wrapThreshold)
+                    {
+                        // Large jump detected → assume wrap, snap to nearest boundary based on direction
+                        if (player1State.X > prev1)
+                        {
+                            Console.WriteLine($"[EnsurePlayersInWorld] P1 wrap detected (rightward). Snapping to max {b1.maxX}");
+                            player1State.X = b1.maxX;
+                        }
+                        else
+                        {
+                            Console.WriteLine($"[EnsurePlayersInWorld] P1 wrap detected (leftward). Snapping to min {b1.minX}");
+                            player1State.X = b1.minX;
+                        }
+                        player1State.VelocityX = 0;
+                    }
+                    else
+                    {
+                        int clamped1 = Math.Max(b1.minX, Math.Min(b1.maxX, player1State.X));
+                        if (clamped1 != player1State.X)
+                        {
+                            Console.WriteLine($"[EnsurePlayersInWorld] P1 clamped X: {player1State.X} -> {clamped1} using bounds [{b1.minX},{b1.maxX}]");
+                            player1State.X = clamped1;
+                            player1State.VelocityX = 0;
+                        }
+                    }
+
+                    // Player2: handle wrap or clamp
+                    if (Math.Abs(player2State.X - prev2) > wrapThreshold)
+                    {
+                        if (player2State.X > prev2)
+                        {
+                            Console.WriteLine($"[EnsurePlayersInWorld] P2 wrap detected (rightward). Snapping to max {b2.maxX}");
+                            player2State.X = b2.maxX;
+                        }
+                        else
+                        {
+                            Console.WriteLine($"[EnsurePlayersInWorld] P2 wrap detected (leftward). Snapping to min {b2.minX}");
+                            player2State.X = b2.minX;
+                        }
+                        player2State.VelocityX = 0;
+                    }
+                    else
+                    {
+                        int clamped2 = Math.Max(b2.minX, Math.Min(b2.maxX, player2State.X));
+                        if (clamped2 != player2State.X)
+                        {
+                            Console.WriteLine($"[EnsurePlayersInWorld] P2 clamped X: {player2State.X} -> {clamped2} using bounds [{b2.minX},{b2.maxX}]");
+                            player2State.X = clamped2;
+                            player2State.VelocityX = 0;
+                        }
+                    }
                 }
-                else if (player1State.X > maxX)
+                else
                 {
-                    player1State.X = maxX;
-                    player1State.VelocityX = 0;
+                    // Fallback: clamp to world extents and detect extreme jumps
+                    int minX = 0;
+                    int maxX = Math.Max(0, backgroundWidth - PLAYER_WIDTH);
+                    int prev1 = player1X;
+                    int prev2 = player2X;
+                    int wrapThreshold = Math.Max(100, backgroundWidth / 2);
+
+                    if (Math.Abs(player1State.X - prev1) > wrapThreshold)
+                    {
+                        player1State.X = player1State.X > prev1 ? maxX : minX;
+                        player1State.VelocityX = 0;
+                        Console.WriteLine($"[EnsurePlayersInWorld] P1 fallback wrap snap to {player1State.X}");
+                    }
+                    else
+                    {
+                        int c1 = Math.Max(minX, Math.Min(maxX, player1State.X));
+                        if (c1 != player1State.X) { Console.WriteLine($"[EnsurePlayersInWorld] P1 fallback clamp {player1State.X} -> {c1}"); player1State.X = c1; player1State.VelocityX = 0; }
+                    }
+
+                    if (Math.Abs(player2State.X - prev2) > wrapThreshold)
+                    {
+                        player2State.X = player2State.X > prev2 ? maxX : minX;
+                        player2State.VelocityX = 0;
+                        Console.WriteLine($"[EnsurePlayersInWorld] P2 fallback wrap snap to {player2State.X}");
+                    }
+                    else
+                    {
+                        int c2 = Math.Max(minX, Math.Min(maxX, player2State.X));
+                        if (c2 != player2State.X) { Console.WriteLine($"[EnsurePlayersInWorld] P2 fallback clamp {player2State.X} -> {c2}"); player2State.X = c2; player2State.VelocityX = 0; }
+                    }
                 }
             }
-
-            if (player2State != null)
+            catch (Exception ex)
             {
-                if (player2State.X < minX)
-                {
-                    player2State.X = minX;
-                    player2State.VelocityX = 0;
-                }
-                else if (player2State.X > maxX)
-                {
-                    player2State.X = maxX;
-                    player2State.VelocityX = 0;
-                }
+                Console.WriteLine($"[EnsurePlayersInWorld] ERROR: {ex.Message}");
             }
         }
 
@@ -963,6 +1039,8 @@ namespace DoAn_NT106
         if (isOnlineMode)
         {
             InterpolateOpponentPosition();
+            // Ensure players are clamped before camera computes viewport to avoid camera inducing wrap-like shifts
+            EnsurePlayersInWorld();
         }
 
         // ===== SYNC OLD VARIABLES =====
@@ -1005,9 +1083,31 @@ namespace DoAn_NT106
                 {
                     // Chỉ gửi state của chính mình; đối thủ sẽ tự gửi state của họ
                     var me = myPlayerNumber == 1 ? player1State : player2State;
+
+                    // IMPORTANT: Ensure we send WORLD POSITION over UDP (not screen coordinates).
+                    // Heuristic: if X looks like a screen coordinate (within ClientSize.Width)
+                    // and adding viewportX keeps it inside world bounds, convert it to world X.
+                    int sendX = me.X;
+                    int sendY = me.Y; // vertical camera locked to 0 in this game (world Y == screen Y)
+
+                    bool looksLikeScreenX = (me.X >= 0 && me.X <= this.ClientSize.Width);
+                    if (looksLikeScreenX)
+                    {
+                        int converted = me.X + viewportX;
+                        if (converted >= 0 && converted <= backgroundWidth)
+                        {
+                            Console.WriteLine($"[UDP] Detected possible screen X={me.X}; converting to world X={converted} by adding viewportX={viewportX}");
+                            sendX = converted;
+                        }
+                    }
+
+                    // Clamp to valid world range
+                    sendX = Math.Max(0, Math.Min(backgroundWidth, sendX));
+                    sendY = Math.Max(0, Math.Min(Math.Max(0, this.ClientSize.Height), sendY));
+
                     udpClient.UpdateState(
-                        me.X,
-                        me.Y,
+                        sendX,
+                        sendY,
                         me.Health,
                         me.Stamina,
                         me.Mana,
@@ -1122,9 +1222,6 @@ namespace DoAn_NT106
                 // Offline: use no-overshoot camera
                 UpdateCameraNoOvershoot();
             }
-
-            // ===== ENSURE PLAYERS STAY IN WORLD =====
-            EnsurePlayersInWorld();
 
             // ===== REGENERATE RESOURCES =====
             resourceSystem.RegenerateResources();
@@ -1276,14 +1373,71 @@ namespace DoAn_NT106
                     var oppAnimMgr = opponentNum == 1 ? player1AnimationManager : player2AnimationManager;
                     var prevAnim = opponentNum == 1 ? _prevAnimPlayer1 : _prevAnimPlayer2;
                     
-                    // ✅ LOGIC:
-                    // - KHÔNG CẬP NHẬT NẾU ĐÃ ĐANG TẤN CÔNG - LET ANIMATION PLAY FULL
-                    // - Lần đầu (idle → walk): CẬP NHẬT + Reset
-                    // - Lần tiếp (walk → walk): KHÔNG cập nhật
-                    // - Thay đổi sang khác: CẬP NHẬT + Reset
-                    // - stand → stand: KHÔNG cập nhật (IGNORE idle updates)
+                    // ✅ CRITICAL: ALWAYS UPDATE POSITION FIRST!
+                    // Position update is independent from animation update
+                    opp.X = x;
+                    opp.Y = y;
                     
-                    // ✅ NẾU ĐÃ ATTACK: KHÔNG CẬP NHẬT - ĐỢI ANIMATION CHẠY XONG
+                    // ✅ FIX: Use PhysicsSystem boundary (from hurtbox) to clamp opponent position
+                    try
+                    {
+                        if (physicsSystem != null)
+                        {
+                            var bounds = physicsSystem.GetBoundaryFromHurtboxPublic(opp);
+                            int minX = bounds.minX;
+                            int maxX = bounds.maxX;
+
+                            if (opp.X < minX)
+                            {
+                                Console.WriteLine($"[UDP] Clamping opponent LEFT via Physics bounds: X={opp.X} -> {minX}");
+                                opp.X = minX;
+                            }
+                            else if (opp.X > maxX)
+                            {
+                                Console.WriteLine($"[UDP] Clamping opponent RIGHT via Physics bounds: X={opp.X} -> {maxX}");
+                                opp.X = maxX;
+                            }
+                        }
+                        else
+                        {
+                            // fallback to hurtbox clamp
+                            Rectangle oppHb = GetPlayerHitbox(opp);
+                            int minX = 0;
+                            int maxX = backgroundWidth - 1;
+                            if (oppHb.Left < minX)
+                            {
+                                int shift = minX - oppHb.Left;
+                                opp.X += shift;
+                                Console.WriteLine($"[UDP] Clamped opponent LEFT (fallback): shift={shift}, newX={opp.X}");
+                            }
+                            else if (oppHb.Right > maxX)
+                            {
+                                int shift = oppHb.Right - maxX;
+                                opp.X -= shift;
+                                Console.WriteLine($"[UDP] Clamped opponent RIGHT (fallback): shift={shift}, newX={opp.X}");
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[UDP] Boundary clamp error: {ex.Message}");
+                    }
+                    
+                    
+                    // ✅ ALWAYS UPDATE STATE (health, stamina, etc.)
+                    opp.Health = health;
+                    opp.Stamina = stamina;
+                    opp.Mana = mana;
+                    opp.Facing = facing;
+                    opp.IsAttacking = isAttacking;
+                    opp.IsParrying = isParrying;
+                    opp.IsStunned = isStunned;
+                    opp.IsSkillActive = isSkillActive;
+                    opp.IsCharging = isCharging;
+                    opp.IsDashing = isDashing;
+                    
+                    // ✅ ANIMATION UPDATE (only update when needed, separate from position)
+                    // NẾU ĐÃ ATTACK: KHÔNG CẬP NHẬT - ĐỢI ANIMATION CHẠY XONG
                     if (opp.IsAttacking && (opp.CurrentAnimation == "punch" || opp.CurrentAnimation == "kick" || opp.CurrentAnimation == "fireball"))
                     {
                         Console.WriteLine($"[UDP] ⏭️ Skipped animation update during attack: {opp.CurrentAnimation} (stay in attack until done)");
@@ -1299,7 +1453,7 @@ namespace DoAn_NT106
                         if (action == "stand" && opp.CurrentAnimation == "stand")
                         {
                             // Bỏ qua - không làm gì
-                            Console.WriteLine($"[UDP] ⏭️ Ignored: stand → stand");
+                            Console.WriteLine($"[UDP] ⏭️ Ignored animation: stand → stand (but position ALWAYS updated)");
                         }
                         // Nếu animation thay đổi (và không phải stand → stand)
                         else if (animationChanged)
@@ -1346,19 +1500,6 @@ namespace DoAn_NT106
                         else
                             _prevAnimPlayer2 = action;
                     }
-                    
-                    opp.X = x;
-                    opp.Y = y;
-                    opp.Health = health;
-                    opp.Stamina = stamina;
-                    opp.Mana = mana;
-                    opp.Facing = facing;                // ✅ NEW
-                    opp.IsAttacking = isAttacking;      // ✅ NEW
-                    opp.IsParrying = isParrying;        // ✅ NEW
-                    opp.IsStunned = isStunned;          // ✅ THÊM
-                    opp.IsSkillActive = isSkillActive;  // ✅ THÊM
-                    opp.IsCharging = isCharging;        // ✅ THÊM
-                    opp.IsDashing = isDashing;          // ✅ THÊM
                 }));
             }
             catch (Exception ex)
@@ -1738,57 +1879,7 @@ namespace DoAn_NT106
             }
             // Debug hitbox/hurtbox/skill drawing removed
         }
-        /// <summary>
-        /// ✅ THÊM: Emergency camera fix - đảm bảo cả hai player luôn visible
-        /// Gọi sau UpdateCameraWithSoftBoundaries
-        /// </summary>
-        private void EmergencyCameraFix()
-        {
-            int viewWidth = this.ClientSize.Width;
-            int screenLeft = viewportX;
-            int screenRight = viewportX + viewWidth;
-            
-            // Kiểm tra cả hai players
-            Rectangle p1Hb = GetPlayerHitbox(player1State);
-            Rectangle p2Hb = GetPlayerHitbox(player2State);
-            
-            bool p1Visible = p1Hb.Right >= screenLeft && p1Hb.Left <= screenRight;
-            bool p2Visible = p2Hb.Right >= screenLeft && p2Hb.Left <= screenRight;
-            
-            // Nếu có player không visible, điều chỉnh camera ngay lập tức
-            if (!p1Visible || !p2Visible)
-            {
-                Console.WriteLine($"[EMERGENCY CAMERA] Player invisible! P1Visible={p1Visible}, P2Visible={p2Visible}. Adjusting...");
-                
-                // Tìm bounding box chứa cả hai
-                int minX = Math.Min(p1Hb.Left, p2Hb.Left);
-                int maxX = Math.Max(p1Hb.Right, p2Hb.Right);
-                int centerX = (minX + maxX) / 2;
-                
-                // Đặt camera ngay lập tức (không smoothing)
-                viewportX = centerX - viewWidth / 2;
-                
-                // Clamp với soft boundaries
-                int softLeft = -viewWidth / 3;
-                int softRight = backgroundWidth - viewWidth + viewWidth / 3;
-                viewportX = Math.Max(softLeft, Math.Min(softRight, viewportX));
-                
-                Console.WriteLine($"  New viewport: {viewportX}, P1: [{p1Hb.Left}-{p1Hb.Right}], P2: [{p2Hb.Left}-{p2Hb.Right}]");
-            }
-        }
-
-        private void UpdateCamera()
-        {
-            // ✅ SỬA: Use network-aware camera for online mode
-            if (isOnlineMode)
-            {
-                UpdateCameraNetworkSync();
-            }
-            else
-            {
-                UpdateCameraNoOvershoot();
-            }
-        }
+    
 
         /// <summary>
         /// ✅ LOCAL-FIRST CAMERA: Focus on local player, then keep edge player visible
@@ -1935,10 +2026,10 @@ namespace DoAn_NT106
 
 
         /// <summary>
-        /// ✅ FIX: Camera with AGGRESSIVE edge detection + network lag compensation
-        /// - Detect when player near edge → FAST camera response
-        /// - Use larger safety margin → prevent overshoot
-        /// - Handle network delay by extrapolating position
+        /// ✅ FIX: Camera with hurtbox-based boundaries like offline mode
+        /// - Uses GetPlayerHitbox for accurate collision detection
+        /// - Synchronizes with PhysicsSystem boundary checking
+        /// - Prevents players from disappearing at edges
         /// </summary>
         private void UpdateCameraNoOvershoot()
         {
@@ -1947,29 +2038,16 @@ namespace DoAn_NT106
             int viewWidth = this.ClientSize.Width;
             int worldWidth = backgroundWidth;
 
-            // Xác định local player
-            PlayerState local, opponent;
-            if (isOnlineMode && myPlayerNumber > 0)
-            {
-                local = myPlayerNumber == 1 ? player1State : player2State;
-                opponent = local == player1State ? player2State : player1State;
-            }
-            else
-            {
-                local = player1State;
-                opponent = player2State;
-            }
+            // Get player hitboxes for accurate boundary checking
+            Rectangle p1Hb = GetPlayerHitbox(player1State);
+            Rectangle p2Hb = GetPlayerHitbox(player2State);
 
-            Rectangle localHb = GetPlayerHitbox(local);
-            Rectangle opponentHb = GetPlayerHitbox(opponent);
-
-            // 1. TÍNH CAMERA TARGET BÌNH THƯỜNG
-            int desired;
-
-            // Ưu tiên: Luôn hiển thị cả hai player
-            int leftMost = Math.Min(localHb.Left, opponentHb.Left);
-            int rightMost = Math.Max(localHb.Right, opponentHb.Right);
+            // 1. TÍNH CAMERA TARGET BÌNH THƯỜNG - hiển thị cả hai player
+            int leftMost = Math.Min(p1Hb.Left, p2Hb.Left);
+            int rightMost = Math.Max(p1Hb.Right, p2Hb.Right);
             int centerX = (leftMost + rightMost) / 2;
+
+            int desired;
 
             // Nếu cả hai fit trong màn hình
             if ((rightMost - leftMost) <= viewWidth)
@@ -1979,186 +2057,58 @@ namespace DoAn_NT106
             else
             {
                 // Không fit → ưu tiên local player nhưng đảm bảo thấy opponent
+                PlayerState local = (isOnlineMode && myPlayerNumber > 0) 
+                    ? (myPlayerNumber == 1 ? player1State : player2State) 
+                    : player1State;
+                Rectangle localHb = (local == player1State) ? p1Hb : p2Hb;
+                Rectangle remoteHb = (local == player1State) ? p2Hb : p1Hb;
+
                 int localCenter = localHb.Left + localHb.Width / 2;
                 desired = localCenter - viewWidth / 2;
 
                 // Đảm bảo opponent không ra khỏi màn hình
-                int opponentScreenX = opponentHb.Left - desired;
-                if (opponentScreenX < 80)
+                int remoteScreenX = remoteHb.Left - desired;
+                if (remoteScreenX < 80)
                 {
-                    desired = opponentHb.Right - 80;
+                    desired = remoteHb.Left - 80;
                 }
-                else if (opponentScreenX > viewWidth - 80)
+                else if (remoteScreenX > viewWidth - 80)
                 {
-                    desired = opponentHb.Left - viewWidth + 80;
+                    desired = remoteHb.Right - viewWidth + 80;
                 }
             }
 
-            // 2. QUAN TRỌNG: KHÔNG CHO OVERSHOOT!
+            // 2. CLAMP TO WORLD BOUNDS - KHÔNG CHO OVERSHOOT
             int minViewport = 0;
             int maxViewport = Math.Max(0, worldWidth - viewWidth);
-
-            // Clamp desired into world bounds
             desired = Math.Max(minViewport, Math.Min(maxViewport, desired));
 
-            // Assign camera immediately to desired (avoid using stale viewportX when checking)
-            viewportX = desired;
+            // 3. SMOOTH INTERPOLATION
+            float delta = desired - viewportX;
+            float absDelta = Math.Abs(delta);
 
-            // If camera at bounds, push players inside viewport instead of moving camera
-            if (viewportX == minViewport || viewportX == maxViewport)
+            if (absDelta > 1) // Only update if meaningful change
             {
-                PushPlayersIntoViewport();
-                return;
+                float smoothing = 0.20f;
+                
+                // Faster response when players near edges
+                if (p1Hb.Left < 150 || p2Hb.Left < 150 || 
+                    p1Hb.Right > worldWidth - 150 || p2Hb.Right > worldWidth - 150)
+                {
+                    smoothing = 0.35f;
+                }
+                else if (absDelta > 200)
+                {
+                    smoothing = 0.40f;
+                }
+                
+                viewportX += (int)(delta * smoothing);
             }
 
-            // 4. SMOOTH CAMERA MOVEMENT (chỉ khi không ở biên)
-            float delta = desired - viewportX; // will be zero because we assigned, but keep for compatibility with other branches
-            float smoothing = 0.15f;
-            // choose smoothing based on distance between players
-            if (Math.Abs((localHb.Left + localHb.Width / 2) - centerX) > 200) smoothing = 0.3f;
-            if (local.IsDashing || opponent.IsDashing) smoothing = 0.25f;
-
-            // In practice we've already set viewportX to desired; optionally apply slight interpolation
-            // Keep viewportX clamped
+            // Final clamp to world
             viewportX = Math.Max(minViewport, Math.Min(maxViewport, viewportX));
         }
 
-        private void PushPlayersIntoViewport()
-        {
-            int viewWidth = this.ClientSize.Width;
-            int screenLeft = viewportX;
-            int screenRight = viewportX + viewWidth;
-            int safeMargin = 60; // Giữ players cách biên ít nhất 60px
-
-            if (player1State == null || player2State == null) return;
-
-            // Determine local and remote based on online mode
-            PlayerState local = (isOnlineMode && myPlayerNumber > 0) ? (myPlayerNumber == 1 ? player1State : player2State) : player1State;
-            PlayerState remote = (local == player1State) ? player2State : player1State;
-
-            // Adjust local player to keep inside viewport (safe, won't desync since local is authoritative for its client)
-            Rectangle lhb = GetPlayerHitbox(local);
-            if (lhb.Right < screenLeft + safeMargin)
-            {
-                int pushAmount = (screenLeft + safeMargin) - lhb.Right;
-                local.X += pushAmount;
-                Console.WriteLine($"[Camera] Pushed local player right by {pushAmount}px");
-            }
-            else if (lhb.Left > screenRight - safeMargin)
-            {
-                int pushAmount = lhb.Left - (screenRight - safeMargin);
-                local.X -= pushAmount;
-                Console.WriteLine($"[Camera] Pushed local player left by {pushAmount}px");
-            }
-
-            // If offline adjust remote as well; if online do not mutate remote (avoid desync)
-            if (!isOnlineMode)
-            {
-                Rectangle rhb = GetPlayerHitbox(remote);
-                if (rhb.Right < screenLeft + safeMargin)
-                {
-                    int pushAmount = (screenLeft + safeMargin) - rhb.Right;
-                    remote.X += pushAmount;
-                    Console.WriteLine($"[Camera] Pushed remote player right by {pushAmount}px");
-                }
-                else if (rhb.Left > screenRight - safeMargin)
-                {
-                    int pushAmount = rhb.Left - (screenRight - safeMargin);
-                    remote.X -= pushAmount;
-                    Console.WriteLine($"[Camera] Pushed remote player left by {pushAmount}px");
-                }
-            }
-        }
-
-        private void UpdateCameraWithSoftBoundaries()
-        {
-            if (player1State == null || player2State == null) return;
-            
-            int viewWidth = Math.Max(1, this.ClientSize.Width);
-            int worldWidth = backgroundWidth;
-            
-            // Xác định players
-            PlayerState local, opponent;
-            if (isOnlineMode && myPlayerNumber > 0)
-            {
-                local = myPlayerNumber == 1 ? player1State : player2State;
-                opponent = local == player1State ? player2State : player1State;
-            }
-            else
-            {
-                local = player1State;
-                opponent = player2State;
-            }
-            
-            Rectangle localHb = GetPlayerHitbox(local);
-            Rectangle opponentHb = GetPlayerHitbox(opponent);
-            
-            // 1. TÍNH DESIRED VIEWPORT (Center cả hai players)
-            int leftMost = Math.Min(localHb.Left, opponentHb.Left);
-            int rightMost = Math.Max(localHb.Right, opponentHb.Right);
-            int widthNeeded = rightMost - leftMost;
-            
-            int desired;
-            
-            if (widthNeeded <= viewWidth)
-            {
-                // Cả hai fit trong màn hình → center
-                int centerX = (leftMost + rightMost) / 2;
-                desired = centerX - viewWidth / 2;
-            }
-            else
-            {
-                // Không fit → ưu tiên local player nhưng đảm bảo thấy opponent
-                desired = (localHb.Left + localHb.Width / 2) - viewWidth / 2;
-                
-                // Đảm bảo opponent không ra khỏi màn hình quá xa
-                int opponentScreenX = opponentHb.Left - desired;
-                if (opponentScreenX < 100) // Opponent sắp ra khỏi bên trái
-                {
-                    desired = opponentHb.Right - 100;
-                }
-                else if (opponentScreenX > viewWidth - 100) // Opponent sắp ra khỏi bên phải
-                {
-                    desired = opponentHb.Left - viewWidth + 100;
-                }
-            }
-            
-            // 2. SOFT CLAMPING (cho phép vượt biên một chút)
-            int softLeftBoundary = -viewWidth / 4;  // Cho phép âm 25% màn hình
-            int softRightBoundary = worldWidth - viewWidth + viewWidth / 4; // Cho phép vượt 25%
-            
-            // Nếu players ở gần biên, cho phép camera vượt biên
-            if (localHb.Left < 100 || opponentHb.Left < 100)
-            {
-                // Players gần biên trái → cho phép camera âm hơn
-                softLeftBoundary = -viewWidth / 2;
-            }
-            
-            if (localHb.Right > worldWidth - 100 || opponentHb.Right > worldWidth - 100)
-            {
-                // Players gần biên phải → cho phép camera vượt hơn
-                softRightBoundary = worldWidth - viewWidth / 2;
-            }
-            
-            // Apply soft clamp
-            desired = Math.Max(softLeftBoundary, Math.Min(softRightBoundary, desired));
-            
-            // 3. SMOOTH INTERPOLATION
-            float delta = desired - viewportX;
-            float smoothing = 0.15f;
-            
-            // Nếu khoảng cách lớn (do knockback), tăng tốc độ
-            if (Math.Abs(delta) > 300)
-            {
-                smoothing = 0.4f;
-            }
-            else if (local.IsStunned || opponent.IsStunned)
-            {
-                smoothing = 0.25f; // Nhanh hơn khi stun
-            }
-            
-            viewportX += (int)(delta * smoothing);
-        }
 
         private void BattleForm_Resize(object sender, EventArgs e)
         {
