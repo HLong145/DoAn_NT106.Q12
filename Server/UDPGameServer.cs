@@ -100,12 +100,30 @@ namespace DoAn_NT106.Server
         #region Match Management
 
         /// <summary>
-        /// T?o match session khi game b?t ??u
+        /// Tạo match session khi game bắt đầu
+        /// ✅ SỬA: Xóa match cũ nếu tồn tại để tránh timeout từ stale endpoints
         /// </summary>
         public (bool Success, string Message) CreateMatch(string roomCode, string player1, string player2)
         {
             try
             {
+                // ✅ THÊM: Xóa match cũ nếu tồn tại (khi player re-join room)
+                if (activeMatches.TryRemove(roomCode, out var oldMatch))
+                {
+                    // Xóa các endpoints cũ từ dictionary
+                    var endpointsToRemove = playerEndpoints
+                        .Where(kvp => kvp.Value.RoomCode == roomCode)
+                        .Select(kvp => kvp.Key)
+                        .ToList();
+
+                    foreach (var endpoint in endpointsToRemove)
+                    {
+                        playerEndpoints.TryRemove(endpoint, out _);
+                    }
+
+                    Log($"🔄 Cleared old match session {roomCode} and {endpointsToRemove.Count} stale endpoints (room re-used)");
+                }
+
                 var match = new MatchSession
                 {
                     RoomCode = roomCode,
@@ -117,7 +135,7 @@ namespace DoAn_NT106.Server
 
                 if (activeMatches.TryAdd(roomCode, match))
                 {
-                    Log($"?? Match created: {roomCode} ({player1} vs {player2})");
+                    Log($"🎮 Match created: {roomCode} ({player1} vs {player2})");
                     return (true, $"UDP ready on port {udpPort}");
                 }
 
@@ -125,13 +143,14 @@ namespace DoAn_NT106.Server
             }
             catch (Exception ex)
             {
-                Log($"? CreateMatch error: {ex.Message}");
+                Log($"❌ CreateMatch error: {ex.Message}");
                 return (false, ex.Message);
             }
         }
 
         /// <summary>
-        /// K?t thúc match và d?n d?p
+        /// Kết thúc match và dọn dẹp
+        /// ✅ SỬA: Thêm log chi tiết khi xóa endpoints
         /// </summary>
         public (bool Success, string Message) EndMatch(string roomCode)
         {
@@ -150,7 +169,7 @@ namespace DoAn_NT106.Server
                     foreach (var key in toRemove)
                         playerEndpoints.TryRemove(key, out _);
 
-                    Log($"? Match ended: {roomCode}");
+                    Log($"✅ Match ended: {roomCode} - removed {toRemove.Count} endpoints");
                     return (true, "Match ended");
                 }
 
@@ -158,7 +177,46 @@ namespace DoAn_NT106.Server
             }
             catch (Exception ex)
             {
-                Log($"? EndMatch error: {ex.Message}");
+                Log($"❌ EndMatch error: {ex.Message}");
+                return (false, ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// ✅ THÊM: Reset match endpoints (called when game is about to start after player rejoin)
+        /// This ensures old stale endpoints don't prevent relay when players re-join the same room
+        /// </summary>
+        public (bool Success, string Message) ResetMatchEndpoints(string roomCode)
+        {
+            try
+            {
+                if (!activeMatches.TryGetValue(roomCode, out var match))
+                {
+                    return (false, "Match not found");
+                }
+
+                // Clear both endpoints to allow fresh registration
+                match.Player1Endpoint = null;
+                match.Player2Endpoint = null;
+                match.LastActivity = DateTime.Now;
+
+                // Also remove old endpoint registry entries for this room
+                var toRemove = playerEndpoints
+                    .Where(kvp => kvp.Value.RoomCode == roomCode)
+                    .Select(kvp => kvp.Key)
+                    .ToList();
+
+                foreach (var key in toRemove)
+                {
+                    playerEndpoints.TryRemove(key, out _);
+                }
+
+                Log($"🔄 Match endpoints reset for {roomCode} - cleared {toRemove.Count} old endpoint registrations");
+                return (true, $"Match {roomCode} endpoints reset");
+            }
+            catch (Exception ex)
+            {
+                Log($"❌ ResetMatchEndpoints error: {ex.Message}");
                 return (false, ex.Message);
             }
         }
@@ -231,6 +289,7 @@ namespace DoAn_NT106.Server
                 match.LastActivity = DateTime.Now;
 
                 // Store sender endpoint for this player
+                // ✅ SỬA: Always update endpoint, even if null, to handle reconnections cleanly
                 if (playerNum == 1)
                 {
                     if (match.Player1Endpoint == null)
@@ -240,9 +299,10 @@ namespace DoAn_NT106.Server
                     }
                     else if (!match.Player1Endpoint.Equals(senderEndpoint))
                     {
-                        // Player 1 changed endpoint (probably reconnected)
-                        Log($"🔄 P1 endpoint updated from {match.Player1Endpoint} to {senderEndpoint}");
+                        // Player 1 changed endpoint (probably reconnected) - FORCE UPDATE
+                        string oldEndpoint = match.Player1Endpoint.ToString();
                         match.Player1Endpoint = senderEndpoint;
+                        Log($"🔄 P1 endpoint UPDATED: {oldEndpoint} → {senderEndpoint} (reconnected/re-joined)");
                     }
                 }
                 else if (playerNum == 2)
@@ -254,9 +314,10 @@ namespace DoAn_NT106.Server
                     }
                     else if (!match.Player2Endpoint.Equals(senderEndpoint))
                     {
-                        // Player 2 changed endpoint (probably reconnected)
-                        Log($"🔄 P2 endpoint updated from {match.Player2Endpoint} to {senderEndpoint}");
+                        // Player 2 changed endpoint (probably reconnected) - FORCE UPDATE
+                        string oldEndpoint = match.Player2Endpoint.ToString();
                         match.Player2Endpoint = senderEndpoint;
+                        Log($"🔄 P2 endpoint UPDATED: {oldEndpoint} → {senderEndpoint} (reconnected/re-joined)");
                     }
                 }
 

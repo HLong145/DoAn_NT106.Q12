@@ -1432,6 +1432,10 @@ namespace DoAn_NT106.Server
                     var room = roomManager.GetRoom(roomCode);
                     if (room != null)
                     {
+                        // ✅ SỬA: Reset endpoints trước khi tạo match mới (fix timeout issue khi re-join)
+                        var resetResult = udpGameServer.ResetMatchEndpoints(roomCode);
+                        server.Log($"🔄 Reset match endpoints: {resetResult.Success} - {resetResult.Message}");
+
                         // Tạo UDP match session
                         var udpResult = udpGameServer.CreateMatch(
                             roomCode, 
