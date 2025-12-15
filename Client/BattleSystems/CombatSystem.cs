@@ -234,7 +234,7 @@ namespace DoAn_NT106.Client.BattleSystems
             }
         }
 
-        public void ExecuteAttack(int playerNum, string attackType)
+        public bool ExecuteAttack(int playerNum, string attackType)
         {
             PlayerState attacker = playerNum == 1 ? player1 : player2;
             PlayerState defender = playerNum == 1 ? player2 : player1;
@@ -244,13 +244,13 @@ namespace DoAn_NT106.Client.BattleSystems
             if (attacker.IsSkillActive)
             {
                 showHitEffectCallback?.Invoke("Skill Active!", Color.Cyan);
-                return;
+                return false;
             }
 
             if (!attacker.CanAttack || attacker.IsDashing || attacker.IsAttacking)
             {
                 Console.WriteLine($"⚠️ Player{playerNum} không thể attack!");
-                return;
+                return false;
             }
 
             // ✅ SỬA: Special attack không tiêu tốn stamina ở đây, sẽ quản lý riêng trong ExecuteSpecialAttack
@@ -258,38 +258,38 @@ namespace DoAn_NT106.Client.BattleSystems
             if (attackType != "special")
             {
                 staminaCost = attackType == "kick" ? 15 : (attackType == "punch" ? 15 : 0);
-                
+
                 // ✅ SỬA: Warrior punch tốn 15 stamina, kick tốn 20 stamina
                 if (attacker.CharacterType == "warrior" && attackType == "punch")
                 {
                     staminaCost = 15;
                 }
-                
+
                 if (attacker.CharacterType == "warrior" && attackType == "kick")
                 {
                     staminaCost = 20;
                 }
-                
+
                 // ✅ SỬA: Bringer of Death punch tốn 20 stamina
                 if (attacker.CharacterType == "bringerofdeath" && attackType == "punch")
                 {
                     staminaCost = 20;
                 }
-                
+
                 // ✅ SỬA: Bringer of Death kick tốn 30 stamina
                 if (attacker.CharacterType == "bringerofdeath" && attackType == "kick")
                 {
                     staminaCost = 30;
                 }
-                
+
                 if (!attacker.ConsumeStamina(staminaCost))
                 {
                     showHitEffectCallback?.Invoke("No Stamina!", Color.Gray);
-                    // debug removed
-                    return;
+                    Console.WriteLine($"❌ Player{playerNum} không đủ stamina! Need {staminaCost}, have {attacker.Stamina}");
+                    return false;
                 }
 
-                // debug removed
+                Console.WriteLine($"✅ Player{playerNum} consumed {staminaCost} stamina, remaining: {attacker.Stamina}");
             }
 
             // ✅ Play attack sound
@@ -318,7 +318,9 @@ namespace DoAn_NT106.Client.BattleSystems
             else if (attackType == "special") ExecuteSpecialAttack(playerNum, attacker, defender, animMgr);
 
             invalidateCallback?.Invoke();
+            return true;
         }
+
         private void ExecutePunchAttack(int playerNum, PlayerState attacker, PlayerState defender, CharacterAnimationManager animMgr)
         {
             string charType = attacker.CharacterType;

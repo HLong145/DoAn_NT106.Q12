@@ -243,13 +243,11 @@ namespace DoAn_NT106.Client
 
         private void HandleDisconnected(string reason)
         {
-            if (isJoined && !isDisposed)
-            {
-                isJoined = false;
-                OnDisconnected?.Invoke(reason);
-            }
-        }
+            if (isDisposed) return;
 
+            isJoined = false;
+            Console.WriteLine($"[LobbyClient] Disconnected: {reason}");
+        }
         #endregion
 
         #region Send actions

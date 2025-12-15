@@ -123,7 +123,7 @@ namespace DoAn_NT106.Services
         }
 
         // XÁC THỰC ĐĂNG NHẬP
-        public bool VerifyUserLogin(string username, string password)
+        public (bool Success, bool UserExists) VerifyUserLogin(string username, string password)
         {
             try
             {
@@ -140,16 +140,17 @@ namespace DoAn_NT106.Services
                         {
                             if (reader.Read())
                             {
+                                // User tồn tại, kiểm tra password
                                 string storedHash = reader["PASSWORDHASH"]?.ToString();
                                 string salt = reader["SALT"]?.ToString();
 
                                 if (string.IsNullOrEmpty(storedHash) || string.IsNullOrEmpty(salt))
-                                    return false;
+                                    return (false, true); // User exists but data corrupted
 
                                 string verifyHash = HashPassword_Sha256(password, salt);
-                                return verifyHash == storedHash;
+                                return (verifyHash == storedHash, true); 
                             }
-                            return false;
+                            return (false, false); //User không tồn tại
                         }
                     }
                 }
@@ -157,10 +158,9 @@ namespace DoAn_NT106.Services
             catch (Exception ex)
             {
                 Console.WriteLine($"❌ Login error: {ex.Message}");
-                return false;
+                return (false, false);
             }
         }
-
         // TÌM USERNAME BẰNG EMAIL/PHONE
         public string GetUsernameByContact(string contact, bool isEmail)
         {
@@ -210,6 +210,98 @@ namespace DoAn_NT106.Services
             {
                 Console.WriteLine($"❌ GetEmailByUsername error: {ex.Message}");
                 return null;
+            }
+        }
+
+        public int GetPlayerXp(string username)
+        {
+            // Example implementation: adjust table/column names as needed
+            using (var connection = new SqlConnection(connectionString))
+            {
+                connection.Open();
+                using (var command = new SqlCommand("SELECT XP FROM PLAYERS WHERE Username = @Username", connection))
+                {
+                    command.Parameters.AddWithValue("@Username", username);
+                    var result = command.ExecuteScalar();
+                    if (result != null && int.TryParse(result.ToString(), out int xp))
+                    {
+                        return xp;
+                    }
+                    return 0;
+                }
+            }
+        }
+
+        public bool UpdatePlayerXp(string username, int newXp, int totalXpForLevel)
+        {
+            // Example implementation, adjust table/column names as needed
+            using (var connection = new SqlConnection(connectionString))
+            {
+                connection.Open();
+                using (var command = new SqlCommand(
+                    "UPDATE PLAYERS SET XP = @xp, TOTAL_XP = @totalXp WHERE USERNAME = @username", connection))
+                {
+                    command.Parameters.AddWithValue("@xp", newXp);
+                    command.Parameters.AddWithValue("@totalXp", totalXpForLevel);
+                    command.Parameters.AddWithValue("@username", username);
+                    int rows = command.ExecuteNonQuery();
+                    return rows > 0;
+                }
+            }
+        }
+
+        public bool GetPlayerLevel(string username, out int level)
+        {
+            level = 1;
+            try
+            {
+                using (var connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    using (var command = new SqlCommand(
+                               "SELECT USER_LEVEL FROM PLAYERS WHERE USERNAME = @Username",
+                               connection))
+                    {
+                        command.Parameters.AddWithValue("@Username", username);
+                        var result = command.ExecuteScalar();
+                        if (result != null && int.TryParse(result.ToString(), out var lvl))
+                        {
+                            level = lvl <= 0 ? 1 : lvl;
+                        }
+                    }
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ GetPlayerLevel error for {username}: {ex.Message}");
+                level = 1;
+                return false;
+            }
+        }
+
+        public bool UpdatePlayerLevel(string username, int newLevel)
+        {
+            try
+            {
+                using (var connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    using (var command = new SqlCommand(
+                               "UPDATE PLAYERS SET USER_LEVEL = @Level WHERE USERNAME = @Username",
+                               connection))
+                    {
+                        command.Parameters.AddWithValue("@Level", newLevel);
+                        command.Parameters.AddWithValue("@Username", username);
+                        int rows = command.ExecuteNonQuery();
+                        return rows > 0;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ UpdatePlayerLevel error for {username}: {ex.Message}");
+                return false;
             }
         }
 

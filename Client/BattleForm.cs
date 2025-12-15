@@ -592,6 +592,22 @@ namespace DoAn_NT106
         private string player1Name;
         private string player2Name;
 
+       
+        // Battle Statistics
+        private int player1ParryCount = 0;
+        private int player2ParryCount = 0;
+        private int player1SkillCount = 0;
+        private int player2SkillCount = 0;
+        private int player1ComboCount = 0;
+        private int player2ComboCount = 0;
+
+        // Round tracking for consecutive wins
+        private int player1ConsecutiveWins = 0;
+        private int player2ConsecutiveWins = 0;
+        private int currentRound = 1;
+        private int player1RoundsWon = 0;
+        private int player2RoundsWon = 0;
+
         public BattleForm(string player1NameParam, string token, string player2NameParam, string player1Character, string player2Character, string selectedMap = "battleground1", string roomCode = "000000", int myPlayerNumber = 0, bool isCreator = false)
         {
             InitializeComponent();
@@ -1900,9 +1916,11 @@ namespace DoAn_NT106
                         break;
                     case Keys.U:
                         if (player2State.CanParry) combatSystem.StartParry(2);
+                         player2ParryCount++; 
                         break;
                     case Keys.I:
                         if (player2State.CanAttack) combatSystem.ToggleSkill(2);
+                         player2SkillCount++;
                         break;
                 }
                 e.Handled = true;
@@ -2768,7 +2786,17 @@ namespace DoAn_NT106
         private void ExecuteAttackWithHitbox(int playerNum, string attackType, int damage, int staminaCost)
         {
             Console.WriteLine($"[BattleForm] Player {playerNum} attempts {attackType}");
-            combatSystem.ExecuteAttack(playerNum, attackType);
+
+            bool hitSuccess = combatSystem.ExecuteAttack(playerNum, attackType);
+
+            if (hitSuccess)
+            {
+                if (playerNum == 1) player1ComboCount++;
+                else player2ComboCount++;
+            }
+
+            if (playerNum == 1) player1State.AttackCount++;
+            else player2State.AttackCount++;
         }
         private void OnFrameChanged(object sender, EventArgs e)
         {
