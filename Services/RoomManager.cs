@@ -32,6 +32,10 @@ namespace DoAn_NT106.Server
 
         public RoomListBroadcaster RoomListBroadcaster { get; set; }
 
+        // External references set by TcpServer to enable cross-service actions (optional)
+        public UDPGameServer UdpGameServer { get; set; }
+        public LobbyManager LobbyManager { get; set; }
+
         #endregion
 
         #region Constructor
@@ -357,6 +361,57 @@ namespace DoAn_NT106.Server
                 }
 
                 room.LastActivity = DateTime.Now;
+
+                // If room was playing, handle forfeit: notify opponent, end UDP match, reset lobby
+                if (string.Equals(room.Status, "playing", StringComparison.OrdinalIgnoreCase))
+                {
+                    try
+                    {
+                        string opponent = wasPlayer1 ? room.Player2Username : room.Player1Username;
+                        if (!string.IsNullOrEmpty(opponent))
+                        {
+                            var opponentClient = GetClientHandler(roomCode, opponent);
+                            var payload = new
+                            {
+                                Action = "GAME_ENDED",
+                                Data = new { roomCode = roomCode, winner = opponent, reason = "opponent_left" }
+                            };
+                            string json = System.Text.Json.JsonSerializer.Serialize(payload);
+                            opponentClient?.SendMessage(json);
+                            Log($"📢 Notified opponent {opponent} of forfeit win in room {roomCode}");
+                        }
+
+                        // Try to end UDP match
+                        try
+                        {
+                            var udpRes = UdpGameServer?.EndMatch(roomCode);
+                            if (udpRes != null && udpRes.Value.Success)
+                                Log($"✅ UDP Match ended for room {roomCode} due to player leave");
+                        }
+                        catch (Exception ex)
+                        {
+                            Log($"❌ Error ending UDP match for {roomCode}: {ex.Message}");
+                        }
+
+                        // Reset lobby state
+                        try
+                        {
+                            var reset = LobbyManager?.ResetLobbyForRematch(roomCode);
+                            if (reset != null && reset.Value.Success)
+                                Log($"✅ Lobby {roomCode} reset after forfeit");
+                        }
+                        catch (Exception ex)
+                        {
+                            Log($"❌ Error resetting lobby for {roomCode}: {ex.Message}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"❌ Forfeit handling error: {ex.Message}");
+                    }
+                }
+
+                // Set room status to waiting and broadcast updates
                 room.Status = "waiting";
 
                 // Nếu phòng trống, KHÔNG xóa ngay, để timer cleanup sau 30s

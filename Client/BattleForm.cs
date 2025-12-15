@@ -247,6 +247,63 @@ namespace DoAn_NT106
             public Image EffectImage { get; set; }
         }
 
+        // Listen to PersistentTcpClient broadcasts (fallback) to catch GAME_END
+        private void Persistent_OnBroadcast(string action, System.Text.Json.JsonElement data)
+        {
+            try
+            {
+                if (string.Equals(action, "GAME_ENDED", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(action, "GAME_END", StringComparison.OrdinalIgnoreCase))
+                {
+                    var roomCodeProp = data.TryGetProperty("roomCode", out var rc) ? rc.GetString() : null;
+                    if (!string.IsNullOrEmpty(roomCodeProp) && !string.Equals(roomCodeProp, roomCode, StringComparison.OrdinalIgnoreCase)) return;
+
+                    var winner = data.TryGetProperty("winner", out var w) ? w.GetString() : null;
+
+                    this.BeginInvoke(new Action(() =>
+                    {
+                        try
+                        {
+                            EndMatch(winner);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[BattleForm] Persistent_OnBroadcast EndMatch error: {ex.Message}");
+                        }
+                    }));
+                    return;
+                }
+
+                // If server broadcasts PLAYER_LEFT or LOBBY_PLAYER_LEFT, treat as opponent forfeit
+                if (string.Equals(action, "PLAYER_LEFT", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(action, "LOBBY_PLAYER_LEFT", StringComparison.OrdinalIgnoreCase))
+                {
+                    string leftUser = data.TryGetProperty("username", out var lu) ? lu.GetString() : null;
+                    if (!string.IsNullOrEmpty(leftUser) && isOnlineMode && string.Equals(leftUser, opponent, StringComparison.OrdinalIgnoreCase))
+                    {
+                        Console.WriteLine($"[BattleForm] Detected {action} for opponent {leftUser} - treating as forfeit");
+                        this.BeginInvoke(new Action(() =>
+                        {
+                            try
+                            {
+                                // Immediately end match and declare local player the winner
+                                EndMatch(this.username);
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"[BattleForm] Error ending match on {action}: {ex.Message}");
+                            }
+                        }));
+                        return;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[BattleForm] Persistent_OnBroadcast error: {ex.Message}");
+            }
+        }
+
         // Simple camera used in offline mode: center midpoint of both players
         private void UpdateCameraSimple()
         {
@@ -564,8 +621,9 @@ namespace DoAn_NT106
                         var _ = tcpGameClient.ConnectAsync();
                         tcpGameClient.OnError += (err) => Console.WriteLine($"[BattleForm][TCP] {err}");
 
-                        // Server will broadcast damage events to clients. When we receive one and
-                        // the target is this client, apply damage locally.
+                        // Server will broadcast damage events and game end. When we receive one and
+                        // the target is this client, apply damage locally. Also handle GAME_ENDED so
+                        // opponent gets declared winner on forfeit.
                         tcpGameClient.OnDamageEvent += (d) =>
                         {
                             try
@@ -587,11 +645,45 @@ namespace DoAn_NT106
                                 Console.WriteLine($"[BattleForm] OnDamageEvent handler error: {ex.Message}");
                             }
                         };
+                        // Handle game end broadcasts from server (for forfeits and match end)
+                        tcpGameClient.OnGameEnded += (endData) =>
+                        {
+                            try
+                            {
+                                if (endData == null) return;
+                                if (!string.Equals(endData.RoomCode, roomCode, StringComparison.OrdinalIgnoreCase)) return;
+
+                                Console.WriteLine($"[BattleForm][TCP] Received GAME_END: winner={endData.Winner}, reason={endData.Reason}");
+
+                                // Ensure UI update runs on UI thread
+                                this.BeginInvoke(new Action(() =>
+                                {
+                                    try
+                                    {
+                                        EndMatch(endData.Winner);
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        Console.WriteLine($"[BattleForm] OnGameEnded handler error: {ex.Message}");
+                                    }
+                                }));
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"[BattleForm] GameEnded event processing error: {ex.Message}");
+                            }
+                        };
                     }
                     catch (Exception ex)
                     {
                         Console.WriteLine($"[BattleForm] TCP GameClient init error: {ex.Message}");
                     }
+                    // Also subscribe PersistentTcpClient broadcast as a fallback to ensure GAME_END is handled
+                    try
+                    {
+                        PersistentTcpClient.Instance.OnBroadcast += Persistent_OnBroadcast;
+                    }
+                    catch { }
                 }
                 catch (Exception ex)
                 {

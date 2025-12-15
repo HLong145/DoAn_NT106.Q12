@@ -935,6 +935,74 @@ namespace DoAn_NT106
             // Resume theme music when returning to MainForm
             try { DoAn_NT106.SoundManager.PlayMusic(DoAn_NT106.Client.BackgroundMusic.ThemeMusic, loop: true); } catch { }
         }
+
+        /// <summary>Handles player forfeit/quit - immediate win for opponent</summary>
+        public void HandlePlayerForfeit(int playerNumber)
+        {
+            // Lock to prevent concurrent modification during round handling
+            lock (_roundLock)
+            {
+                if (_roundEnding) 
+                {
+                    Console.WriteLine($"[RoundSystem] Ignored forfeit - already handling round end");
+                    return;
+                }
+
+                _roundEnding = true;
+
+                try
+                {
+                    // Stop all timers
+                    _roundInProgress = false;
+                    try { _roundTimer?.Stop(); } catch { }
+                    try { gameTimer?.Stop(); } catch { }
+                    try { walkAnimationTimer?.Stop(); } catch { }
+
+                    Console.WriteLine($"[RoundSystem] ⚠️ FORFEIT: Player {playerNumber} quit the game");
+
+                    // Award win to opponent (do NOT need cooldown check for forfeit)
+                    if (playerNumber == 2)
+                    {
+                        _player1Wins++;
+                        Console.WriteLine($"[RoundSystem] ✅ PLAYER 1 WINS BY FORFEIT (Player 2 quit)");
+                    }
+                    else if (playerNumber == 1)
+                    {
+                        _player2Wins++;
+                        Console.WriteLine($"[RoundSystem] ✅ PLAYER 2 WINS BY FORFEIT (Player 1 quit)");
+                    }
+
+                    // Mark this round as completed
+                    _roundsPlayed++;
+
+                    Console.WriteLine($"[RoundSystem] After forfeit: roundsPlayed={_roundsPlayed}, P1wins={_player1Wins}, P2wins={_player2Wins}");
+
+                    // Check if match ends (first to 2 wins). Require at least 2 rounds played
+                    if ((_player1Wins >= 2 || _player2Wins >= 2) && _roundsPlayed >= 2)
+                    {
+                        EndMatch(_player1Wins >= 2 ? username : opponent);
+                        return;
+                    }
+
+                    // If we've already completed 3 rounds and nobody reached 2 wins -> draw
+                    if (_roundsPlayed >= 3)
+                    {
+                        EndMatchDraw();
+                        return;
+                    }
+
+                    // If match not ended yet, prepare for next round (rare case - forfeit mid-match)
+                    _roundNumber = _roundsPlayed + 1;
+                    _roundEnding = false;
+                    StartNextRound();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[RoundSystem] Forfeit handling error: {ex.Message}");
+                    _roundEnding = false;
+                }
+            }
+        }
     }
 }
 

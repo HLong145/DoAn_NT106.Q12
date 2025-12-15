@@ -167,7 +167,8 @@ namespace DoAn_NT106.Services
 
                 string json = JsonSerializer.Serialize(request);
                 string encrypted = EncryptionService.Encrypt(json);
-                byte[] bytes = Encoding.UTF8.GetBytes(encrypted);
+                // IMPORTANT: append newline so server can split messages reliably
+                byte[] bytes = Encoding.UTF8.GetBytes(encrypted + "\n");
 
                 Console.WriteLine($"[TCP] Sending: {action} (ID: {requestId})");
 

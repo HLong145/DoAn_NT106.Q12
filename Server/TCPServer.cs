@@ -49,6 +49,9 @@ namespace DoAn_NT106.Server
 
             roomManager = new RoomManager();
             roomManager.OnLog += LogMessage;
+            // Provide RoomManager with references to UDP server and LobbyManager for forfeit handling
+            roomManager.UdpGameServer = udpGameServer;
+            roomManager.LobbyManager = lobbyManager;
 
             // Khởi tạo RoomListBroadcaster
             roomListBroadcaster = new RoomListBroadcaster(roomManager);
@@ -341,7 +344,8 @@ namespace DoAn_NT106.Server
                         // Mã hóa response trước khi gửi
                         string encryptedResponse = DoAn_NT106.Services.EncryptionService.Encrypt(response);
 
-                        byte[] responseBytes = Encoding.UTF8.GetBytes(encryptedResponse);
+                        // IMPORTANT: append newline so client can split messages reliably
+                        byte[] responseBytes = Encoding.UTF8.GetBytes(encryptedResponse + "\n");
                         await stream.WriteAsync(responseBytes, 0, responseBytes.Length);
 
                         server.Log($"📤 Sent response {encryptedRequest}");
@@ -391,7 +395,8 @@ namespace DoAn_NT106.Server
 
                 string encrypted = DoAn_NT106.Services.EncryptionService.Encrypt(json);
 
-                byte[] data = Encoding.UTF8.GetBytes(encrypted);
+                // Ensure client-side parser can split messages (newline-delimited)
+                byte[] data = Encoding.UTF8.GetBytes(encrypted + "\n");
                 stream.Write(data, 0, data.Length);
             }
             catch (Exception ex)
@@ -1020,6 +1025,67 @@ namespace DoAn_NT106.Server
 
                 if (!string.IsNullOrEmpty(roomCode) && !string.IsNullOrEmpty(username))
                 {
+                    // If a game is currently playing in this room, treat leaving as forfeit:
+                    var room = roomManager.GetRoom(roomCode);
+                    bool wasPlaying = room != null && string.Equals(room.Status, "playing", StringComparison.OrdinalIgnoreCase);
+
+                    if (wasPlaying)
+                    {
+                        // Determine opponent
+                        string opponentUsername = null;
+                        if (room.Player1Username == username)
+                            opponentUsername = room.Player2Username;
+                        else if (room.Player2Username == username)
+                            opponentUsername = room.Player1Username;
+
+                        // Inform opponent that they won by forfeit and end UDP match
+                        if (!string.IsNullOrEmpty(opponentUsername))
+                        {
+                            var opponentClient = roomManager.GetClientHandler(roomCode, opponentUsername);
+                            try
+                            {
+                                var payload = new
+                                {
+                                    Action = "GAME_ENDED",
+                                    Data = new
+                                    {
+                                        roomCode = roomCode,
+                                        winner = opponentUsername,
+                                        reason = "opponent_left"
+                                    }
+                                };
+                                string json = System.Text.Json.JsonSerializer.Serialize(payload);
+                                if (opponentClient != null)
+                                {
+                                    opponentClient.SendMessage(json);
+                                    server.Log($"📢 Notified opponent {opponentUsername} of forfeit win in room {roomCode}");
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                server.Log($"⚠️ Error notifying opponent about forfeit: {ex.Message}");
+                            }
+                        }
+
+                        try
+                        {
+                            var udpResult = udpGameServer.EndMatch(roomCode);
+                            if (udpResult.Success)
+                                server.Log($"✅ UDP Match ended for room {roomCode} due to player leave");
+                            else
+                                server.Log($"⚠️ Failed to end UDP match: {udpResult.Message}");
+
+                            // Reset lobby state for rematch/return
+                            var resetResult = lobbyManager.ResetLobbyForRematch(roomCode);
+                            if (resetResult.Success)
+                                server.Log($"✅ Lobby {roomCode} reset after forfeit");
+                        }
+                        catch (Exception ex)
+                        {
+                            server.Log($"❌ Error during forfeit cleanup: {ex.Message}");
+                        }
+                    }
+
                     roomManager.LeaveRoom(roomCode, username);
                     server.Log($"✅ HandleLeaveRoom completed for {username}");
                 }

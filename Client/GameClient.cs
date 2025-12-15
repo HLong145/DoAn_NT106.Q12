@@ -19,6 +19,8 @@ namespace DoAn_NT106.Services
         public event Action<PlayerJoinedData> OnPlayerJoined;
         public event Action<PlayerLeftData> OnPlayerLeft;
         public event Action<StartGameData> OnStartGame;
+        // ✅ THÊM: Event when server signals game end (winner or draw)
+        public event Action<GameEndData> OnGameEnded;
         // ✅ THÊM: Event khi có damage
         public event Action<DamageEventData> OnDamageEvent;
         public event Action<string> OnError;
@@ -77,6 +79,10 @@ namespace DoAn_NT106.Services
 
                     case "START_GAME":
                         HandleStartGame(data);
+                        break;
+                    case "GAME_ENDED":
+                    case "GAME_END":
+                        HandleGameEnd(data);
                         break;
                     
                     // ✅ THÊM: Handle damage event (server may use GAME_DAMAGE or DAMAGE_EVENT)
@@ -183,6 +189,25 @@ namespace DoAn_NT106.Services
             catch (Exception ex)
             {
                 OnError?.Invoke($"HandleStartGame error: {ex.Message}");
+            }
+        }
+
+        private void HandleGameEnd(JsonElement data)
+        {
+            try
+            {
+                var endData = new GameEndData
+                {
+                    RoomCode = GetStringProp(data, "roomCode"),
+                    Winner = GetStringProp(data, "winner"),
+                    Reason = GetStringProp(data, "reason")
+                };
+
+                OnGameEnded?.Invoke(endData);
+            }
+            catch (Exception ex)
+            {
+                OnError?.Invoke($"HandleGameEnd error: {ex.Message}");
             }
         }
 
@@ -333,5 +358,12 @@ namespace DoAn_NT106.Services
         public int TargetPlayerNum { get; set; }
         public int Damage { get; set; }
         public bool IsParried { get; set; }
+    }
+
+    public class GameEndData
+    {
+        public string RoomCode { get; set; }
+        public string Winner { get; set; }
+        public string Reason { get; set; }
     }
 }
