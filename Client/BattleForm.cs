@@ -1030,7 +1030,7 @@ namespace DoAn_NT106
                 this.Controls.Add(lblPlayer2Name);
             }
 
-            SetupControlsInfo();
+
 
             // ✅ THÊM: Load background map
             string backgroundName = $"battleground{currentBackground + 1}";
@@ -3092,22 +3092,7 @@ namespace DoAn_NT106
             }
         }
 
-        private void SetupControlsInfo()
-        {
-            lblControlsInfo = new Label
-            {
-                Text = "Player 1: A/D (Move) | W (Jump) | J (Attack1) | K (Attack2) | L (Dash) | U (Parry) | I (Skill)\n" +
-                       "Player 2: ←/→ (Move) | ↑ (Jump) | Num1 (Attack1) | Num2 (Attack2) | Num3 (Dash) | Num5 (Parry) | Num4 (Skill)",
-                Location = new Point(this.ClientSize.Width / 2 - 350, this.ClientSize.Height - 60),
-                Size = new Size(700, 40),
-                ForeColor = Color.White,
-                Font = new Font("Arial", 8, FontStyle.Bold),
-                BackColor = Color.FromArgb(150, 0, 0, 0),
-                TextAlign = ContentAlignment.MiddleCenter
-            };
-
-            this.Controls.Add(lblControlsInfo);
-        }
+  
         /// <summary>
         /// Get actual character width for movement boundaries
         /// </summary>
