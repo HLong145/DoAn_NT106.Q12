@@ -772,7 +772,17 @@ namespace DoAn_NT106
         public void JoinAsPlayer2(string username, string token, string player1Character, string player2Character, int playerNumber)
         {
             Console.WriteLine($"[BattleForm] JoinAsPlayer2 called: {username} as P{playerNumber}");
-            
+            // Preserve the existing host identity as opponent before overwriting local username
+            try
+            {
+                var previousHost = this.username; // when this form was created by host, this.username holds host
+                if (!string.IsNullOrEmpty(previousHost) && !string.Equals(previousHost, username, StringComparison.OrdinalIgnoreCase))
+                {
+                    this.opponent = previousHost;
+                }
+            }
+            catch { }
+
             this.username = username;
             this.token = token;
             this.player1CharacterType = player1Character;
