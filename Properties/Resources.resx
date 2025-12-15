@@ -412,4 +412,7 @@
   <data name="parry_KG_bringer_goatman" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\parry_KG_warrior_bringer.mp3;System.IO.MemoryStream, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
+  <data name="game_end" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Game_end.mp3;System.IO.MemoryStream, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
 </root>
