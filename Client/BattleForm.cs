@@ -1452,10 +1452,27 @@ namespace DoAn_NT106
                         Console.WriteLine($"[UDP DEBUG] Bound debug error: {ex.Message}");
                     }
                     
-                    // ✅ ALWAYS UPDATE STATE (health, stamina, etc.)
-                    opp.Health = health;
-                    opp.Stamina = stamina;
-                    opp.Mana = mana;
+                    // ✅ UPDATED: Only update health/stamina/mana if round is in progress
+                    // During round countdown, ignore these updates to prevent premature HP reset
+                    if (_roundInProgress)
+                    {
+                        opp.Health = health;
+                        opp.Stamina = stamina;
+                        opp.Mana = mana;
+                        
+                        // DEBUG: Log health update from UDP
+                        try
+                        {
+                            Console.WriteLine($"[UDP] Updated opponent P{opponentNum} health={health} during gameplay");
+                        }
+                        catch { }
+                    }
+                    else
+                    {
+                        // Round countdown: ignore health updates but still process other state
+                        Console.WriteLine($"[UDP] ⏭️ Ignored health update from opponent (round countdown): health={health} (waiting for round start)");
+                    }
+                    
                     opp.Facing = facing;
                     opp.IsAttacking = isAttacking;
                     opp.IsParrying = isParrying;
