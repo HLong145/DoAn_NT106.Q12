@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
+using DoAn_NT106.Services;
+using System.Text.Json;
 
 namespace DoAn_NT106
 {
@@ -53,6 +55,8 @@ namespace DoAn_NT106
         private string player2Character = "girlknight"; // Mặc định
         public string SelectedCharacter { get; private set; }
 
+        private int myPlayerNumber = 0; // 1 or 2 assigned by server
+
         public CharacterSelectForm(string username, string token, string roomCode, string opponentName, bool isHost = true, string selectedMap = "battleground1")
         {
             this.username = username;
@@ -69,6 +73,262 @@ namespace DoAn_NT106
             InitializeCharacters();
             InitializeUI();
             UpdatePreview();
+            
+            // ✅ REGISTER TCP BROADCAST HANDLER BEFORE SHOWING
+            PersistentTcpClient.Instance.OnBroadcast += TcpClient_OnBroadcast;
+            Console.WriteLine("[CharacterSelectForm] Registered for TCP broadcasts");
+        }
+
+        // ✅ LISTEN TO SERVER BROADCASTS (INCLUDING START_GAME)
+        private void TcpClient_OnBroadcast(string action, JsonElement data)
+        {
+            if (action == "START_GAME")
+            {
+                HandleStartGameBroadcast(data);
+            }
+            else if (action == "RETURN_TO_LOBBY")
+            {
+                HandleReturnToLobbyBroadcast(data);
+            }
+        }
+
+        private void HandleStartGameBroadcast(JsonElement data)
+        {
+            Console.WriteLine("[CharacterSelectForm] Received START_GAME broadcast");
+
+            try
+            {
+                // Parse START_GAME data từ server
+                string msgRoomCode = GetStringOrNull(data, "roomCode");
+                if (!string.Equals(msgRoomCode, roomCode, StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.WriteLine($"[CharacterSelectForm] START_GAME for different room: {msgRoomCode}");
+                    return;
+                }
+
+                string p1Name = GetStringOrNull(data, "player1");
+                string p2Name = GetStringOrNull(data, "player2");
+                string p1Char = GetStringOrNull(data, "player1Character") ?? "girlknight";
+                string p2Char = GetStringOrNull(data, "player2Character") ?? "girlknight";
+                // Map provided by server (preferred)
+                string mapFromServer = GetStringOrNull(data, "selectedMap");
+                string mapToUse = !string.IsNullOrEmpty(mapFromServer) ? mapFromServer : selectedMap;
+
+                // ✅ DETERMINE MY PLAYER NUMBER BASED ON USERNAME MATCH
+                if (string.Equals(p1Name, username, StringComparison.OrdinalIgnoreCase))
+                {
+                    myPlayerNumber = 1;
+                    Console.WriteLine($"[CharacterSelectForm] I am Player 1 - will CREATE BattleForm");
+                }
+                else if (string.Equals(p2Name, username, StringComparison.OrdinalIgnoreCase))
+                {
+                    myPlayerNumber = 2;
+                    Console.WriteLine($"[CharacterSelectForm] I am Player 2 - will JOIN BattleForm");
+                }
+                else
+                {
+                    Console.WriteLine($"[CharacterSelectForm] ⚠️ USERNAME MISMATCH! p1={p1Name}, p2={p2Name}, me={username}");
+                    return;
+                }
+
+                Console.WriteLine($"[CharacterSelectForm] Game starting: P1={p1Name}({p1Char}) vs P2={p2Name}({p2Char})");
+
+                // ✅ UNREGISTER BROADCAST BEFORE CLOSING
+                PersistentTcpClient.Instance.OnBroadcast -= TcpClient_OnBroadcast;
+
+                // ✅ MOVE TO BATTLE ON UI THREAD
+                this.BeginInvoke(new Action(() =>
+                {
+                    try
+                    {
+                        if (myPlayerNumber == 1)
+                        {
+                            // ✅ PLAYER 1: CREATE NEW BATTLEFORM
+                            Console.WriteLine($"[CharacterSelectForm] Player 1 creating new BattleForm for room {roomCode}");
+                            // Prefer server-provided map if present in START_GAME payload
+                            var mapFromServer = GetStringOrNull(data, "selectedMap");
+                            var mapToUse = !string.IsNullOrEmpty(mapFromServer) ? mapFromServer : selectedMap;
+
+                            var battleForm = new BattleForm(
+                                p1Name,  // ✅ SỬA: LUÔN là Player 1 từ server
+                                token,
+                                p2Name,  // ✅ SỬA: LUÔN là Player 2 từ server
+                                p1Char,  // Player 1's selected character
+                                p2Char,  // Player 2's selected character
+                                mapToUse,
+                                roomCode,
+                                myPlayerNumber,
+                                isCreator: true  // ✅ PASS FLAG: I'm the creator
+                            );
+
+                            battleForm.FormClosed += (s, args) =>
+                            {
+                                this.Close();
+                            };
+
+                            battleForm.Show();
+                            this.Hide();
+                        }
+                        else
+                        {
+                            // ✅ PLAYER 2: FIND AND JOIN EXISTING BATTLEFORM
+                            Console.WriteLine($"[CharacterSelectForm] Player 2 searching for BattleForm in room {roomCode}");
+                            
+                            // Tìm BattleForm đã được tạo bởi Player 1
+                            BattleForm existingBattleForm = null;
+                            foreach (Form form in Application.OpenForms)
+                            {
+                                if (form is BattleForm bf && bf.RoomCode == roomCode)
+                                {
+                                    existingBattleForm = bf;
+                                    break;
+                                }
+                            }
+
+                            if (existingBattleForm != null && !existingBattleForm.IsDisposed)
+                            {
+                                // ✅ JOIN EXISTING BATTLEFORM
+                                Console.WriteLine($"[CharacterSelectForm] Found existing BattleForm, joining...");
+                                // Ensure existing form uses server map
+                                try { existingBattleForm.UpdateSelectedMap(mapToUse); } catch { }
+
+                                existingBattleForm.JoinAsPlayer2(
+                                    username,
+                                    token,
+                                    p1Char,
+                                    p2Char,
+                                    myPlayerNumber
+                                );
+                                existingBattleForm.BringToFront();
+                                this.Close();
+                            }
+                            else
+                            {
+                                // ✅ PLAYER 1 HASN'T CREATED YET - WAIT AND RETRY
+                                Console.WriteLine($"[CharacterSelectForm] BattleForm not found yet, waiting...");
+                                System.Threading.Thread.Sleep(500);
+                                
+                                // Retry once more
+                                existingBattleForm = null;
+                                foreach (Form form in Application.OpenForms)
+                                {
+                                    if (form is BattleForm bf && bf.RoomCode == roomCode)
+                                    {
+                                        existingBattleForm = bf;
+                                        break;
+                                    }
+                                }
+
+                                if (existingBattleForm != null && !existingBattleForm.IsDisposed)
+                                {
+                                    Console.WriteLine($"[CharacterSelectForm] Found BattleForm after retry, joining...");
+                                    existingBattleForm.JoinAsPlayer2(
+                                        username,
+                                        token,
+                                        p1Char,
+                                        p2Char,
+                                        myPlayerNumber
+                                    );
+                                    existingBattleForm.BringToFront();
+                                    this.Close();
+                                }
+                                else
+                                {
+                                // ✅ FALLBACK: CREATE OWN BATTLEFORM IF PLAYER 1 FAILED
+                                    Console.WriteLine($"[CharacterSelectForm] BattleForm still not found, creating fallback...");
+                                // For fallback or when creating as player2 with no existing BattleForm,
+                                // prefer server map
+                                var mapFromServer2 = GetStringOrNull(data, "selectedMap");
+                                var mapToUse2 = !string.IsNullOrEmpty(mapFromServer2) ? mapFromServer2 : selectedMap;
+
+                                // ✅ SỬA: LUÔN truyền p1Name trước, p2Name sau (thứ tự từ server)
+                                var battleForm = new BattleForm(
+                                        p1Name,      // ✅ SỬA: LUÔN là Player 1
+                                        token,
+                                        p2Name,      // ✅ SỬA: LUÔN là Player 2
+                                        p1Char,
+                                        p2Char,
+                                        mapToUse2,
+                                        roomCode,
+                                        myPlayerNumber,
+                                        isCreator: false
+                                    );
+
+                                    battleForm.FormClosed += (s, args) =>
+                                    {
+                                        this.Close();
+                                    };
+
+                                    battleForm.Show();
+                                    this.Hide();
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[CharacterSelectForm] Failed to enter BattleForm: {ex.Message}");
+                        MessageBox.Show($"Error starting battle: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CharacterSelectForm] START_GAME parse error: {ex.Message}");
+            }
+        }
+
+        // ✅ THÊM: Handle RETURN_TO_LOBBY broadcast
+        private void HandleReturnToLobbyBroadcast(JsonElement data)
+        {
+            Console.WriteLine("[CharacterSelectForm] Received RETURN_TO_LOBBY broadcast");
+
+            try
+            {
+                string msgRoomCode = GetStringOrNull(data, "roomCode");
+                if (!string.Equals(msgRoomCode, roomCode, StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.WriteLine($"[CharacterSelectForm] RETURN_TO_LOBBY for different room: {msgRoomCode}");
+                    return;
+                }
+
+                Console.WriteLine($"[CharacterSelectForm] Returning to lobby for room {roomCode}");
+
+                // ✅ UNREGISTER BROADCAST BEFORE CLOSING
+                PersistentTcpClient.Instance.OnBroadcast -= TcpClient_OnBroadcast;
+
+                // ✅ RETURN TO LOBBY ON UI THREAD
+                this.BeginInvoke(new Action(() =>
+                {
+                    try
+                    {
+                        ReturnToLobby();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[CharacterSelectForm] Error returning to lobby: {ex.Message}");
+                        MessageBox.Show($"Error returning to lobby: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CharacterSelectForm] RETURN_TO_LOBBY parse error: {ex.Message}");
+            }
+        }
+
+        // ✅ HELPER: Get string from JSON safely
+        private string GetStringOrNull(JsonElement data, string propertyName)
+        {
+            try
+            {
+                if (data.TryGetProperty(propertyName, out var prop) && prop.ValueKind != JsonValueKind.Null)
+                {
+                    return prop.GetString();
+                }
+            }
+            catch { }
+            return null;
         }
 
         private void InitializeCharacters()
@@ -497,35 +757,59 @@ namespace DoAn_NT106
             return new string('█', bars) + new string('░', 10 - bars) + $" {value}";
         }
 
-        private void BtnConfirm_Click(object sender, EventArgs e)
+        private async void BtnConfirm_Click(object sender, EventArgs e)
         {
-            // ✅ LẤY CHARACTER ĐÃ CHỌN
             SelectedCharacter = characters[selectedIndex].Name;
-            this.DialogResult = DialogResult.OK;
 
-            // ✅ OPPONENT MẶC ĐỊNH là girlknight (sau này lấy từ server)
-            string opponentCharacter = "girlknight";
+            // ✅ Disable button and show feedback
+            btnConfirm.Enabled = false;
+            btnConfirm.Text = "⏳ SENDING...";
 
-            // ✅ TRUYỀN ĐẦY ĐỦ 7 THAM SỐ với character đã chọn + map + roomCode
-            Console.WriteLine($"[CharacterSelectForm] Passing selectedMap='{selectedMap}' to BattleForm");
-            var battleForm = new BattleForm(
-                username,              // Player 1 username
-                token,                 // Token
-                opponentName,          // Opponent username
-                SelectedCharacter,     // ✅ Player 1 character (người chơi đã chọn)
-                opponentCharacter,     // ✅ Player 2 character (mặc định girlknight)
-                selectedMap,           // ✅ MAP ĐÃ CHỈ ĐỊNH (e.g., "battleground4")
-                roomCode               // ✅ ROOM CODE
-            );
-
-            battleForm.FormClosed += (s, args) =>
+            try
             {
-            };
+                // ✅ USE THE CORRECT OVERLOAD (action, data)
+                var response = await PersistentTcpClient.Instance.SendRequestAsync(
+                    "SELECT_CHARACTER",
+                    new Dictionary<string, object>
+                    {
+                        { "roomCode", roomCode },
+                        { "username", username },
+                        { "character", SelectedCharacter }
+                    }
+                );
 
-            battleForm.Show();
-            this.Close();
+                if (response.Success)
+                {
+                    // ✅ Show success feedback
+                    btnConfirm.Text = "✓ CONFIRMED";
+                    btnConfirm.BackColor = Color.FromArgb(100, 200, 100);
+                    Console.WriteLine($"[CharacterSelectForm] SELECT_CHARACTER sent successfully: {SelectedCharacter}");
+                    
+                    // ✅ Wait for server START_GAME (handled in TcpClient_OnBroadcast)
+                    btnConfirm.Enabled = false;
+                }
+                else
+                {
+                    Console.WriteLine($"[CharacterSelectForm] SELECT_CHARACTER failed: {response.Message}");
+                    MessageBox.Show($"Failed to send character select: {response.Message}", "Error");
+                    
+                    // Re-enable button on error
+                    btnConfirm.Enabled = true;
+                    btnConfirm.Text = "✓ CONFIRM";
+                }
+                
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CharacterSelectForm] Error sending SELECT_CHARACTER: {ex.Message}");
+                MessageBox.Show("Network error when sending character select.", "Error");
+                
+                // Re-enable button on error
+                btnConfirm.Enabled = true;
+                btnConfirm.Text = "✓ CONFIRM";
+            }
         }
-        
+
         private void BtnBack_Click(object sender, EventArgs e)
         {
             // Quay lại GameLobbyForm
@@ -538,7 +822,112 @@ namespace DoAn_NT106
 
             if (result == DialogResult.Yes)
             {
-                // Tạo lại GameLobbyForm với thông tin phòng
+                // ✅ Gửi request về server để notify cả 2 người quay về lobby
+                if (!string.IsNullOrEmpty(roomCode) && roomCode != "000000")
+                {
+                    try
+                    {
+                        btnBack.Enabled = false;
+                        btnBack.Text = "⏳ RETURNING...";
+
+                        var _ = PersistentTcpClient.Instance.SendRequestAsync(
+                            "CHARACTER_SELECT_BACK",
+                            new Dictionary<string, object>
+                            {
+                                { "roomCode", roomCode },
+                                { "username", username }
+                            },
+                            5000  // 5 giây timeout
+                        ).ContinueWith(task =>
+                        {
+                            this.BeginInvoke(new Action(() =>
+                            {
+                                try
+                                {
+                                    if (task.IsCompletedSuccessfully)
+                                    {
+                                        var response = task.Result;
+                                        if (response.Success)
+                                        {
+                                            Console.WriteLine("[CharacterSelectForm] CHARACTER_SELECT_BACK sent successfully");
+                                            // Server sẽ broadcast RETURN_TO_LOBBY cho cả 2 người
+                                            // Handler sẽ xử lý việc quay về lobby
+                                        }
+                                        else
+                                        {
+                                            Console.WriteLine($"[CharacterSelectForm] CHARACTER_SELECT_BACK failed: {response.Message}");
+                                            // Vẫn quay lại nếu server error
+                                            ReturnToLobby();
+                                        }
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine($"[CharacterSelectForm] CHARACTER_SELECT_BACK timeout/error");
+                                        // Vẫn quay lại nếu timeout
+                                        ReturnToLobby();
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine($"[CharacterSelectForm] Error handling CHARACTER_SELECT_BACK response: {ex.Message}");
+                                    ReturnToLobby();
+                                }
+                            }));
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[CharacterSelectForm] Error sending CHARACTER_SELECT_BACK: {ex.Message}");
+                        ReturnToLobby();
+                    }
+                }
+                else
+                {
+                    // Offline mode hoặc không có room code
+                    ReturnToLobby();
+                }
+            }
+        }
+
+        // ✅ THÊM: Helper method để quay lại lobby
+        private void ReturnToLobby()
+        {
+            try
+            {
+                // ✅ KIỂM TRA: Có GameLobbyForm nào đang mở cho phòng này không?
+                PixelGameLobby.GameLobbyForm existingLobbyForm = null;
+                foreach (Form form in Application.OpenForms)
+                {
+                    if (form.GetType().Name == "GameLobbyForm")
+                    {
+                        // Kiểm tra xem form này có phải của phòng hiện tại không
+                        // Bằng cách kiểm tra các control hoặc thông qua reflection
+                        var roomCodeField = form.GetType().GetField("roomCode", 
+                            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                        if (roomCodeField != null)
+                        {
+                            var formRoomCode = roomCodeField.GetValue(form) as string;
+                            if (formRoomCode == roomCode)
+                            {
+                                existingLobbyForm = form as PixelGameLobby.GameLobbyForm;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // ✅ NẾU ĐÃ CÓ FORM LOBBY RỒI: Chỉ cần show lại thôi
+                if (existingLobbyForm != null && !existingLobbyForm.IsDisposed)
+                {
+                    Console.WriteLine($"[CharacterSelectForm] Found existing GameLobbyForm for room {roomCode}, showing it");
+                    existingLobbyForm.Show();
+                    existingLobbyForm.BringToFront();
+                    this.Close();
+                    return;
+                }
+
+                // ✅ NẾU CHƯA CÓ: TẠO FORM LOBBY MỚI
+                Console.WriteLine($"[CharacterSelectForm] No existing GameLobbyForm found, creating new one for room {roomCode}");
                 var lobbyForm = new PixelGameLobby.GameLobbyForm(roomCode, username, token);
                 lobbyForm.FormClosed += (s, args) =>
                 {
@@ -549,6 +938,27 @@ namespace DoAn_NT106
                 lobbyForm.Show();
                 this.Close();
             }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CharacterSelectForm] Error in ReturnToLobby: {ex.Message}");
+                // Fallback: luôn tạo form mới nếu có lỗi
+                var fallbackForm = new PixelGameLobby.GameLobbyForm(roomCode, username, token);
+                fallbackForm.Show();
+                this.Close();
+            }
+        }
+        
+        // ✅ CLEANUP
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            try
+            {
+                PersistentTcpClient.Instance.OnBroadcast -= TcpClient_OnBroadcast;
+                Console.WriteLine("[CharacterSelectForm] Unregistered from TCP broadcasts");
+            }
+            catch { }
+            
+            base.OnFormClosing(e);
         }
     }
 

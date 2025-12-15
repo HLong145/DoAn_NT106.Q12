@@ -97,10 +97,11 @@ namespace DoAn_NT106.Services
 
         #region Constructor
 
-        public PersistentTcpClient(string address = "103.188.244.112", int port = 8080)
+        public PersistentTcpClient(string address = null, int port = 0)
         {
-            serverAddress = address;
-            serverPort = port;
+            // ✅ Use AppConfig as default
+            serverAddress = string.IsNullOrEmpty(address) ? AppConfig.SERVER_IP : address;
+            serverPort = port <= 0 ? AppConfig.TCP_PORT : port;
         }
 
         #endregion
@@ -166,7 +167,8 @@ namespace DoAn_NT106.Services
 
                 string json = JsonSerializer.Serialize(request);
                 string encrypted = EncryptionService.Encrypt(json);
-                byte[] bytes = Encoding.UTF8.GetBytes(encrypted);
+                // IMPORTANT: append newline so server can split messages reliably
+                byte[] bytes = Encoding.UTF8.GetBytes(encrypted + "\n");
 
                 Console.WriteLine($"[TCP] Sending: {action} (ID: {requestId})");
 
@@ -193,6 +195,48 @@ namespace DoAn_NT106.Services
             {
                 pendingRequests.TryRemove(requestId, out _);
                 return new ServerResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        #endregion
+
+        #region Send broadcast
+
+        /// <summary>
+        /// ✅ THÊM: Send broadcast to server
+        /// </summary>
+        public void SendBroadcast(string action, string jsonData)
+        {
+            try
+            {
+                if (!IsConnected)
+                {
+                    Console.WriteLine($"[TCP] Not connected, cannot send broadcast: {action}");
+                    return;
+                }
+
+                var broadcast = new
+                {
+                    Action = action,
+                    Data = jsonData,
+                    Timestamp = DateTime.UtcNow
+                };
+
+                string json = JsonSerializer.Serialize(broadcast);
+                string encrypted = EncryptionService.Encrypt(json);
+                byte[] bytes = Encoding.UTF8.GetBytes(encrypted + "\n");
+
+                lock (sendLock)
+                {
+                    stream.Write(bytes, 0, bytes.Length);
+                    stream.Flush();
+                }
+
+                Console.WriteLine($"[TCP] Broadcast sent: {action}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[TCP] SendBroadcast error: {ex.Message}");
             }
         }
 
@@ -475,6 +519,36 @@ namespace DoAn_NT106.Services
             {
                 { "roomCode", roomCode },
                 { "username", username }
+            });
+
+        public Task<ServerResponse> LobbySetMapAsync(string roomCode, string username, string selectedMap)
+            => SendRequestAsync("LOBBY_SET_MAP", new Dictionary<string, object>
+            {
+                { "roomCode", roomCode },
+                { "username", username },
+                { "selectedMap", selectedMap }
+            });
+
+        #endregion
+
+        #region API methods - game
+
+        public Task<ServerResponse> GameEndAsync(string roomCode, string username)
+            => SendRequestAsync("GAME_END", new Dictionary<string, object>
+            {
+                { "roomCode", roomCode },
+                { "username", username }
+            });
+        
+        // ✅ THÊM: Send game damage event
+        public Task<ServerResponse> SendGameDamageAsync(string roomCode, string username, int targetPlayerNum, int damage, bool isParried)
+            => SendRequestAsync("GAME_DAMAGE", new Dictionary<string, object>
+            {
+                { "roomCode", roomCode },
+                { "username", username },
+                { "targetPlayerNum", targetPlayerNum },
+                { "damage", damage },
+                { "isParried", isParried }
             });
 
         #endregion

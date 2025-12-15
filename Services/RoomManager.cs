@@ -32,6 +32,10 @@ namespace DoAn_NT106.Server
 
         public RoomListBroadcaster RoomListBroadcaster { get; set; }
 
+        // External references set by TcpServer to enable cross-service actions (optional)
+        public UDPGameServer UdpGameServer { get; set; }
+        public LobbyManager LobbyManager { get; set; }
+
         #endregion
 
         #region Constructor
@@ -357,6 +361,73 @@ namespace DoAn_NT106.Server
                 }
 
                 room.LastActivity = DateTime.Now;
+
+                // If room was playing, handle forfeit: notify opponent, end UDP match, reset lobby
+                if (string.Equals(room.Status, "playing", StringComparison.OrdinalIgnoreCase))
+                {
+                    try
+                    {
+                        string opponent = wasPlayer1 ? room.Player2Username : room.Player1Username;
+
+                        // Construct GAME_ENDED payload (winner is the remaining player)
+                        var winner = opponent;
+                        var gameEndedPayload = new
+                        {
+                            Action = "GAME_ENDED",
+                            Data = new { roomCode = roomCode, winner = winner, reason = "opponent_left" }
+                        };
+                        string gameEndedJson = System.Text.Json.JsonSerializer.Serialize(gameEndedPayload);
+
+                        // Notify both clients (if connected) so UI can handle end-of-match consistently
+                        try
+                        {
+                            if (room.Player1Client != null)
+                                room.Player1Client.SendMessage(gameEndedJson);
+                            if (room.Player2Client != null)
+                                room.Player2Client.SendMessage(gameEndedJson);
+
+                            Log($"📢 Broadcasted GAME_ENDED for room {roomCode} (winner={winner})");
+                        }
+                        catch (Exception ex)
+                        {
+                            Log($"⚠️ Error broadcasting GAME_ENDED: {ex.Message}");
+                        }
+
+                        // End UDP match if running
+                        try
+                        {
+                            var udpRes = UdpGameServer?.EndMatch(roomCode);
+                            if (udpRes != null && udpRes.Value.Success)
+                                Log($"✅ UDP Match ended for room {roomCode} due to player leave");
+                            else if (udpRes != null)
+                                Log($"⚠️ UDP EndMatch returned: {udpRes.Value.Message}");
+                        }
+                        catch (Exception ex)
+                        {
+                            Log($"❌ Error ending UDP match for {roomCode}: {ex.Message}");
+                        }
+
+                        // Reset lobby for rematch/return to lobby
+                        try
+                        {
+                            var reset = LobbyManager?.ResetLobbyForRematch(roomCode);
+                            if (reset != null && reset.Value.Success)
+                                Log($"✅ Lobby {roomCode} reset after forfeit");
+                            else if (reset != null)
+                                Log($"⚠️ ResetLobbyForRematch returned: {reset.Value.Message}");
+                        }
+                        catch (Exception ex)
+                        {
+                            Log($"❌ Error resetting lobby for {roomCode}: {ex.Message}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"❌ Forfeit handling error: {ex.Message}");
+                    }
+                }
+
+                // Set room status to waiting and broadcast updates
                 room.Status = "waiting";
 
                 // Nếu phòng trống, KHÔNG xóa ngay, để timer cleanup sau 30s
@@ -531,6 +602,20 @@ namespace DoAn_NT106.Server
         {
             activeRooms.TryGetValue(roomCode, out GameRoom room);
             return room;
+        }
+        
+        // ✅ THÊM: Get client handler theo room code và username
+        public ClientHandler GetClientHandler(string roomCode, string username)
+        {
+            if (!activeRooms.TryGetValue(roomCode, out GameRoom room))
+                return null;
+
+            if (room.Player1Username == username)
+                return room.Player1Client;
+            else if (room.Player2Username == username)
+                return room.Player2Client;
+
+            return null;
         }
 
         #endregion

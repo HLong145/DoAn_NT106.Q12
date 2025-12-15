@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace DoAn_NT106.Server
 {
@@ -16,6 +17,10 @@ namespace DoAn_NT106.Server
 
         // Room Code -> Lobby Data
         private ConcurrentDictionary<string, LobbyData> lobbies = new ConcurrentDictionary<string, LobbyData>();
+
+        // Room Code -> Character selection state (P1/P2 picks)
+        private ConcurrentDictionary<string, CharacterSelectState> characterSelectByRoom =
+            new ConcurrentDictionary<string, CharacterSelectState>();
 
         // Reference đến RoomManager để gọi LeaveRoom
         private RoomManager roomManager;
@@ -40,6 +45,62 @@ namespace DoAn_NT106.Server
         }
 
         #endregion
+
+        // SET MAP
+        public (bool Success, string Message) SetLobbyMap(string roomCode, string username, string selectedMap)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(roomCode) || string.IsNullOrEmpty(username) || string.IsNullOrEmpty(selectedMap))
+                    return (false, "Missing parameters");
+
+                if (!lobbies.TryGetValue(roomCode, out var lobby))
+                    return (false, "Lobby not found");
+
+                lock (lobby.Lock)
+                {
+                    // Only host can change map (player1)
+                    if (lobby.Player1Username != username)
+                    {
+                        return (false, "Only host can change map");
+                    }
+
+                    lobby.SelectedMap = selectedMap;
+                    Log($"🗺 Lobby {roomCode} map changed to {selectedMap} by {username}");
+
+                    // Broadcast map change to both players
+                    BroadcastMapChanged(lobby);
+                }
+
+                return (true, "Map updated");
+            }
+            catch (Exception ex)
+            {
+                Log($"❌ SetLobbyMap error: {ex.Message}");
+                return (false, ex.Message);
+            }
+        }
+
+        private void BroadcastMapChanged(LobbyData lobby)
+        {
+            var broadcast = new
+            {
+                Action = "LOBBY_MAP_CHANGED",
+                Data = new
+                {
+                    roomCode = lobby.RoomCode,
+                    selectedMap = lobby.SelectedMap
+                }
+            };
+
+            string json = JsonSerializer.Serialize(broadcast);
+
+            if (lobby.Player1Client != null)
+                SafeSend(lobby.Player1Client, json);
+
+            if (lobby.Player2Client != null)
+                SafeSend(lobby.Player2Client, json);
+        }
 
         #region Join and leave lobby
         public (bool Success, string Message, LobbyData Lobby) JoinLobby(
@@ -258,7 +319,42 @@ namespace DoAn_NT106.Server
                     }
 
                     Log($"🎮 Host {username} starting game in lobby {roomCode}");
+
+                    // Ensure RoomManager starts the game state and UDP match is created BEFORE broadcasting
+                    try
+                    {
+                        if (roomManager != null)
+                        {
+                            // Initialize game state in RoomManager first
+                            bool started = roomManager.StartGame(roomCode);
+                            Log(started ? "✅ RoomManager.StartGame succeeded" : "⚠️ RoomManager.StartGame failed or returned false");
+
+                            // Try to create UDP match via RoomManager's UDPGameServer reference
+                            var udp = roomManager.UdpGameServer;
+                            if (udp != null)
+                            {
+                                var p1 = lobby.Player1Username;
+                                var p2 = lobby.Player2Username;
+                                var res = udp.CreateMatch(roomCode, p1, p2);
+                                if (res.Success)
+                                {
+                                    Log($"✅ UDP Match created for room {roomCode} (via LobbyManager)");
+                                }
+                                else
+                                {
+                                    Log($"⚠️ UDP CreateMatch failed for room {roomCode}: {res.Message}");
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"❌ Error starting room/udp from LobbyManager: {ex.Message}");
+                    }
+
+                    // Now broadcast START (clients will receive after UDP match exists)
                     BroadcastStartGame(lobby);
+
                     return (true, "Game started");
                 }
             }
@@ -358,6 +454,7 @@ namespace DoAn_NT106.Server
                 {
                     roomCode = lobby.RoomCode,
                     roomName = lobby.RoomName,
+                    selectedMap = lobby.SelectedMap,
                     player1 = lobby.Player1Username,
                     player2 = lobby.Player2Username,
                     player1Ready = lobby.Player1Ready,
@@ -435,6 +532,8 @@ namespace DoAn_NT106.Server
                     roomCode = lobby.RoomCode,
                     player1 = lobby.Player1Username,
                     player2 = lobby.Player2Username
+                    ,
+                    selectedMap = lobby.SelectedMap
                 }
             };
 
@@ -489,6 +588,9 @@ namespace DoAn_NT106.Server
             public string RoomCode { get; set; }
             public string RoomName { get; set; }
 
+            // Selected map for this lobby (e.g. "battleground1")
+            public string SelectedMap { get; set; } = "battleground1";
+
             public string Player1Username { get; set; }
             public ClientHandler Player1Client { get; set; }
             public bool Player1Ready { get; set; }
@@ -511,6 +613,124 @@ namespace DoAn_NT106.Server
             public DateTime Timestamp { get; set; }
         }
 
+        private class CharacterSelectState
+        {
+            public string Player1Character { get; set; }
+            public string Player2Character { get; set; }
+            public bool Player1Selected { get; set; }
+            public bool Player2Selected { get; set; }
+        }
+
         #endregion
+
+        public void HandleSelectCharacter(string roomCode, string username, string character)
+        {
+            if (!lobbies.TryGetValue(roomCode, out var lobby))
+            {
+                Log($"❌ Lobby not found: {roomCode}");
+                return;
+            }
+
+            lock (lobby.Lock)
+            {
+                var state = characterSelectByRoom.GetOrAdd(roomCode, _ => new CharacterSelectState());
+
+                if (lobby.Player1Username == username)
+                {
+                    state.Player1Character = character;
+                    state.Player1Selected = true;
+                    Log($"✅ Player1 ({username}) selected {character}");
+                }
+                else if (lobby.Player2Username == username)
+                {
+                    state.Player2Character = character;
+                    state.Player2Selected = true;
+                    Log($"✅ Player2 ({username}) selected {character}");
+                }
+                else
+                {
+                    Log($"❌ Unknown user {username} in lobby {roomCode}");
+                    return; // unknown user in this lobby
+                }
+
+                Log($"[Lobby] Character selections - P1: {state.Player1Selected} ({state.Player1Character ?? "null"}), P2: {state.Player2Selected} ({state.Player2Character ?? "null"})");
+
+                // Khi cả 2 đã chọn xong, gửi START_GAME chung với role + character mapping
+                if (state.Player1Selected && state.Player2Selected &&
+                    !string.IsNullOrEmpty(lobby.Player1Username) &&
+                    !string.IsNullOrEmpty(lobby.Player2Username))
+                {
+                    var payload = new
+                    {
+                        Action = "START_GAME",
+                        Data = new
+                        {
+                            roomCode = lobby.RoomCode,
+                            player1 = lobby.Player1Username,
+                            player2 = lobby.Player2Username,
+                            player1Number = 1,  // ✅ THÊM: Explicit player number
+                            player2Number = 2,  // ✅ THÊM: Explicit player number
+                            player1Character = state.Player1Character,
+                            player2Character = state.Player2Character
+                            ,
+                            selectedMap = lobby.SelectedMap
+                        }
+                    };
+
+                    string json = JsonSerializer.Serialize(payload);
+                    
+                    Log($"📢 Broadcasting START_GAME to Player1: {lobby.Player1Username}");
+                    SafeSend(lobby.Player1Client, json);
+                    
+                    Log($"📢 Broadcasting START_GAME to Player2: {lobby.Player2Username}");
+                    SafeSend(lobby.Player2Client, json);
+
+                    Log($"🚀 START_GAME sent for room {roomCode}: P1={lobby.Player1Username} ({state.Player1Character}), P2={lobby.Player2Username} ({state.Player2Character})");
+                }
+                else
+                {
+                    Log($"⏳ Waiting for other player: P1_Selected={state.Player1Selected}, P2_Selected={state.Player2Selected}");
+                }
+            }
+        }
+
+        // ✅ THÊM: Reset lobby sau khi game kết thúc (rematch hoặc return to lobby)
+        public (bool Success, string Message) ResetLobbyForRematch(string roomCode)
+        {
+            try
+            {
+                if (!lobbies.TryGetValue(roomCode, out var lobby))
+                    return (false, "Lobby not found");
+
+                lock (lobby.Lock)
+                {
+                    // Reset ready status
+                    lobby.Player1Ready = false;
+                    lobby.Player2Ready = false;
+                    Log($"✅ Reset ready status for lobby {roomCode}");
+
+                    // Reset character selections (xóa dữ liệu cũ)
+                    if (characterSelectByRoom.TryGetValue(roomCode, out var charState))
+                    {
+                        charState.Player1Character = null;
+                        charState.Player2Character = null;
+                        charState.Player1Selected = false;
+                        charState.Player2Selected = false;
+                        Log($"✅ Reset character selections for lobby {roomCode}");
+                    }
+
+                    // Broadcast trạng thái mới (cả 2 đều NOT READY)
+                    BroadcastLobbyState(lobby, excludeUsername: null);
+
+                    Log($"🔄 Lobby {roomCode} reset to initial state (ready for rematch or return)");
+                    return (true, "Lobby reset for rematch");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"❌ ResetLobbyForRematch error: {ex.Message}");
+                return (false, ex.Message);
+            }
+        }
     }
 }

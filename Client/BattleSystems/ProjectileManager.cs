@@ -18,7 +18,21 @@ namespace DoAn_NT106.Client.BattleSystems
             public DateTime CreatedAt { get; set; }
         }
 
+        // ✅ NEW: Class để lưu projectile của đối thủ (chỉ dùng để vẽ, không gây damage)
+        public class OpponentProjectile
+        {
+            public bool IsActive { get; set; }
+            public int X { get; set; }
+            public int Y { get; set; }
+            public int Direction { get; set; }
+            public int Owner { get; set; }
+            public string Type { get; set; } // "warrior" hoặc "spell"
+            public DateTime CreatedAt { get; set; }
+        }
+
         private List<WarriorProjectile> activeWarriorProjectiles = new List<WarriorProjectile>();
+        // ✅ NEW: Danh sách projectile của đối thủ (chỉ vẽ)
+        private List<OpponentProjectile> opponentProjectiles = new List<OpponentProjectile>();
 
         // Spell (Bringer of Death)
         public bool SpellActive { get; set; }
@@ -246,6 +260,60 @@ namespace DoAn_NT106.Client.BattleSystems
             // debug removed
         }
 
+        // ✅ NEW: Hàm thêm projectile của đối thủ (chỉ dùng để vẽ, không gây damage)
+        public void SpawnOpponentWarriorProjectile(int x, int y, int direction, int owner)
+        {
+            opponentProjectiles.Add(new OpponentProjectile
+            {
+                IsActive = true,
+                X = x,
+                Y = y,
+                Direction = direction,
+                Owner = owner,
+                Type = "warrior",
+                CreatedAt = DateTime.UtcNow
+            });
+            Console.WriteLine($"[SpawnOpponentWarriorProjectile] Opponent projectile spawned at X={x}, Y={y}, dir={direction}");
+        }
+
+        // ✅ NEW: Hàm thêm spell của đối thủ (chỉ dùng để vẽ, không gây damage)
+        public void SpawnOpponentSpell(int x, int y, int owner)
+        {
+            opponentProjectiles.Add(new OpponentProjectile
+            {
+                IsActive = true,
+                X = x,
+                Y = y,
+                Direction = 0,
+                Owner = owner,
+                Type = "spell",
+                CreatedAt = DateTime.UtcNow
+            });
+            
+            // ✅ Reset spell animation when opponent spell is spawned
+            try
+            {
+                if (spellAnimation != null && ImageAnimator.CanAnimate(spellAnimation))
+                {
+                    // Stop any existing animation
+                    try
+                    {
+                        ImageAnimator.StopAnimate(spellAnimation, null);
+                    }
+                    catch { }
+                    
+                    // Restart from frame 0
+                    ImageAnimator.Animate(spellAnimation, frameChangedHandler ?? ((s, e) => { }));
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[SpawnOpponentSpell] Error resetting animation: {ex.Message}");
+            }
+            
+            Console.WriteLine($"[SpawnOpponentSpell] Opponent spell spawned at X={x}, Y={y}");
+        }
+
         public void UpdateFireball(Func<int, int, int, int, Rectangle> getPlayerHurtbox,
             Func<int, bool> checkParrying, Action reflectFireball, Action<int, int> applyHurt,
             Action<string, Color> showHitEffect)
@@ -290,6 +358,64 @@ namespace DoAn_NT106.Client.BattleSystems
             if (warriorSkillEffect != null && ImageAnimator.CanAnimate(warriorSkillEffect))
             {
                 ImageAnimator.UpdateFrames(warriorSkillEffect);
+            }
+        }
+
+        // ✅ NEW: Update opponent projectiles (di chuyển, xóa khi hết thời gian)
+        public void UpdateOpponentProjectiles(Func<int, int, int, int, Rectangle> getPlayerHurtbox = null)
+        {
+            for (int i = opponentProjectiles.Count - 1; i >= 0; i--)
+            {
+                var proj = opponentProjectiles[i];
+
+                var ageMs = (int)(DateTime.UtcNow - proj.CreatedAt).TotalMilliseconds;
+                if (ageMs >= PROJECTILE_LIFETIME_MS)
+                {
+                    opponentProjectiles.RemoveAt(i);
+                    continue;
+                }
+
+                if (proj.Type == "warrior")
+                {
+                    proj.X += PROJECTILE_SPEED * proj.Direction;
+
+                    // ✅ NEW: Check collision with local player (không gây damage, chỉ biến mất)
+                    if (getPlayerHurtbox != null)
+                    {
+                        int targetPlayer = proj.Owner == 1 ? 2 : 1; // Local player
+                        Rectangle projRect = new Rectangle(proj.X, proj.Y, PROJECTILE_WIDTH, PROJECTILE_HEIGHT);
+                        Rectangle targetRect = getPlayerHurtbox(targetPlayer, 0, 0, 0);
+
+                        if (projRect.IntersectsWith(targetRect))
+                        {
+                            Console.WriteLine($"[UpdateOpponentProjectiles] Opponent warrior projectile hit local player {targetPlayer}");
+                            opponentProjectiles.RemoveAt(i);
+                            continue;
+                        }
+                    }
+
+                    if (proj.X > backgroundWidth || proj.X < -PROJECTILE_WIDTH)
+                    {
+                        opponentProjectiles.RemoveAt(i);
+                    }
+                }
+                else if (proj.Type == "spell")
+                {
+                    // Spell không di chuyển, chỉ hiển thị tại vị trí
+                    if (ageMs >= 1000) // Spell biến mất sau 1s
+                    {
+                        opponentProjectiles.RemoveAt(i);
+                    }
+                }
+            }
+
+            // ✅ Update opponent spell animation
+            foreach (var proj in opponentProjectiles)
+            {
+                if (proj.Type == "spell" && spellAnimation != null && ImageAnimator.CanAnimate(spellAnimation))
+                {
+                    ImageAnimator.UpdateFrames(spellAnimation);
+                }
             }
         }
 
@@ -346,6 +472,52 @@ namespace DoAn_NT106.Client.BattleSystems
                     // debug drawing removed
                 }
             }
+
+            // ✅ NEW: Vẽ projectile của đối thủ (chỉ hiển thị, không gây damage)
+            foreach (var proj in opponentProjectiles)
+            {
+                if (!proj.IsActive) continue;
+
+                if (proj.Type == "warrior")
+                {
+                    int projScreenX = proj.X - viewportX;
+                    if (projScreenX >= -PROJECTILE_WIDTH && projScreenX <= g.ClipBounds.Width)
+                    {
+                        if (warriorSkillEffect != null)
+                        {
+                            if (proj.Direction == -1)
+                            {
+                                g.DrawImage(warriorSkillEffect,
+                                    new Rectangle(projScreenX + PROJECTILE_WIDTH, proj.Y, -PROJECTILE_WIDTH, PROJECTILE_HEIGHT),
+                                    new Rectangle(0, 0, warriorSkillEffect.Width, warriorSkillEffect.Height),
+                                    GraphicsUnit.Pixel);
+                            }
+                            else
+                            {
+                                g.DrawImage(warriorSkillEffect, projScreenX, proj.Y, PROJECTILE_WIDTH, PROJECTILE_HEIGHT);
+                            }
+                        }
+                    }
+                }
+                else if (proj.Type == "spell")
+                {
+                    int spellScreenX = proj.X - viewportX;
+                    if (spellScreenX >= -SPELL_WIDTH && spellScreenX <= g.ClipBounds.Width)
+                    {
+                        if (spellAnimation != null)
+                        {
+                            int offsetX = (SPELL_WIDTH - 120) / 2;
+                            int offsetY = (SPELL_HEIGHT - 120) / 2;
+
+                            g.DrawImage(spellAnimation,
+                                spellScreenX - offsetX,
+                                proj.Y - offsetY,
+                                SPELL_WIDTH,
+                                SPELL_HEIGHT);
+                        }
+                    }
+                }
+            }
         }
 
         public void ShootFireball(int x, int y, int direction, int owner)
@@ -357,6 +529,7 @@ namespace DoAn_NT106.Client.BattleSystems
         public void Cleanup()
         {
             activeWarriorProjectiles.Clear();
+            opponentProjectiles.Clear();
             spellDamageTimer?.Stop();
             spellDamageTimer?.Dispose();
             SpellActive = false;

@@ -19,6 +19,10 @@ namespace DoAn_NT106.Services
         public event Action<PlayerJoinedData> OnPlayerJoined;
         public event Action<PlayerLeftData> OnPlayerLeft;
         public event Action<StartGameData> OnStartGame;
+        // ✅ THÊM: Event when server signals game end (winner or draw)
+        public event Action<GameEndData> OnGameEnded;
+        // ✅ THÊM: Event khi có damage
+        public event Action<DamageEventData> OnDamageEvent;
         public event Action<string> OnError;
 
         public bool IsConnected => TcpClient.IsConnected;
@@ -75,6 +79,17 @@ namespace DoAn_NT106.Services
 
                     case "START_GAME":
                         HandleStartGame(data);
+                        break;
+                    case "GAME_ENDED":
+                    case "GAME_END":
+                        HandleGameEnd(data);
+                        break;
+                    
+                    // ✅ THÊM: Handle damage event (server may use GAME_DAMAGE or DAMAGE_EVENT)
+                    case "DAMAGE_EVENT":
+                    case "GAME_DAMAGE":
+                    case "GAME_DAMAGE_EVENT":
+                        HandleDamageEvent(data);
                         break;
                 }
             }
@@ -164,7 +179,9 @@ namespace DoAn_NT106.Services
                 {
                     RoomCode = GetStringProp(data, "roomCode"),
                     Player1 = GetStringProp(data, "player1"),
-                    Player2 = GetStringProp(data, "player2")
+                    Player2 = GetStringProp(data, "player2"),
+                    Player1Character = GetStringProp(data, "player1Character"),
+                    Player2Character = GetStringProp(data, "player2Character")
                 };
 
                 OnStartGame?.Invoke(startData);
@@ -175,6 +192,45 @@ namespace DoAn_NT106.Services
             }
         }
 
+        private void HandleGameEnd(JsonElement data)
+        {
+            try
+            {
+                var endData = new GameEndData
+                {
+                    RoomCode = GetStringProp(data, "roomCode"),
+                    Winner = GetStringProp(data, "winner"),
+                    Reason = GetStringProp(data, "reason")
+                };
+
+                OnGameEnded?.Invoke(endData);
+            }
+            catch (Exception ex)
+            {
+                OnError?.Invoke($"HandleGameEnd error: {ex.Message}");
+            }
+        }
+
+        // ✅ THÊM: Handle damage event
+        private void HandleDamageEvent(JsonElement data)
+        {
+            try
+            {
+                var damageData = new DamageEventData
+                {
+                    TargetPlayerNum = GetIntProp(data, "targetPlayerNum"),
+                    Damage = GetIntProp(data, "damage"),
+                    IsParried = GetBoolProp(data, "isParried")
+                };
+
+                OnDamageEvent?.Invoke(damageData);
+            }
+            catch (Exception ex)
+            {
+                OnError?.Invoke($"HandleDamageEvent error: {ex.Message}");
+            }
+        }
+
         // ===========================
         // SEND ACTION (cho backward compatible)
         // ===========================
@@ -182,6 +238,39 @@ namespace DoAn_NT106.Services
         {
             Console.WriteLine($"[GameClient] SendActionAsync called - consider using TcpClient.SendRequestAsync instead");
             return TcpClient.IsConnected;
+        }
+
+        // ✅ THÊM: Broadcast damage event to server (reliable)
+        public async System.Threading.Tasks.Task BroadcastDamageEvent(string roomCode, string username, int targetPlayerNum, int damage, bool isParried)
+        {
+            try
+            {
+                if (!TcpClient.IsConnected)
+                {
+                    Console.WriteLine("[GameClient] Not connected to server, cannot broadcast damage event");
+                    return;
+                }
+
+                var data = new Dictionary<string, object>
+                {
+                    { "roomCode", roomCode },
+                    { "username", username },
+                    { "targetPlayerNum", targetPlayerNum },
+                    { "damage", damage },
+                    { "isParried", isParried }
+                };
+
+                Console.WriteLine($"[GameClient] Sending GAME_DAMAGE to server: room={roomCode} target={targetPlayerNum} dmg={damage}");
+                var resp = await TcpClient.SendRequestAsync("GAME_DAMAGE", data, 3000).ConfigureAwait(false);
+                if (resp != null && !resp.Success)
+                {
+                    Console.WriteLine($"[GameClient] GAME_DAMAGE response failure: {resp.Message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GameClient] BroadcastDamageEvent error: {ex.Message}");
+            }
         }
 
         // ===========================
@@ -257,5 +346,24 @@ namespace DoAn_NT106.Services
         public string RoomCode { get; set; }
         public string Player1 { get; set; }
         public string Player2 { get; set; }
+
+        // ✅ NEW: character mapping for each player
+        public string Player1Character { get; set; }
+        public string Player2Character { get; set; }
+    }
+
+    // ✅ THÊM: Damage event data
+    public class DamageEventData
+    {
+        public int TargetPlayerNum { get; set; }
+        public int Damage { get; set; }
+        public bool IsParried { get; set; }
+    }
+
+    public class GameEndData
+    {
+        public string RoomCode { get; set; }
+        public string Winner { get; set; }
+        public string Reason { get; set; }
     }
 }

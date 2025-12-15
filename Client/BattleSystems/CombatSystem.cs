@@ -9,6 +9,8 @@ namespace DoAn_NT106.Client.BattleSystems
 {
     public class CombatSystem
     {
+        // Event fired when damage is applied locally (targetPlayer, damage)
+        public event Action<int, int> DamageApplied;
         private PlayerState player1;
         private PlayerState player2;
         private CharacterAnimationManager player1AnimManager;
@@ -40,6 +42,9 @@ namespace DoAn_NT106.Client.BattleSystems
         private Action<string, Color> showHitEffectCallback;
         private Func<PlayerState, string, Rectangle> getAttackHitboxCallback;
 
+        // ✅ XÓA callback TCP - chỉ dùng UDP
+        // UDP gửi Health liên tục mỗi frame, không cần damage event riêng
+
         private readonly Dictionary<string, Dictionary<string, float>> frameTimings = new Dictionary<string, Dictionary<string, float>>
         {
             ["goatman"] = new Dictionary<string, float>
@@ -68,6 +73,12 @@ namespace DoAn_NT106.Client.BattleSystems
         };
 
         private Func<PlayerState, Rectangle> getPlayerHurtboxCallback;
+        // Network integration: when playing online, set these so CombatSystem will request
+        // network-sent damage instead of applying damage to remote opponent locally.
+        public bool IsNetworked { get; set; } = false;
+        public int LocalPlayerNumber { get; set; } = 0;
+        // targetPlayer, damage, knockback, resultingHealth
+        public Action<int, int, bool, int> SendDamageRequestCallback { get; set; } = null;
 
         public CombatSystem(
             PlayerState p1, PlayerState p2,
@@ -95,6 +106,7 @@ namespace DoAn_NT106.Client.BattleSystems
             this.getPlayerHurtboxCallback = getPlayerHurtboxCallback;
             SetupParryTimers();
         }
+
         private void SetupParryTimers()
         {
             p1ParryTimer = new Timer { Interval = PARRY_WINDOW_MS };
@@ -107,6 +119,7 @@ namespace DoAn_NT106.Client.BattleSystems
                     player1.ResetToIdle();
                 p1ParryCooldownTimer.Start();
                 invalidateCallback?.Invoke();
+            
             };
 
             p1ParryCooldownTimer = new Timer { Interval = PARRY_COOLDOWN_MS };
@@ -311,41 +324,67 @@ namespace DoAn_NT106.Client.BattleSystems
         private void ExecutePunchAttack(int playerNum, PlayerState attacker, PlayerState defender, CharacterAnimationManager animMgr)
         {
             string charType = attacker.CharacterType;
-            // debug removed
 
             if (charType == "warrior")
             {
                 // ✅ Play warrior punch sound twice at the start (regardless of hit)
-                // First sound immediately
                 try { DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.PunchWarrior); } catch { }
-                // Second sound with 500ms delay (0.5 seconds) to match animation spacing
                 try { DoAn_NT106.SoundManager.PlaySoundWithDelay(DoAn_NT106.Client.SoundEffect.PunchWarrior, 500); } catch { }
 
                 int hitFrame6 = GetFrameTiming("warrior", "punch", 6);
                 int hitFrame10 = GetFrameTiming("warrior", "punch", 10);
 
-                // debug removed
-
                 var hitTimer1 = new Timer { Interval = hitFrame6 };
                 hitTimer1.Tick += (s, e) =>
                 {
-                hitTimer1.Stop();
+                    hitTimer1.Stop();
                     hitTimer1.Dispose();
 
-                    // perform hit check
+                    // ✅ VALIDATION: Check all callbacks exist before using
+                    if (attacker == null || !attacker.IsAttacking)
+                    {
+                        Console.WriteLine($"[ExecutePunch] ❌ Attacker null or not attacking");
+                        return;
+                    }
+
+                    if (getAttackHitboxCallback == null)
+                    {
+                        Console.WriteLine($"[ExecutePunch] ❌ getAttackHitboxCallback is NULL!");
+                        return;
+                    }
+
+                    if (getPlayerHurtboxCallback == null)
+                    {
+                        Console.WriteLine($"[ExecutePunch] ❌ getPlayerHurtboxCallback is NULL!");
+                        return;
+                    }
+
                     Rectangle attackBox1 = getAttackHitboxCallback(attacker, "punch");
                     Rectangle hurtBox1 = getPlayerHurtboxCallback(defender);
+                    
+                    Console.WriteLine($"[ExecutePunch] HIT1 Check - Attack: W={attackBox1.Width} H={attackBox1.Height} | Hurt: W={hurtBox1.Width} H={hurtBox1.Height}");
+                    
+                    if (attackBox1.Width <= 0 || hurtBox1.Width <= 0)
+                    {
+                        Console.WriteLine($"[ExecutePunch] ❌ Invalid hitbox dimensions");
+                        return;
+                    }
+                    
                     bool hit1 = attackBox1.IntersectsWith(hurtBox1);
 
                     if (hit1)
                     {
-                        ApplyDamage(playerNum == 1 ? 2 : 1, 7); // ✅ SỬA: 10 -> 7
-                        attacker.RegenerateManaOnHitLand(); // ✅ THÊM: Hồi mana khi đánh trúng
+                        Console.WriteLine($"[ExecutePunch] 💥 HIT1 Frame6 - APPLYING DAMAGE 7 to Player {(playerNum == 1 ? 2 : 1)}");
+                        ApplyDamage(playerNum == 1 ? 2 : 1, 7);
+                        attacker.RegenerateManaOnHitLand();
                         showHitEffectCallback?.Invoke("Strike!", Color.Yellow);
+                    }
+                    else
+                    {
+                        Console.WriteLine($"[ExecutePunch] ❌ HIT1 Frame6 MISS - attackBox=({attackBox1.X},{attackBox1.Y},{attackBox1.Width}x{attackBox1.Height}) hurtBox=({hurtBox1.X},{hurtBox1.Y},{hurtBox1.Width}x{hurtBox1.Height})");
                     }
                 };
                 hitTimer1.Start();
-                // timer started
 
                 var hitTimer2 = new Timer { Interval = hitFrame10 };
                 hitTimer2.Tick += (s, e) =>
@@ -353,28 +392,39 @@ namespace DoAn_NT106.Client.BattleSystems
                     hitTimer2.Stop();
                     hitTimer2.Dispose();
 
-                // hit timer fired
+                    if (attacker == null || !attacker.IsAttacking)
+                        return;
 
-                    // Không chặn bởi IsStunned/hurt để đảm bảo frame hit vẫn check
+                    if (getAttackHitboxCallback == null || getPlayerHurtboxCallback == null)
+                    {
+                        Console.WriteLine($"[ExecutePunch] ❌ HIT2: Callbacks are NULL!");
+                        return;
+                    }
+
                     Rectangle attackBox = getAttackHitboxCallback(attacker, "punch");
                     Rectangle hurtBox = getPlayerHurtboxCallback(defender);
+
+                    if (attackBox.Width <= 0 || hurtBox.Width <= 0)
+                        return;
 
                     bool hit = attackBox.IntersectsWith(hurtBox);
                     if (hit)
                     {
-                        Console.WriteLine($"[ExecutePunch] 💥 APPLYING DAMAGE 7 to Player {(playerNum == 1 ? 2 : 1)}");
-                        ApplyDamage(playerNum == 1 ? 2 : 1, 7); // ✅ SỬA: 10 -> 7
-                        attacker.RegenerateManaOnHitLand(); // ✅ THÊM: Hồi mana khi đánh trúng
+                        Console.WriteLine($"[ExecutePunch] 💥 HIT2 Frame10 - APPLYING DAMAGE 7 to Player {(playerNum == 1 ? 2 : 1)}");
+                        ApplyDamage(playerNum == 1 ? 2 : 1, 7);
+                        attacker.RegenerateManaOnHitLand();
                         showHitEffectCallback?.Invoke("Strike!", Color.Orange);
+                    }
+                    else
+                    {
+                        Console.WriteLine($"[ExecutePunch] ❌ HIT2 Frame10 - MISS");
                     }
                 };
                 hitTimer2.Start();
-                // timer started
             }
             else if (charType == "goatman")
             {
                 int hitDelay = GetFrameTiming("goatman", "punch", 4);
-                // debug removed
 
                 var hitTimer = new Timer { Interval = hitDelay };
                 hitTimer.Tick += (s, e) =>
@@ -382,18 +432,27 @@ namespace DoAn_NT106.Client.BattleSystems
                     hitTimer.Stop();
                     hitTimer.Dispose();
 
-                    // hit timer fired
+                    if (attacker == null || !attacker.IsAttacking)
+                        return;
+
+                    if (getAttackHitboxCallback == null || getPlayerHurtboxCallback == null)
+                    {
+                        Console.WriteLine($"[ExecutePunch] ❌ Goatman: Callbacks are NULL!");
+                        return;
+                    }
 
                     Rectangle attackBox = getAttackHitboxCallback(attacker, "punch");
                     Rectangle hurtBox = getPlayerHurtboxCallback(defender);
+
+                    if (attackBox.Width <= 0 || hurtBox.Width <= 0)
+                        return;
 
                     if (attackBox.IntersectsWith(hurtBox))
                     {
                         Console.WriteLine($"[ExecutePunch] 💥 Goatman DAMAGE 10");
                         ApplyDamage(playerNum == 1 ? 2 : 1, 10);
-                        attacker.RegenerateManaOnHitLand(); // ✅ THÊM: Hồi mana khi đánh trúng
+                        attacker.RegenerateManaOnHitLand();
                         showHitEffectCallback?.Invoke("Punch!", Color.Orange);
-                        // ✅ Sound is played at startup via PlayAttackSound, NOT on hit
                     }
                 };
                 hitTimer.Start();
@@ -401,7 +460,6 @@ namespace DoAn_NT106.Client.BattleSystems
             else if (charType == "girlknight")
             {
                 int hitDelay = GetFrameTiming("girlknight", "punch", 3);
-                // debug removed
 
                 var hitTimer = new Timer { Interval = hitDelay };
                 hitTimer.Tick += (s, e) =>
@@ -409,18 +467,27 @@ namespace DoAn_NT106.Client.BattleSystems
                     hitTimer.Stop();
                     hitTimer.Dispose();
 
-                    // hit timer fired
+                    if (attacker == null || !attacker.IsAttacking)
+                        return;
+
+                    if (getAttackHitboxCallback == null || getPlayerHurtboxCallback == null)
+                    {
+                        Console.WriteLine($"[ExecutePunch] ❌ GirlKnight: Callbacks are NULL!");
+                        return;
+                    }
 
                     Rectangle attackBox = getAttackHitboxCallback(attacker, "punch");
                     Rectangle hurtBox = getPlayerHurtboxCallback(defender);
+
+                    if (attackBox.Width <= 0 || hurtBox.Width <= 0)
+                        return;
 
                     if (attackBox.IntersectsWith(hurtBox))
                     {
                         Console.WriteLine($"[ExecutePunch] 💥 GirlKnight DAMAGE 10");
                         ApplyDamage(playerNum == 1 ? 2 : 1, 10);
-                        attacker.RegenerateManaOnHitLand(); // ✅ TH ÊM: Hồi mana khi đánh trúng
+                        attacker.RegenerateManaOnHitLand();
                         showHitEffectCallback?.Invoke("Punch!", Color.Pink);
-                        // KG punch: only play later sound (no early sound elsewhere)
                         try { DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.PunchKG); } catch { }
                     }
                 };
@@ -429,7 +496,6 @@ namespace DoAn_NT106.Client.BattleSystems
             else if (charType == "bringerofdeath")
             {
                 int hitDelay = GetFrameTiming("bringerofdeath", "punch", 6);
-                // debug removed
 
                 var hitTimer = new Timer { Interval = hitDelay };
                 hitTimer.Tick += (s, e) =>
@@ -437,18 +503,27 @@ namespace DoAn_NT106.Client.BattleSystems
                     hitTimer.Stop();
                     hitTimer.Dispose();
 
-                    // hit timer fired
+                    if (attacker == null || !attacker.IsAttacking)
+                        return;
+
+                    if (getAttackHitboxCallback == null || getPlayerHurtboxCallback == null)
+                    {
+                        Console.WriteLine($"[ExecutePunch] ❌ Bringer: Callbacks are NULL!");
+                        return;
+                    }
 
                     Rectangle attackBox = getAttackHitboxCallback(attacker, "punch");
                     Rectangle hurtBox = getPlayerHurtboxCallback(defender);
 
+                    if (attackBox.Width <= 0 || hurtBox.Width <= 0)
+                        return;
+
                     if (attackBox.IntersectsWith(hurtBox))
                     {
-                        Console.WriteLine($"[ExecutePunch] 💥 Bringer DAMAGE 20"); // ✅ SỬA: 10 -> 20
-                        ApplyDamage(playerNum == 1 ? 2 : 1, 20); // ✅ SỬA: 10 -> 20
+                        Console.WriteLine($"[ExecutePunch] 💥 Bringer DAMAGE 20");
+                        ApplyDamage(playerNum == 1 ? 2 : 1, 20);
                         attacker.RegenerateManaOnHitLand();
                         showHitEffectCallback?.Invoke("Punch!", Color.Purple);
-                        // ✅ Play punch sound on hit (khớp animation)
                         try { DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.PunchBringer); } catch { }
                     }
                 };
@@ -456,7 +531,6 @@ namespace DoAn_NT106.Client.BattleSystems
             }
 
             int duration = animMgr.GetAnimationDuration("punch");
-            // debug removed
             ResetAttackAnimation(duration, playerNum);
         }
         private void ExecuteKickAttack(int playerNum, PlayerState attacker, PlayerState defender, CharacterAnimationManager animMgr)
@@ -506,8 +580,22 @@ namespace DoAn_NT106.Client.BattleSystems
                 hitTimer.Stop();
                 hitTimer.Dispose();
 
+                // ✅ Validation
+                if (attacker == null || !attacker.IsAttacking)
+                    return;
+
+                if (getAttackHitboxCallback == null || getPlayerHurtboxCallback == null)
+                    return;
+
                 // Compute attack hitbox and impact position at hit frame
                 Rectangle attackHitbox = getAttackHitboxCallback(attacker, "kick");
+                
+                if (attackHitbox.Width <= 0)
+                {
+                    Console.WriteLine($"[ExecuteGoatmanKick] ❌ Invalid attackHitbox width");
+                    return;
+                }
+
                 int impactXBase = attacker.Facing == "right" ? (attackHitbox.X + attackHitbox.Width) : (attackHitbox.X - 100);
                 int impactY = attackHitbox.Y + (attackHitbox.Height / 2) - 50;
 
@@ -518,16 +606,28 @@ namespace DoAn_NT106.Client.BattleSystems
 
                 // Collision and damage remain unchanged
                 Rectangle targetHurtbox = getPlayerHurtboxCallback(defender);
+                
+                if (targetHurtbox.Width <= 0)
+                {
+                    Console.WriteLine($"[ExecuteGoatmanKick] ❌ Invalid targetHurtbox width");
+                    return;
+                }
+
+                Console.WriteLine($"[ExecuteGoatmanKick] Checking collision - attack=({attackHitbox.X},{attackHitbox.Y},{attackHitbox.Width}x{attackHitbox.Height}) vs hurt=({targetHurtbox.X},{targetHurtbox.Y},{targetHurtbox.Width}x{targetHurtbox.Height})");
+
                 if (attackHitbox.IntersectsWith(targetHurtbox))
                 {
+                    Console.WriteLine($"[ExecuteGoatmanKick] 💥 HIT! DAMAGE 15");
                     ApplyDamage(playerNum == 1 ? 2 : 1, 15, false);
-                    attacker.RegenerateManaOnHitLand(); // ✅ TH ÊM: Hồi mana khi đánh trúng
+                    attacker.RegenerateManaOnHitLand();
                     int knockbackDir = attacker.Facing == "right" ? 1 : -1;
                     ApplyKnockback(defender, knockbackDir, knockbackDistance);
                     showHitEffectCallback?.Invoke("Heavy Impact!", Color.OrangeRed);
-                    // ✅ Delay kick sound 500ms to match requested timing
-                    // Play impact sound immediately and also ensure it can play multiple times
                     try { DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.KickGM); } catch { }
+                }
+                else
+                {
+                    Console.WriteLine($"[ExecuteGoatmanKick] ❌ MISS");
                 }
             };
             hitTimer.Start();
@@ -602,7 +702,7 @@ namespace DoAn_NT106.Client.BattleSystems
                     elapsed += 16;
 
                     // Stop when animation expected duration is reached or attacker state changed
-                    if (elapsed >= duration || attacker.CurrentAnimation != "kick")
+                    if (elapsed >= duration || attacker.CurrentAnimation != "kick" || !attacker.IsAttacking)
                     {
                         continuousCheckTimer.Stop();
                         continuousCheckTimer.Dispose();
@@ -611,14 +711,18 @@ namespace DoAn_NT106.Client.BattleSystems
 
                     if (!hasDealtDamage)
                     {
+                        // ✅ Validation
+                        if (getAttackHitboxCallback == null || getPlayerHurtboxCallback == null)
+                            return;
+
                         // Apply damage immediately upon first collision, do not stop slide (pierce)
                         if (CheckAttackHit(attacker, defender, "kick") && !defender.IsParrying && !defender.IsDashing)
                         {
+                            Console.WriteLine($"[ExecuteGirlKnightKick] 💥 HIT! DAMAGE 15");
                             ApplyDamage(playerNum == 1 ? 2 : 1, 15);
-                            attacker.RegenerateManaOnHitLand(); // ✅ TH ÊM: Hồi mana khi đánh trúng
+                            attacker.RegenerateManaOnHitLand();
                             showHitEffectCallback?.Invoke("Kick!", Color.Pink);
                             hasDealtDamage = true; // only once
-                            // KG: do not play early sound; only fallback late sound will play
                         }
                     }
                 };
@@ -640,13 +744,13 @@ namespace DoAn_NT106.Client.BattleSystems
             };
             fallbackTimer.Start();
         }
+
         private void ExecuteWarriorKick(int playerNum, PlayerState attacker, PlayerState defender, CharacterAnimationManager animMgr)
         {
             float msPerFrame = frameTimings["warrior"]["kick"];
             int slideStartFrame = 1;
             int slideEndFrame = 3;
             int slideFrameCount = slideEndFrame - slideStartFrame;
-            // ✅ SỬA: Lấy hit frame từ animator thay vì cứng cáp
             int hitTime = animMgr.GetHitFrameDelay("kick");
 
             int slideDuration = (int)(slideFrameCount * msPerFrame);
@@ -686,12 +790,23 @@ namespace DoAn_NT106.Client.BattleSystems
                 hitTimer.Stop();
                 hitTimer.Dispose();
 
+                // ✅ Validation
+                if (attacker == null || !attacker.IsAttacking)
+                    return;
+
+                if (getAttackHitboxCallback == null || getPlayerHurtboxCallback == null)
+                    return;
+
                 if (CheckAttackHit(attacker, defender, "kick"))
                 {
-                    ApplyDamage(playerNum == 1 ? 2 : 1, 10); // ✅ SỬA: 15 -> 10
-                    attacker.RegenerateManaOnHitLand(); // ✅ THÊM: Hồi mana khi đánh trúng
+                    Console.WriteLine($"[ExecuteWarriorKick] 💥 HIT! DAMAGE 10");
+                    ApplyDamage(playerNum == 1 ? 2 : 1, 10);
+                    attacker.RegenerateManaOnHitLand();
                     showHitEffectCallback?.Invoke("Warrior Kick!", Color.Gold);
-                    // ✅ Warrior kick: Chỉ phát ButtonClick ở startup (từ PlayAttackSound)
+                }
+                else
+                {
+                    Console.WriteLine($"[ExecuteWarriorKick] ❌ MISS");
                 }
             };
             hitTimer.Start();
@@ -812,6 +927,18 @@ namespace DoAn_NT106.Client.BattleSystems
             {
                   Console.WriteLine($"⚠️ Player{playerNum} không thể dash!");
 
+                return;
+            }
+
+            // Check boundary first to avoid consuming stamina when at wall
+            var bounds = GetBoundaryFromHurtbox(player);
+            const int BOUNDARY_TOLERANCE = 4; // px tolerance
+            int dashDir = player.Facing == "right" ? 1 : -1;
+            if ((dashDir < 0 && player.X <= bounds.minX + BOUNDARY_TOLERANCE) ||
+                (dashDir > 0 && player.X >= bounds.maxX - BOUNDARY_TOLERANCE))
+            {
+                showHitEffectCallback?.Invoke("Hit Wall!", Color.Gray);
+                Console.WriteLine($"[ExecuteDash] Player{playerNum} blocked by boundary (X={player.X}, bounds=[{bounds.minX},{bounds.maxX}])");
                 return;
             }
 
@@ -987,7 +1114,7 @@ namespace DoAn_NT106.Client.BattleSystems
                     Console.WriteLine($"  Hurt:   X={hurtBox.X}, Y={hurtBox.Y}, W={hurtBox.Width}, H={hurtBox.Height}");
                     Console.WriteLine($"  Collision: {(isColliding ? "✅ YES" : "❌ NO")} | Last damage: {lastDamageTime}ms ago");
 
-                    // ✅ GÂY DAMAGE MỖI 500MS (2 lần/giây)
+                    // ✅ GÂY DAMAGE MỎI 500MS (2 lần/giây)
                     if (isColliding && lastDamageTime >= 500)
                     {
                         int targetPlayer = playerNum == 1 ? 2 : 1;
@@ -1175,53 +1302,104 @@ namespace DoAn_NT106.Client.BattleSystems
             PlayerState target = targetPlayer == 1 ? player1 : player2;
             PlayerState attacker = targetPlayer == 1 ? player2 : player1;
 
+            Console.WriteLine($"[ApplyDamage] ===== ENTRY =====");
+            Console.WriteLine($"  targetPlayer={targetPlayer}, damage={damage}");
+            Console.WriteLine($"  Health_before={target.Health}, IsStunned={target.IsStunned}");
+            Console.WriteLine($"  IsDashing={target.IsDashing}, IsParrying={target.IsParrying}");
+
+            // ✅ CHECK: Nếu đang dash thì miễn sát thương
             if (target.IsDashing)
             {
+                Console.WriteLine($"[ApplyDamage] ❌ TARGET DASHING - NO DAMAGE");
                 showHitEffectCallback?.Invoke("Miss!", Color.Gray);
                 return;
             }
 
+            // ✅ CHECK: Parry thành công = block damage
             if (target.IsParrying)
             {
+                Console.WriteLine($"[ApplyDamage] ❌ TARGET PARRYING - BLOCKED");
                 target.Stamina = Math.Min(100, target.Stamina + 8);
-                target.RegenerateManaOnParrySuccess(); // ✅ THÊM: Hồi mana khi parry thành công
+                target.RegenerateManaOnParrySuccess();
+                target.RegenerateManaOnParrySuccess();
                 showHitEffectCallback?.Invoke("Blocked!", Color.Cyan);
                 CancelAttack(targetPlayer == 1 ? 2 : 1);
                 invalidateCallback?.Invoke();
+                
+                // ✅ XÓA: UDP sẽ gửi HP update, không cần callback TCP
                 return;
             }
-
-            if (target.CurrentAnimation == "hurt") return;
 
             bool wasAttacking = target.IsAttacking;
             bool wasSkillActive = target.IsSkillActive;
             bool wasCharging = target.IsCharging;
             
+            // ✅ *** DAMAGE APPLIED NGAY - LOCAL FIRST ***
+            // Networked mode handling:
+            // - The authoritative client for a player's HP is the client that "owns" that player
+            //   (i.e. whose LocalPlayerNumber == target.PlayerNumber). Only the authoritative
+            //   client should actually change the target's Health locally.
+            // - Non-authoritative clients should send a damage request to the server and only
+            //   show local hit effects (no HP change).
+            if (IsNetworked)
+            {
+                try
+                {
+                    // If this client is NOT authoritative for the target, forward request to server
+                    if (target.PlayerNumber != LocalPlayerNumber)
+                    {
+                        Console.WriteLine($"[ApplyDamage] Networked (non-authoritative). Reporting damage to server: target={targetPlayer}, dmg={damage}");
+                        int resultingHealth = Math.Max(0, target.Health - damage);
+                        SendDamageRequestCallback?.Invoke(targetPlayer, damage, knockback, resultingHealth);
+
+                        // Show hit effect locally for responsiveness but DO NOT modify HP
+                        showHitEffectCallback?.Invoke($"-{damage}", Color.Red);
+                        effectManager.ShowHitEffectAtPosition(target.CharacterType, target.X, target.Y, invalidateCallback);
+                        invalidateCallback?.Invoke();
+                        return;
+                    }
+                    // else: we are authoritative for the target -> fall through and apply damage locally
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[ApplyDamage] SendDamageRequestCallback error: {ex.Message}");
+                    // If sending fails, still attempt to apply locally if authoritative
+                    if (target.PlayerNumber != LocalPlayerNumber)
+                    {
+                        // Not authoritative and couldn't report to server -> bail out to avoid desync
+                        return;
+                    }
+                }
+            }
+
             target.TakeDamage(damage);
-            target.RegenerateManaOnHitMiss(); // ✅ TH ÊM: Hồi mana khi bị đánh (không parry kịp)
+            target.RegenerateManaOnHitMiss();
+            Console.WriteLine($"[ApplyDamage] ✅✅✅ DAMAGE APPLIED - Health: {target.Health}");
+            
             showHitEffectCallback?.Invoke($"-{damage}", Color.Red);
             effectManager.ShowHitEffectAtPosition(target.CharacterType, target.X, target.Y, invalidateCallback);
             
-            // ✅ SỬA: Nếu đang charging thì KHÔNG interrupt, chỉ hiển thị stun nhưng skill vẫn chạy
+            // ✅ SỬA: Nếu đang charging thì KHÔNG interrupt
             if (!target.IsCharging)
             {
                 target.IsStunned = true;
+                Console.WriteLine($"[ApplyDamage] ✅ Set IsStunned = true");
                 CancelAttack(targetPlayer);
             }
             
             if (wasAttacking)
             {
-                Console.WriteLine($"?? Player{targetPlayer} attack INTERRUPTED by damage!");
+                Console.WriteLine($"[ApplyDamage] 🔥 Player{targetPlayer} attack INTERRUPTED!");
                 showHitEffectCallback?.Invoke("Interrupted!", Color.Orange);
             }
             else if (wasSkillActive)
             {
-                Console.WriteLine($"?? Player{targetPlayer} skill INTERRUPTED by damage!");
+                Console.WriteLine($"[ApplyDamage] 🔥 Player{targetPlayer} skill INTERRUPTED!");
                 showHitEffectCallback?.Invoke("Interrupted!", Color.Orange);
             }
             else if (wasCharging)
             {
-                Console.WriteLine($"?? Player{targetPlayer} charge CONTINUES despite damage!");
+                Console.WriteLine($"[ApplyDamage] 🔥 Player{targetPlayer} charge CONTINUES!");
                 showHitEffectCallback?.Invoke("Charging!", Color.Gold);
             }
 
@@ -1231,17 +1409,26 @@ namespace DoAn_NT106.Client.BattleSystems
                 target.CurrentAnimation = "hurt";
                 CharacterAnimationManager targetAnimMgr = targetPlayer == 1 ? player1AnimManager : player2AnimManager;
                 targetAnimMgr.ResetAnimationToFirstFrame("hurt");
+                Console.WriteLine($"[ApplyDamage] ✅ Set CurrentAnimation = hurt");
             }
 
+            // ✅ APPLY KNOCKBACK
             if (knockback)
             {
                 int kb = (attacker.X > target.X) ? -20 : 20;
                 target.X += kb;
                 ClampPlayerToMap(target);
-
-                Console.WriteLine($"? Knockback applied to Player{targetPlayer}, X={target.X}");
+                Console.WriteLine($"[ApplyDamage] ✅ Knockback applied, X={target.X}");
             }
+            
             invalidateCallback?.Invoke();
+
+            // Notify listeners that damage was applied so network layer can sync immediately
+            try
+            {
+                DamageApplied?.Invoke(target.PlayerNumber, damage);
+            }
+            catch { }
 
             // ✅ SỬA: Chỉ set stun timer nếu không charging
             if (!target.IsCharging)
@@ -1252,12 +1439,16 @@ namespace DoAn_NT106.Client.BattleSystems
                     restoreTimer.Stop();
                     restoreTimer.Dispose();
                     target.IsStunned = false;
+                    Console.WriteLine($"[ApplyDamage] ✅ Stun ended");
                     if (!target.IsAttacking && !target.IsJumping && target.CurrentAnimation == "hurt")
                         target.ResetToIdle();
                     invalidateCallback?.Invoke();
                 };
                 restoreTimer.Start();
+                Console.WriteLine($"[ApplyDamage] ✅ Stun timer started");
             }
+            
+            Console.WriteLine($"[ApplyDamage] ===== EXIT - DAMAGE DONE! =====\n");
         }
 
         private void ApplyKnockback(PlayerState target, int direction, int distance)
@@ -1329,6 +1520,16 @@ namespace DoAn_NT106.Client.BattleSystems
             // MaxX: khi hurtbox chạm biên phải
             int maxX = backgroundWidth - hurtbox.Width - offsetFromSprite;
 
+            // Safety: ensure minX <= maxX. If computed incorrectly (e.g., due to invalid hurtbox)
+            // swap values to avoid inverted bounds which cause players to be pushed to the opposite side.
+            if (minX > maxX)
+            {
+                Console.WriteLine($"[CombatSystem] WARNING: P{player.PlayerNumber} minX({minX}) > maxX({maxX}), swapping to avoid inverted bounds.");
+                int tmp = minX;
+                minX = maxX;
+                maxX = tmp;
+            }
+
             return (minX, maxX);
         }
 
@@ -1355,7 +1556,7 @@ namespace DoAn_NT106.Client.BattleSystems
                 catch { }
             }
             
-            // ✅ THÊM: Chuyển về animation idle
+            // ✅ TH ÊM: Chuyển về animation idle
             if (!player.IsJumping && !player.IsParrying)
                 player.ResetToIdle();
         }
@@ -1521,6 +1722,12 @@ namespace DoAn_NT106.Client.BattleSystems
             reappearTimer.Start();
         }
 
+
+
+
+
+
+
         /// <summary>
         /// ✅ NEW: Tính khoảng cách có thể di chuyển
         /// </summary>
@@ -1557,3 +1764,4 @@ namespace DoAn_NT106.Client.BattleSystems
         }
     }
 }
+

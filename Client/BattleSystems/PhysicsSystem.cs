@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Drawing;
 
 namespace DoAn_NT106.Client.BattleSystems
@@ -12,7 +13,7 @@ namespace DoAn_NT106.Client.BattleSystems
         private const float JUMP_FORCE = -10f;
 
         private int groundLevel;
-        private int playerSpeed = 14;
+        private int playerSpeed = 18; // increased base speed from 14 -> 18
         private int backgroundWidth;
         private int playerWidth;
         private int playerHeight;
@@ -38,19 +39,45 @@ namespace DoAn_NT106.Client.BattleSystems
 
             Rectangle hurtbox = getPlayerHurtboxCallback(player);
 
-            // Tính toán dựa trên hurtbox thực tế
-            // hurtbox.X là vị trí thực tế của nhân vật
-            // player.X là vị trí góc trái sprite
+            // ✅ FIX: Tính toán boundary dựa trên hurtbox thực tế
+            // Khi hurtbox.Left = 0 → hurtbox đã chạm biên trái
+            // Khi hurtbox.Right = backgroundWidth → hurtbox đã chạm biên phải
+            
+            // Offset giữa sprite.X và hurtbox.X (có thể âm hoặc dương)
+            int hurtboxOffsetX = hurtbox.X - player.X;
+            
+            // MinX: đặt sao cho hurtbox.Left = 0
+            // hurtbox.Left = player.X + hurtboxOffsetX = 0
+            // => player.X = -hurtboxOffsetX
+            int minX = -hurtboxOffsetX;
+            
+            // MaxX: đặt sao cho hurtbox.Right = backgroundWidth
+            // hurtbox.Right = player.X + hurtboxOffsetX + hurtbox.Width = backgroundWidth
+            // => player.X = backgroundWidth - hurtboxOffsetX - hurtbox.Width
+            int maxX = backgroundWidth - hurtboxOffsetX - hurtbox.Width;
 
-            int offsetFromSprite = hurtbox.X - player.X;
+            // ✅ FIX: Đảm bảo minX <= maxX (swap nếu cần)
+            if (minX > maxX)
+            {
+                Console.WriteLine($"[PhysicsSystem] WARNING: P{player.PlayerNumber} minX({minX}) > maxX({maxX}), swapping!");
+                int temp = minX;
+                minX = maxX;
+                maxX = temp;
+            }
 
-            // MinX: khi hurtbox chạm biên trái
-            int minX = 0 - offsetFromSprite;
-
-            // MaxX: khi hurtbox chạm biên phải
-            int maxX = backgroundWidth - hurtbox.Width - offsetFromSprite;
-
+            // ✅ DEBUG: Log boundary calculations for debugging
+            Console.WriteLine($"[PhysicsSystem] P{player.PlayerNumber} Boundary: minX={minX}, maxX={maxX}, " +
+               $"offsetX={hurtboxOffsetX}, hurtboxW={hurtbox.Width}, playerX={player.X}, hurtboxLeft={hurtbox.Left}");
+            
             return (minX, maxX);
+        }
+
+        /// <summary>
+        /// Public wrapper for other systems to get movement boundary for a player based on hurtbox.
+        /// </summary>
+        public (int minX, int maxX) GetBoundaryFromHurtboxPublic(PlayerState player)
+        {
+            return GetBoundaryFromHurtbox(player);
         }
       
         /// <summary>
@@ -109,7 +136,17 @@ namespace DoAn_NT106.Client.BattleSystems
 
                     if (!player.IsAttacking && !player.IsStunned && !player.IsParrying)
                     {
-                        player.ResetToIdle();
+                        // ✅ FIX: Nếu đang bấm phím, set walk; nếu không thì stand
+                        // Kiểm tra key state để quyết định animation
+                        if (player.LeftKeyPressed || player.RightKeyPressed)
+                        {
+                            player.CurrentAnimation = "walk";
+                            player.IsWalking = true;
+                        }
+                        else
+                        {
+                            player.CurrentAnimation = "stand";
+                        }
                     }
                 }
             }
@@ -121,6 +158,31 @@ namespace DoAn_NT106.Client.BattleSystems
         public void MovePlayer(PlayerState player, int direction)
         {
             if (!player.CanMove) return;
+
+            // Prevent movement if already touching boundary (small tolerance)
+            try
+            {
+                var bounds = GetBoundaryFromHurtbox(player);
+                // Tolerance prevents jitter when network/inputs are noisy.
+                // Reduce tolerance to 0 to avoid blocking 1px before actual boundary.
+                const int TOL = 0;
+                if (direction < 0 && player.X <= bounds.minX + TOL)
+                {
+                    // At left boundary - block further left movement
+                    player.VelocityX = 0;
+                    // keep facing left but do not change position
+                    player.Facing = "left";
+                    return;
+                }
+                if (direction > 0 && player.X >= bounds.maxX - TOL)
+                {
+                    // At right boundary - block further right movement
+                    player.VelocityX = 0;
+                    player.Facing = "right";
+                    return;
+                }
+            }
+            catch { }
 
             // ✅ THÊM: Character-specific movement speeds
             int moveSpeed = playerSpeed;
@@ -138,13 +200,36 @@ namespace DoAn_NT106.Client.BattleSystems
                 moveSpeed = (int)(playerSpeed * 1.2f); // ✅ SỬA: Warrior 1.2x speed
             }
 
-            player.X += moveSpeed * direction;
+            // Smooth horizontal movement: interpolate toward desired position to reduce jitter
+            int prevX = player.X;
+            float desiredX = player.X + moveSpeed * direction;
+
+            // smoothing factor: closer to 1 -> snappier (faster response)
+            const float smoothing = 0.9f; // increased to make movement more responsive
+
+            float newXf = player.X + (desiredX - player.X) * smoothing;
+            int newX = (int)Math.Round(newXf);
+
+            player.X = newX;
+
+            // update velocity estimate
+            player.VelocityX = player.X - prevX;
+
             var boundary = GetBoundaryFromHurtbox(player);
-            player.X = Math.Max(boundary.minX, Math.Min(boundary.maxX, player.X));
+            
+            // ✅ DEBUG: Log clamping operations when at boundaries
+            int clampedX = Math.Max(boundary.minX, Math.Min(boundary.maxX, player.X));
+            if (clampedX != player.X)
+            {
+                Console.WriteLine($"[PhysicsSystem] P{player.PlayerNumber} CLAMPED: X={player.X} → {clampedX}, " +
+                    $"boundary=[{boundary.minX}, {boundary.maxX}], dir={direction}");
+            }
+            player.X = clampedX;
 
             player.Facing = direction > 0 ? "right" : "left";
             player.IsWalking = true;
 
+            // Only set walk animation if NOT jumping or in a skill
             if (!player.IsSkillActive && !player.IsJumping)
             {
                 player.CurrentAnimation = "walk";
@@ -159,17 +244,101 @@ namespace DoAn_NT106.Client.BattleSystems
             player.X = Math.Max(0, Math.Min(backgroundWidth - playerWidth, player.X));
         }
 
+        // ✅ THÊM: Track position để kiểm tra walk movement
+        private Dictionary<int, int> lastPlayerX = new Dictionary<int, int>();
+        // ✅ THÊM: Counter để kiểm tra mỗi 2 frame (32ms)
+        private Dictionary<int, int> walkCheckFrameCounter = new Dictionary<int, int>();
+
         /// <summary>
         /// Stop player movement
         /// </summary>
         public void StopMovement(PlayerState player)
         {
             player.IsWalking = false;
+            // Apply soft deceleration to create smoother stopping
+            // If there's residual horizontal velocity, apply a damped step
+            if (Math.Abs(player.VelocityX) > 0.5f)
+            {
+                // apply velocity and damp
+                player.X += (int)Math.Round(player.VelocityX);
+                player.VelocityX *= 0.55f; // damping factor
 
+                // keep walk animation while still sliding
+                if (!player.IsJumping && !player.IsSkillActive)
+                {
+                    player.CurrentAnimation = "walk";
+                    player.IsWalking = true;
+                }
+                return;
+            }
+
+            // No residual velocity: fully stop
+            player.VelocityX = 0;
             if (!player.IsJumping && !player.IsAttacking && !player.IsParrying && !player.IsSkillActive)
             {
-                player.CurrentAnimation = "stand";
+                if (player.CurrentAnimation != "walk" && player.CurrentAnimation != "jump")
+                {
+                    player.CurrentAnimation = "stand";
+                }
             }
+        }
+
+        /// <summary>
+        /// ✅ THÊM: Kiểm tra vị trí walk - gọi từ GameTimer_Tick mỗi 16ms
+        /// Nhưng chỉ thực sự kiểm tra mỗi 2 frame (32ms) để tránh UDP chưa kịp
+        /// Nếu vị trí không đổi → quay về stand
+        /// </summary>
+        public void CheckWalkAnimation(PlayerState player)
+        {
+            int playerNum = player.PlayerNumber;
+
+            // ✅ ĐIỀU KIỆN: Chỉ kiểm tra nếu đang ở animation walk
+            if (player.CurrentAnimation != "walk")
+            {
+                // Xóa entry cũ nếu animation thay đổi
+                if (lastPlayerX.ContainsKey(playerNum))
+                    lastPlayerX.Remove(playerNum);
+                if (walkCheckFrameCounter.ContainsKey(playerNum))
+                    walkCheckFrameCounter.Remove(playerNum);
+                return;
+            }
+
+            // ✅ COUNTER: Kiểm tra mỗi 2 frame (32ms)
+            if (!walkCheckFrameCounter.ContainsKey(playerNum))
+                walkCheckFrameCounter[playerNum] = 0;
+
+            walkCheckFrameCounter[playerNum]++;
+
+            // ✅ Chỉ kiểm tra khi counter == 2
+            if (walkCheckFrameCounter[playerNum] < 2)
+                return; // Chưa đủ 2 frame, chờ frame tiếp theo
+
+            // Reset counter
+            walkCheckFrameCounter[playerNum] = 0;
+
+            // ✅ Lần đầu tiên: lưu vị trí hiện tại
+            if (!lastPlayerX.ContainsKey(playerNum))
+            {
+                lastPlayerX[playerNum] = player.X;
+                return;
+            }
+
+            // ✅ So sánh vị trí hiện tại vs vị trí trước (cách nhau 32ms)
+            int currentX = player.X;
+            int previousX = lastPlayerX[playerNum];
+
+            // Nếu vị trí KHÔNG đổi trong 32ms → quay về stand
+            if (currentX == previousX)
+            {
+                Console.WriteLine($"[PhysicsSystem] Player {playerNum} walk check: Position unchanged ({currentX}) after 32ms, setting to STAND");
+                player.CurrentAnimation = "stand";
+                lastPlayerX.Remove(playerNum);
+                walkCheckFrameCounter.Remove(playerNum);
+                return;
+            }
+
+            // Nếu vị trí ĐÃ ĐỔIE → cập nhật vị trí cũ
+            lastPlayerX[playerNum] = currentX;
         }
 
         /// <summary>
@@ -180,6 +349,66 @@ namespace DoAn_NT106.Client.BattleSystems
             if (!player.IsJumping)
             {
                 player.Y = groundLevel - playerHeight;
+            }
+        }
+
+        /// <summary>
+        /// ✅ THÊM: Áp dụng world boundaries - ngăn player đi ra ngoài bản đồ
+        /// </summary>
+        public void ApplyWorldBoundaries(PlayerState player, int worldWidth, int playerWidth)
+        {
+            // Ngăn player đi ra ngoài trái
+            if (player.X < 0)
+            {
+                player.X = 0;
+            }
+            
+            // Ngăn player đi ra ngoài phải
+            if (player.X > worldWidth - playerWidth)
+            {
+                player.X = worldWidth - playerWidth;
+            }
+        }
+
+        /// <summary>
+        /// ✅ THÊM: Áp dụng knockback với dự đoán boundary
+        /// Giảm knockback nếu dự đoán vị trí vượt biên
+        /// </summary>
+        public void ApplyKnockbackWithBoundary(PlayerState player, int knockbackForce, string direction, 
+                                              int worldWidth, int playerWidth)
+        {
+            // Dự đoán vị trí sau knockback
+            int predictedX = direction == "left" ? 
+                player.X - (knockbackForce * 2) : 
+                player.X + (knockbackForce * 2);
+            
+            // Nếu dự đoán ra ngoài biên, giảm knockback
+            if (predictedX < 0)
+            {
+                // Giảm knockback để dừng ở biên
+                int movement = player.X > 0 ? -player.X / 2 : 0;
+                player.X += movement;
+                Console.WriteLine($"[Physics] Reduced left knockback to avoid boundary");
+            }
+            else if (predictedX > worldWidth - playerWidth)
+            {
+                // Giảm knockback để dừng ở biên
+                int remaining = worldWidth - playerWidth - player.X;
+                int movement = remaining > 0 ? remaining / 2 : 0;
+                player.X += movement;
+                Console.WriteLine($"[Physics] Reduced right knockback to avoid boundary");
+            }
+            else
+            {
+                // Áp dụng knockback bình thường
+                if (direction == "left")
+                {
+                    player.X -= knockbackForce;
+                }
+                else
+                {
+                    player.X += knockbackForce;
+                }
             }
         }
     }

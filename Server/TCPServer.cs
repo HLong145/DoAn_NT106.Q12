@@ -18,6 +18,7 @@ namespace DoAn_NT106.Server
         private bool isRunning;
         private List<ClientHandler> connectedClients = new List<ClientHandler>();
         private DatabaseService dbService;
+
         private TokenManager tokenManager;
         private ValidationService validationService;
         private SecurityService securityService;
@@ -28,6 +29,10 @@ namespace DoAn_NT106.Server
         private GlobalChatManager globalChatManager;
         LobbyManager lobbyManager;
         private RoomListBroadcaster roomListBroadcaster;
+
+        // ✅ THÊM: UDP Game Server
+        private UDPGameServer udpGameServer;
+        private const int UDP_PORT = 5000;
 
         private Task _acceptTask;
         private CancellationTokenSource cts;
@@ -44,6 +49,9 @@ namespace DoAn_NT106.Server
 
             roomManager = new RoomManager();
             roomManager.OnLog += LogMessage;
+            // Provide RoomManager with references to UDP server and LobbyManager for forfeit handling
+            roomManager.UdpGameServer = udpGameServer;
+            roomManager.LobbyManager = lobbyManager;
 
             // Khởi tạo RoomListBroadcaster
             roomListBroadcaster = new RoomListBroadcaster(roomManager);
@@ -57,7 +65,17 @@ namespace DoAn_NT106.Server
 
             lobbyManager = new LobbyManager(dbService);
             lobbyManager.OnLog += LogMessage;
+
+            // ✅ THÊM: Khởi tạo UDP Game Server
+            udpGameServer = new UDPGameServer(UDP_PORT);
+            udpGameServer.OnLog += LogMessage;
+
+            // ✅ FIX: Ensure RoomManager has valid references to LobbyManager and UDP server
+            roomManager.UdpGameServer = udpGameServer;
+            roomManager.LobbyManager = lobbyManager;
         }
+
+        
 
         #endregion
 
@@ -78,7 +96,15 @@ namespace DoAn_NT106.Server
                 listener.Start();
                 isRunning = true;
 
+                // ✅ THÊM: Start UDP Server
+                udpGameServer.Start();
+
+                // Ensure lobbyManager/roomManager references are linked after UDP server starts
+                roomManager.UdpGameServer = udpGameServer;
+                roomManager.LobbyManager = lobbyManager;
+
                 Log($"✅ Server started on port {port}");
+                Log($"✅ UDP Game Server ready on port {UDP_PORT}");
 
                 _acceptTask = Task.Run(() => AcceptClients(cts.Token));
             }
@@ -102,6 +128,9 @@ namespace DoAn_NT106.Server
                 isRunning = false;
                 cts.Cancel();
                 listener?.Stop();
+
+                // ✅ THÊM: Stop UDP Server
+                udpGameServer?.Stop();
 
                 foreach (var client in connectedClients.ToArray())
                 {
@@ -159,7 +188,8 @@ namespace DoAn_NT106.Server
                         roomManager,
                         globalChatManager,
                         lobbyManager,
-                        roomListBroadcaster);
+                        roomListBroadcaster,
+                        udpGameServer);  // ✅ THÊM: Pass UDP server to client handler
 
                     lock (connectedClients)
                     {
@@ -233,6 +263,9 @@ namespace DoAn_NT106.Server
 
         private bool isNormalLogout = false;
 
+        // ✅ THÊM: UDP Game Server reference
+        private UDPGameServer udpGameServer;
+
         #endregion
 
         #region Constructor
@@ -246,7 +279,8 @@ namespace DoAn_NT106.Server
             RoomManager roomManager,
             GlobalChatManager globalChatManager,
             LobbyManager lobbyManager,
-            RoomListBroadcaster roomListBroadcaster)
+            RoomListBroadcaster roomListBroadcaster,
+            UDPGameServer udpGameServer)  // ✅ THÊM parameter
         {
             tcpClient = client;
             this.server = server;
@@ -259,8 +293,9 @@ namespace DoAn_NT106.Server
             this.globalChatManager = globalChatManager;
             this.lobbyManager = lobbyManager;
             this.roomListBroadcaster = roomListBroadcaster;
+            this.udpGameServer = udpGameServer;  // ✅ THÊM
         }
-
+        #endregion 
         public void SetNormalLogout()
         {
             isNormalLogout = true;
@@ -317,7 +352,8 @@ namespace DoAn_NT106.Server
                         // Mã hóa response trước khi gửi
                         string encryptedResponse = DoAn_NT106.Services.EncryptionService.Encrypt(response);
 
-                        byte[] responseBytes = Encoding.UTF8.GetBytes(encryptedResponse);
+                        // IMPORTANT: append newline so client can split messages reliably
+                        byte[] responseBytes = Encoding.UTF8.GetBytes(encryptedResponse + "\n");
                         await stream.WriteAsync(responseBytes, 0, responseBytes.Length);
 
                         server.Log($"📤 Sent response {encryptedRequest}");
@@ -367,7 +403,8 @@ namespace DoAn_NT106.Server
 
                 string encrypted = DoAn_NT106.Services.EncryptionService.Encrypt(json);
 
-                byte[] data = Encoding.UTF8.GetBytes(encrypted);
+                // Ensure client-side parser can split messages (newline-delimited)
+                byte[] data = Encoding.UTF8.GetBytes(encrypted + "\n");
                 stream.Write(data, 0, data.Length);
             }
             catch (Exception ex)
@@ -497,17 +534,58 @@ namespace DoAn_NT106.Server
                     case "LOBBY_LEAVE":
                         return HandleLobbyLeave(request);
 
+                    case "LOBBY_SET_MAP":
+                        // Inline handling for setting map to keep CreateResponse in scope
+                        try
+                        {
+                            var rc = request.Data?["roomCode"]?.ToString();
+                            var un = request.Data?["username"]?.ToString();
+                            var sm = request.Data?["selectedMap"]?.ToString();
+                            if (string.IsNullOrEmpty(rc) || string.IsNullOrEmpty(un) || string.IsNullOrEmpty(sm))
+                                return CreateResponse(false, "Missing parameters");
+
+                            var setRes = lobbyManager.SetLobbyMap(rc, un, sm);
+                            return CreateResponse(setRes.Success, setRes.Message);
+                        }
+                        catch (Exception ex)
+                        {
+                            server.Log($"❌ HandleLobbySetMap inline error: {ex.Message}");
+                            return CreateResponse(false, ex.Message);
+                        }
+
                     case "LOBBY_SET_READY":
                         return HandleLobbySetReady(request);
 
                     case "LOBBY_CHAT_SEND":
                         return HandleLobbyChatSend(request);
+
                     case "LOBBY_START_GAME":
                         return HandleLobbyStartGame(request);
+
+                // ✅ NEW: character selection in lobby
+                    case "SELECT_CHARACTER":
+                        return HandleSelectCharacter(request);
+
+                    // ✅ THÊM: character select back - tất cả 2 người quay lại lobby
+                    case "CHARACTER_SELECT_BACK":
+                        return HandleCharacterSelectBack(request);
+
+                    // ✅ THÊM: Gửi player number khi client hỏi (sau START_GAME broadcast)
+                    case "GET_MY_PLAYER_NUMBER":
+                        return HandleGetMyPlayerNumber(request);
+
                     case "START_GAME":
                         return HandleStartGame(request);
                     case "GAME_ACTION":
                         return HandleGameAction(request);
+                    
+                    // ✅ THÊM: Handle game end
+                    case "GAME_END":
+                        return HandleGameEnd(request);
+
+                    // ✅ THÊM: Handle game damage event
+                    case "GAME_DAMAGE":
+                        return HandleGameDamage(request);
 
                     //Các case liên quan đến broadcast danh sách phòng
                     case "ROOM_LIST_SUBSCRIBE":
@@ -528,7 +606,120 @@ namespace DoAn_NT106.Server
             }
         }
 
-        #region HandleUser
+        // ... existing handlers ...
+
+        // NEW: route SELECT_CHARACTER to LobbyManager
+        private string HandleSelectCharacter(Request request)
+        {
+            try
+            {
+                var roomCode = request.Data?["roomCode"]?.ToString();
+                var username = request.Data?["username"]?.ToString();
+                var character = request.Data?["character"]?.ToString();
+
+                if (string.IsNullOrEmpty(roomCode) || string.IsNullOrEmpty(username) || string.IsNullOrEmpty(character))
+                {
+                    return CreateResponse(false, "Room code, username and character are required");
+                }
+
+                server.Log($"🎯 SELECT_CHARACTER: {username} -> {character} in room {roomCode}");
+                lobbyManager.HandleSelectCharacter(roomCode, username, character);
+
+                // Không cần trả nhiều data, START_GAME sẽ được broadcast riêng
+                return CreateResponse(true, "Character selected");
+            }
+            catch (Exception ex)
+            {
+                server.Log($"❌ HandleSelectCharacter error: {ex.Message}");
+                return CreateResponse(false, $"Error: {ex.Message}");
+            }
+        }
+
+        // ✅ THÊM: Handle character select back - broadcast RETURN_TO_LOBBY cho cả 2 người
+        private string HandleCharacterSelectBack(Request request)
+        {
+            try
+            {
+                var roomCode = request.Data?["roomCode"]?.ToString();
+                var username = request.Data?["username"]?.ToString();
+
+                if (string.IsNullOrEmpty(roomCode) || string.IsNullOrEmpty(username))
+                {
+                    return CreateResponse(false, "Room code and username are required");
+                }
+
+                server.Log($"📤 CHARACTER_SELECT_BACK: {username} from room {roomCode}");
+
+                // Lấy lobby để tìm cả 2 player
+                var lobby = lobbyManager.GetLobby(roomCode);
+                if (lobby != null)
+                {
+                    // ✅ Reset lobby state: Clear character selections
+                    var resetResult = lobbyManager.ResetLobbyForRematch(roomCode);
+                    if (resetResult.Success)
+                    {
+                        server.Log($"✅ Lobby {roomCode} reset after character select back");
+                    }
+
+                    // ✅ Broadcast RETURN_TO_LOBBY cho CẢ 2 PLAYER
+                    var returnPayload = new
+                    {
+                        Action = "RETURN_TO_LOBBY",
+                        Data = new
+                        {
+                            roomCode = roomCode,
+                            reason = "character_select_back"
+                        }
+                    };
+
+                    string json = System.Text.Json.JsonSerializer.Serialize(returnPayload);
+
+                    // Gửi cho Player 1
+                    if (lobby.Player1Client != null)
+                    {
+                        try
+                        {
+                            lobby.Player1Client.SendMessage(json);
+                            server.Log($"📢 Sent RETURN_TO_LOBBY to Player 1: {lobby.Player1Username}");
+                        }
+                        catch (Exception ex)
+                        {
+                            server.Log($"⚠️ Failed to send RETURN_TO_LOBBY to Player 1: {ex.Message}");
+                        }
+                    }
+
+                    // Gửi cho Player 2
+                    if (lobby.Player2Client != null)
+                    {
+                        try
+                        {
+                            lobby.Player2Client.SendMessage(json);
+                            server.Log($"📢 Sent RETURN_TO_LOBBY to Player 2: {lobby.Player2Username}");
+                        }
+                        catch (Exception ex)
+                        {
+                            server.Log($"⚠️ Failed to send RETURN_TO_LOBBY to Player 2: {ex.Message}");
+                        }
+                    }
+                }
+                else
+                {
+                    server.Log($"⚠️ Lobby not found for room {roomCode}");
+                }
+
+                return CreateResponse(true, "Return to lobby broadcasted");
+            }
+            catch (Exception ex)
+            {
+                server.Log($"❌ HandleCharacterSelectBack error: {ex.Message}");
+                return CreateResponse(false, $"Error: {ex.Message}");
+            }
+        }
+        #endregion
+
+
+        #region User Handling
+
         private string HandleRegister(Request request)
         {
             try
@@ -940,6 +1131,67 @@ namespace DoAn_NT106.Server
 
                 if (!string.IsNullOrEmpty(roomCode) && !string.IsNullOrEmpty(username))
                 {
+                    // If a game is currently playing in this room, treat leaving as forfeit:
+                    var room = roomManager.GetRoom(roomCode);
+                    bool wasPlaying = room != null && string.Equals(room.Status, "playing", StringComparison.OrdinalIgnoreCase);
+
+                    if (wasPlaying)
+                    {
+                        // Determine opponent
+                        string opponentUsername = null;
+                        if (room.Player1Username == username)
+                            opponentUsername = room.Player2Username;
+                        else if (room.Player2Username == username)
+                            opponentUsername = room.Player1Username;
+
+                        // Inform opponent that they won by forfeit and end UDP match
+                        if (!string.IsNullOrEmpty(opponentUsername))
+                        {
+                            var opponentClient = roomManager.GetClientHandler(roomCode, opponentUsername);
+                            try
+                            {
+                                var payload = new
+                                {
+                                    Action = "GAME_ENDED",
+                                    Data = new
+                                    {
+                                        roomCode = roomCode,
+                                        winner = opponentUsername,
+                                        reason = "opponent_left"
+                                    }
+                                };
+                                string json = System.Text.Json.JsonSerializer.Serialize(payload);
+                                if (opponentClient != null)
+                                {
+                                    opponentClient.SendMessage(json);
+                                    server.Log($"📢 Notified opponent {opponentUsername} of forfeit win in room {roomCode}");
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                server.Log($"⚠️ Error notifying opponent about forfeit: {ex.Message}");
+                            }
+                        }
+
+                        try
+                        {
+                            var udpResult = udpGameServer.EndMatch(roomCode);
+                            if (udpResult.Success)
+                                server.Log($"✅ UDP Match ended for room {roomCode} due to player leave");
+                            else
+                                server.Log($"⚠️ Failed to end UDP match: {udpResult.Message}");
+
+                            // Reset lobby state for rematch/return
+                            var resetResult = lobbyManager.ResetLobbyForRematch(roomCode);
+                            if (resetResult.Success)
+                                server.Log($"✅ Lobby {roomCode} reset after forfeit");
+                        }
+                        catch (Exception ex)
+                        {
+                            server.Log($"❌ Error during forfeit cleanup: {ex.Message}");
+                        }
+                    }
+
                     roomManager.LeaveRoom(roomCode, username);
                     server.Log($"✅ HandleLeaveRoom completed for {username}");
                 }
@@ -1106,7 +1358,7 @@ namespace DoAn_NT106.Server
             { "onlineUsers", onlineUsers }
         });
             }
-            catch (Exception ex)
+catch (Exception ex)
             {
                 return CreateResponse(false, $"Error: {ex.Message}");
             }
@@ -1265,6 +1517,7 @@ namespace DoAn_NT106.Server
                 return CreateResponse(false, $"Error: {ex.Message}");
             }
         }
+        
         private string HandleLobbyStartGame(Request request)
         {
             try
@@ -1278,6 +1531,52 @@ namespace DoAn_NT106.Server
                 }
 
                 var result = lobbyManager.StartGame(roomCode, username);
+
+                if (result.Success)
+                {
+                // ✅ THÊM: Lấy thông tin từ LobbyManager (đáng tin cậy hơn ngay trước START_GAME)
+                    var lobby = lobbyManager?.GetLobby(roomCode);
+                    if (lobby != null)
+                    {
+                        // Use lobby usernames to create UDP match session (ensures both players present)
+                        var p1 = lobby.Player1Username;
+                        var p2 = lobby.Player2Username;
+
+                        // If one of the players is missing, try fallback to RoomManager
+                        if (string.IsNullOrEmpty(p1) || string.IsNullOrEmpty(p2))
+                        {
+                            var fallback = roomManager.GetRoom(roomCode);
+                            if (fallback != null)
+                            {
+                                p1 = string.IsNullOrEmpty(p1) ? fallback.Player1Username : p1;
+                                p2 = string.IsNullOrEmpty(p2) ? fallback.Player2Username : p2;
+                            }
+                        }
+
+                        // Tạo UDP match session
+                        var udpResult = udpGameServer.CreateMatch(
+                            roomCode,
+                            p1,
+                            p2
+                        );
+
+                        if (udpResult.Success)
+                        {
+                            server.Log($"✅ UDP Match created for room {roomCode}");
+                            
+                            // Trả về thông tin UDP port cho client
+                            return CreateResponseWithData(true, result.Message, new Dictionary<string, object>
+                            {
+                                { "udpPort", 5000 },
+                                { "serverIp", "127.0.0.1" }  // TODO: Get actual server IP
+                            });
+                        }
+                        else
+                        {
+                            server.Log($"⚠️ Failed to create UDP match: {udpResult.Message}");
+                        }
+                    }
+                }
 
                 return CreateResponse(result.Success, result.Message);
             }
@@ -1352,6 +1651,181 @@ namespace DoAn_NT106.Server
             }
         }
 
+        // ✅ THÊM: Handle game end - đóng UDP match và trả client về lobby
+        private string HandleGameEnd(Request request)
+        {
+            try
+            {
+                var roomCode = request.Data?["roomCode"]?.ToString();
+                var username = request.Data?["username"]?.ToString();
+
+                if (string.IsNullOrEmpty(roomCode) || string.IsNullOrEmpty(username))
+                {
+                    return CreateResponse(false, "Room code and username are required");
+                }
+
+                // Đóng UDP match
+                var udpResult = udpGameServer.EndMatch(roomCode);
+                
+                if (udpResult.Success)
+                {
+                    server.Log($"✅ UDP Match ended for room {roomCode}");
+                }
+                else
+                {
+                    server.Log($"⚠️ Failed to end UDP match: {udpResult.Message}");
+                }
+
+                // ✅ RESET LOBBY: Reset ready status và character selections
+                var resetResult = lobbyManager.ResetLobbyForRematch(roomCode);
+                if (resetResult.Success)
+                {
+                    server.Log($"✅ Lobby {roomCode} reset for rematch");
+                }
+                else
+                {
+                    server.Log($"⚠️ Failed to reset lobby: {resetResult.Message}");
+                }
+
+                // Update room status về WAITING (keep room alive for rematch)
+                var room = roomManager.GetRoom(roomCode);
+                if (room != null)
+                {
+                    room.Status = "waiting";
+                    server.Log($"✅ Room {roomCode} reset to WAITING status");
+                }
+
+                return CreateResponse(true, "Game ended, return to lobby");
+            }
+            catch (Exception ex)
+            {
+                server.Log($"❌ HandleGameEnd error: {ex.Message}");
+                return CreateResponse(false, $"Error: {ex.Message}");
+            }
+        }
+
+        // ✅ THÊM: Handle game damage event
+        private string HandleGameDamage(Request request)
+        {
+            try
+            {
+                var roomCode = request.Data?["roomCode"]?.ToString();
+                var senderUsername = request.Data?["username"]?.ToString();
+                var targetPlayerNum = request.Data.ContainsKey("targetPlayerNum") 
+                    ? Convert.ToInt32(request.Data["targetPlayerNum"]) 
+                    : 0;
+                var damage = request.Data.ContainsKey("damage")
+                    ? Convert.ToInt32(request.Data["damage"])
+                    : 0;
+                var isParried = request.Data.ContainsKey("isParried")
+                    ? Convert.ToBoolean(request.Data["isParried"])
+                    : false;
+
+                if (string.IsNullOrEmpty(roomCode) || string.IsNullOrEmpty(senderUsername))
+                {
+                    return CreateResponse(false, "Missing required data");
+                }
+
+                server.Log($"🎯 GAME_DAMAGE: {senderUsername} in room {roomCode} -> Player {targetPlayerNum} took {damage} damage (Parried: {isParried})");
+
+                // Broadcast damage event cho opponent
+                var room = roomManager.GetRoom(roomCode);
+                if (room != null)
+                {
+                    // Find opponent client
+                    var opponentUsername = senderUsername == room.Player1Username ? room.Player2Username : room.Player1Username;
+                    var opponentClient = roomManager.GetClientHandler(roomCode, opponentUsername);
+
+                    // Send GAME_DAMAGE to both players so authoritative client (owner of target)
+                    // will apply and then broadcast. Also include the resultingHealth hint so
+                    // clients using UDP can update UI immediately.
+                    var damageNotification = new
+                    {
+                        Action = "GAME_DAMAGE",
+                        Data = new
+                        {
+                            targetPlayerNum = targetPlayerNum,
+                            damage = damage,
+                            isParried = isParried,
+                            attackerUsername = senderUsername
+                        }
+                    };
+
+                    string json = System.Text.Json.JsonSerializer.Serialize(damageNotification);
+
+                    // Send to opponent (if connected)
+                    if (opponentClient != null)
+                    {
+                        opponentClient.SendMessage(json);
+                        server.Log($"📤 Relayed GAME_DAMAGE to {opponentUsername}");
+                    }
+
+                    // Also send to sender (ack) so attacker gets server confirmation
+                    var senderClient = roomManager.GetClientHandler(roomCode, senderUsername);
+                    if (senderClient != null)
+                    {
+                        senderClient.SendMessage(json);
+                        server.Log($"📤 Sent GAME_DAMAGE ack to attacker {senderUsername}");
+                    }
+                }
+
+                return CreateResponse(true, "Damage event sent");
+            }
+            catch (Exception ex)
+            {
+                server.Log($"❌ HandleGameDamage error: {ex.Message}");
+                return CreateResponse(false, $"Error: {ex.Message}");
+            }
+        }
+
+        // ✅ THÊM: Get my player number (client hỏi sau START_GAME)
+        private string HandleGetMyPlayerNumber(Request request)
+        {
+            try
+            {
+                var roomCode = request.Data?["roomCode"]?.ToString();
+                var username = request.Data?["username"]?.ToString();
+
+                if (string.IsNullOrEmpty(roomCode) || string.IsNullOrEmpty(username))
+                {
+                    return CreateResponse(false, "Room code and username are required");
+                }
+
+                var lobby = lobbyManager.GetLobby(roomCode);
+                if (lobby == null)
+                {
+                    return CreateResponse(false, "Lobby not found");
+                }
+
+                int myPlayerNumber = 0;
+                if (lobby.Player1Username == username)
+                {
+                    myPlayerNumber = 1;
+                }
+                else if (lobby.Player2Username == username)
+                {
+                    myPlayerNumber = 2;
+                }
+                else
+                {
+                    return CreateResponse(false, "Player not in lobby");
+                }
+
+                server.Log($"✅ GET_MY_PLAYER_NUMBER: {username} in room {roomCode} is Player {myPlayerNumber}");
+
+                return CreateResponse(true, "Got player number", new Dictionary<string, object>
+                {
+                    { "myPlayerNumber", myPlayerNumber },
+                    { "player1", lobby.Player1Username },
+                    { "player2", lobby.Player2Username }
+                });
+            }
+            catch (Exception ex)
+            {
+                server.Log($"❌ HandleGetMyPlayerNumber error: {ex.Message}");
+                return CreateResponse(false, $"Error: {ex.Message}");
+            }
+        }
         #endregion
 
 
@@ -1404,6 +1878,7 @@ namespace DoAn_NT106.Server
                 return CreateResponse(false, $"Subscribe error: {ex.Message}");
             }
         }
+        
         private string HandleRoomListUnsubscribe(Request request)
         {
             try
@@ -1436,8 +1911,6 @@ namespace DoAn_NT106.Server
             };
             return JsonSerializer.Serialize(response);
         }
-
-
 
         private string CreateResponseWithData(bool success, string message, Dictionary<string, object> data)
         {
@@ -1474,6 +1947,7 @@ namespace DoAn_NT106.Server
             }
             catch { }
         }
+        
         private void CleanupOnDisconnect()
         {
             try
@@ -1498,30 +1972,24 @@ namespace DoAn_NT106.Server
             }
         }
         #endregion
-
-        #endregion
-
-        #endregion
-
-
-
-
-        #region Class
-        public class Request
-        {
-            public string Action { get; set; }
-            public string RequestId { get; set; }
-            public Dictionary<string, object> Data { get; set; }
-        }
-
-        public class Response
-        {
-            public bool Success { get; set; }
-            public string Message { get; set; }
-            public string RequestId { get; set; }
-            public Dictionary<string, object> Data { get; set; }
-
-        }
-        #endregion
     }
+
+
+
+    #region Class
+    public class Request
+    {
+        public string Action { get; set; }
+        public string RequestId { get; set; }
+        public Dictionary<string, object> Data { get; set; }
+    }
+
+    public class Response
+    {
+        public bool Success { get; set; }
+        public string Message { get; set; }
+        public string RequestId { get; set; }
+        public Dictionary<string, object> Data { get; set; }
+    }
+    #endregion
 }

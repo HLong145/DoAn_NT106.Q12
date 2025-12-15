@@ -7,6 +7,7 @@ using System.Windows.Forms;
 using System.Threading.Tasks;
 using System.Reflection;
 using System.Drawing;
+using DoAn_NT106.Services;
 
 namespace DoAn_NT106
 {
@@ -16,6 +17,14 @@ namespace DoAn_NT106
         private int _roundNumber = 1;
         private int _player1Wins = 0;
         private int _player2Wins = 0;
+        // Number of rounds that have been completed
+        private int _roundsPlayed = 0;
+        // Guard to prevent double-processing of round end
+        private bool _roundEnding = false;
+        // Lock for round state updates to avoid race conditions
+        private readonly object _roundLock = new object();
+        // Timestamp when last round start animation was shown (ms)
+        private int _lastRoundStartShownMs = 0;
         private System.Windows.Forms.Timer _roundTimer;
         private int _roundTimeRemainingMs = 3 * 60 * 1000; // 3 minutes per round
         private Label _lblRoundCenter; // centered between HP/Stamina/Mana bars
@@ -36,15 +45,39 @@ namespace DoAn_NT106
         private byte[] _round1AudioBytes;
         private byte[] _round2AudioBytes;
         private byte[] _round3AudioBytes;
+        // ✅ THÊM: Cooldown system để ngăn win count bị tăng quá lố (10 seconds = 10000ms)
+        private int _winCooldownMs = 3000;
+        private long _lastWinCountTimeMs = 0;
 
         /// <summary>Gets formatted round info text with round number, timer, and scores</summary>
         private string GetRoundCenterText()
         {
             var remaining = TimeSpan.FromMilliseconds(Math.Max(0, _roundTimeRemainingMs));
-            
-            // ✅ Đảm bảo có giá trị cho player names
-            string p1Name = !string.IsNullOrEmpty(username) ? username.ToUpper() : "PLAYER 1";
-            string p2Name = !string.IsNullOrEmpty(opponent) ? opponent.ToUpper() : "PLAYER 2";
+
+            // Prefer authoritative player state names when available.
+            // Otherwise derive canonical ordering from host flag (`isCreator`) so P1 is always the host on all clients.
+            string p1Name;
+            string p2Name;
+            if (!string.IsNullOrEmpty(player1State?.PlayerName) && !string.IsNullOrEmpty(player2State?.PlayerName))
+            {
+                p1Name = player1State.PlayerName.ToUpper();
+                p2Name = player2State.PlayerName.ToUpper();
+            }
+            else
+            {
+                if (isCreator)
+                {
+                    // local client is host -> local username is player1
+                    p1Name = !string.IsNullOrEmpty(username) ? username.ToUpper() : "PLAYER 1";
+                    p2Name = !string.IsNullOrEmpty(opponent) ? opponent.ToUpper() : "PLAYER 2";
+                }
+                else
+                {
+                    // local client is guest -> opponent (host) is player1
+                    p1Name = (opponent ?? "PLAYER 1").ToUpper();
+                    p2Name = (username ?? "PLAYER 2").ToUpper();
+                }
+            }
 
             // Header line
             string header = $"[ ROUND {_roundNumber} ]";
@@ -100,16 +133,31 @@ namespace DoAn_NT106
             _lblRoundCenter.Location = new Point(centerX, topY);
         }
 
-        /// <summary>Initializes round UI and timer (call from SetupGame)</summary>
+        /// <summary>
+        /// Initializes round UI and timer (call from SetupGame)
+        /// </summary>
         private void InitializeRoundSystem()
         {
+            // ✅ RESET ROUND SYSTEM MỖI LẦN INITIALIZE
+            _roundNumber = 1;
+            // ❌ KHÔNG RESET: _player1Wins và _player2Wins (giữ lại từ trận trước)
+            // _player1Wins = 0;
+            // _player2Wins = 0;
+            _roundsPlayed = 0;
+            _roundEnding = false;
+            _roundTimeRemainingMs = 3 * 60 * 1000; // 3 minutes per round
+            _roundInProgress = false;
+            _player1ManaCarryover = 0;
+            _player2ManaCarryover = 0;
+            _lastWinCountTimeMs = 0;  // ✅ THÊM: Reset win cooldown counter
+
             // Create center label if not already created
             if (_lblRoundCenter == null)
             {
                 string initialText = GetRoundCenterText();
                 _lblRoundCenter = new Label
                 {
-                    Text = GetRoundCenterText(),
+                    Text = initialText,
                     Size = new Size(1, 1),
                     ForeColor = Color.Gold,
                     Font = new Font("Courier New", 15, FontStyle.Bold),
@@ -138,7 +186,7 @@ namespace DoAn_NT106
                     Size = new Size(600, 200),
                     ForeColor = Color.Red,
                     Font = new Font("Arial", 80, FontStyle.Bold),
-                    BackColor = Color.Transparent,
+                    BackColor = Color.FromArgb(200, 0, 0, 0), // semi-transparent black to avoid flash
                     TextAlign = ContentAlignment.MiddleCenter,
                     Visible = false
                 };
@@ -171,7 +219,7 @@ namespace DoAn_NT106
                 if (this.ClientSize.Width > 100 && this.ClientSize.Height > 100)
                 {
                     // ✅ Cập nhật lại text và vị trí SAU KHI form đã load
-                    Console.WriteLine($"[RoundSystem] Updating center text with: {username} vs {opponent}");
+                    Console.WriteLine($"[RoundSystem] Initializing with: {username} vs {opponent}");
                     UpdateRoundCenterText();
                     PositionRoundCenterLabel();
                     _lblRoundCenter?.BringToFront();
@@ -286,6 +334,8 @@ namespace DoAn_NT106
             }
             
             _roundStartCountdownMs = 1000; // 1 seconds
+            // Use 2s visible ROUND animation by default (matches comment)
+            _roundStartCountdownMs = 2000;
             _lblRoundStart.Text = $"ROUND {_roundNumber}";
             // ✅ Play round announcement sound (Stop only sound effects, NOT music)
             try
@@ -324,18 +374,20 @@ namespace DoAn_NT106
             _lblRoundStart.BringToFront();
             gameTimer?.Stop(); // Lock input during countdown
             
-            if (_roundStartTimer != null && !_roundStartTimer.Enabled)
-                _roundStartTimer.Start();
-            
-            if (_roundTimer != null && !_roundTimer.Enabled)
-                _roundTimer.Start();
-            
+            // Restart start countdown timer
+            try { _roundStartTimer?.Stop(); } catch { }
+            if (_roundStartTimer != null) _roundStartTimer.Start();
+
+            // Ensure round timer is stopped until gameplay actually begins
+            try { _roundTimer?.Stop(); } catch { }
+
             _roundInProgress = false; // Lock gameplay during countdown
             
             // ✅ Cập nhật lại center text với tên player
             UpdateRoundCenterText();
             
             Console.WriteLine($"[RoundSystem] Displaying ROUND {_roundNumber} at center");
+            Console.WriteLine($"[RoundSystem] Displaying ROUND {_roundNumber} at center (startCountdown={_roundStartCountdownMs}ms)");
         }
 
         // Safely attempt to play round announcement sound if enum/value exists
@@ -483,96 +535,206 @@ namespace DoAn_NT106
                 
                 // Enable gameplay
                 _roundInProgress = true;
+                // Start round countdown now that gameplay begins
+                try { if (_roundTimer != null && !_roundTimer.Enabled) _roundTimer.Start(); } catch { }
                 gameTimer?.Start();
+                Console.WriteLine($"[RoundSystem] RoundStartTimer finished -> roundInProgress={_roundInProgress}, roundNumber={_roundNumber}, roundsPlayed={_roundsPlayed}, P1wins={_player1Wins}, P2wins={_player2Wins}");
             }
         }
 
         /// <summary>Handles round timeout (time expired - lower HP loses)</summary>
         private void HandleRoundTimeout()
         {
-            _roundInProgress = false;
-            _roundTimer?.Stop();
-
-            // ✅ THÊM: Lưu mana hiện tại trước khi qua hiệp
-            _player1ManaCarryover = player1State.Mana;
-            _player2ManaCarryover = player2State.Mana;
-
-            // Determine winner by HP
-            if (player1State.Health < player2State.Health)
-                _player2Wins++;
-            else if (player2State.Health < player1State.Health)
-                _player1Wins++;
-            // Equal HP = tie, no win awarded
-
-            // Check if match ends (first to 2 wins)
-            if (_player1Wins >= 2 || _player2Wins >= 2)
+            // Ignore round end events while round isn't in progress (prevent handling during countdown/start)
+            if (!_roundInProgress)
             {
-                EndMatch(_player1Wins >= 2 ? username : opponent);
+                Console.WriteLine("[RoundSystem] Ignored HandleRoundTimeout because round is not in progress");
                 return;
             }
 
-            // If we've already played 3 rounds and nobody reached 2 wins -> draw
-            if (_roundNumber >= 3)
+            lock (_roundLock)
             {
-                EndMatchDraw();
-                return;
-            }
+                if (_roundEnding) return; // already handling
+                _roundEnding = true;
 
-            // Start next round (only if less than 3 rounds played)
-            _roundNumber++;
-            StartNextRound();
+                try
+                {
+                    _roundInProgress = false;
+                    try { _roundTimer?.Stop(); } catch { }
+
+                    // ✅ THÊM: Lưu mana hiện tại trước khi qua hiệp
+                    _player1ManaCarryover = player1State.Mana;
+                    _player2ManaCarryover = player2State.Mana;
+
+                    // Determine winner by HP
+                    if (player1State.Health < player2State.Health)
+                    {
+                        // ✅ THÊM: Check cooldown before counting win
+                        if (CanCountWin())
+                        {
+                            _player2Wins++;
+                            Console.WriteLine($"[RoundSystem] ✅ PLAYER 2 WINS BY TIMEOUT");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"[RoundSystem] ⏱️ PLAYER 2 WIN REJECTED - Win cooldown still active");
+                        }
+                    }
+                    else if (player2State.Health < player1State.Health)
+                    {
+                        // ✅ THÊM: Check cooldown before counting win
+                        if (CanCountWin())
+                        {
+                            _player1Wins++;
+                            Console.WriteLine($"[RoundSystem] ✅ PLAYER 1 WINS BY TIMEOUT");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"[RoundSystem] ⏱️ PLAYER 1 WIN REJECTED - Win cooldown still active");
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine($"[RoundSystem] 🤝 TIMEOUT TIE - Both have equal HP, no winner");
+                    }
+
+                    // Mark this round as completed
+                    _roundsPlayed++;
+
+                    Console.WriteLine($"[RoundSystem] Round ended. roundsPlayed={_roundsPlayed}, P1wins={_player1Wins}, P2wins={_player2Wins}");
+
+                    // Check if match ends (first to 2 wins). Require at least 2 rounds played
+                    if ((_player1Wins >= 2 || _player2Wins >= 2) && _roundsPlayed >= 2)
+                    {
+                        // ✅ SỬA: Sử dụng tên từ PlayerState thay vì username/opponent
+                        string winner = _player1Wins >= 2 
+                            ? (player1State?.PlayerName ?? username) 
+                            : (player2State?.PlayerName ?? opponent);
+                        EndMatch(winner);
+                        return;
+                    }
+
+                    // If we've already completed 3 rounds and nobody reached 2 wins -> draw
+                    if (_roundsPlayed >= 3)
+                    {
+                        EndMatchDraw();
+                        return;
+                    }
+
+                    // Prepare for next round
+                    _roundNumber = _roundsPlayed + 1; // next round number (1-based)
+                    StartNextRound();
+                }
+                finally
+                {
+                    _roundEnding = false;
+                }
+            }
         }
 
         /// <summary>Handles round end by death (someone's HP reached 0)</summary>
         private void HandleRoundEndByDeath()
         {
-            _roundInProgress = false;
-            _roundTimer?.Stop();
-
-            // ✅ THÊM: Lưu mana hiện tại trước khi qua hiệp
-            _player1ManaCarryover = player1State.Mana;
-            _player2ManaCarryover = player2State.Mana;
-
-            // Award win to survivor
-            if (player1State.IsDead && !player2State.IsDead)
+            // Ignore death events while round isn't in progress (e.g., during countdown)
+            if (!_roundInProgress)
             {
-                _player2Wins++;
-                player2RoundsWon++;
-                player2ConsecutiveWins++;
-                player1ConsecutiveWins = 0;
-            }
-            else if (player2State.IsDead && !player1State.IsDead)
-            {
-                _player1Wins++;
-                player1RoundsWon++;
-                player1ConsecutiveWins++;
-                player2ConsecutiveWins = 0;
-            }
-            // Both dead = tie, no win awarded
-
-            // Check if match ends
-            if (_player1Wins >= 2 || _player2Wins >= 2)
-            {
-                EndMatch(_player1Wins >= 2 ? username : opponent);
+                Console.WriteLine("[RoundSystem] Ignored HandleRoundEndByDeath because round is not in progress");
                 return;
             }
 
-            // If we've already played 3 rounds and nobody reached 2 wins -> draw
-            if (_roundNumber >= 3)
+            lock (_roundLock)
             {
-                EndMatchDraw();
-                return;
-            }
+                if (_roundEnding) return; // already handling
+                _roundEnding = true;
 
-            // Start next round (only if less than 3 rounds played)
-            _roundNumber++;
-            StartNextRound();
+                try
+                {
+                    _roundInProgress = false;
+                    try { _roundTimer?.Stop(); } catch { }
+
+                    // ✅ THÊM: Lưu mana hiện tại trước khi qua hiệp
+                    _player1ManaCarryover = player1State.Mana;
+                    _player2ManaCarryover = player2State.Mana;
+
+                    // Award win to survivor
+                    if (player1State.IsDead && !player2State.IsDead)
+                    {
+                        // ✅ THÊM: Check cooldown before counting win
+                        if (CanCountWin())
+                        {
+                            _player2Wins++;
+                            Console.WriteLine($"[RoundSystem] ✅ PLAYER 2 WINS ROUND (Player 1 died)");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"[RoundSystem] ⏱️ PLAYER 2 WIN REJECTED - Win cooldown still active");
+                        }
+                    }
+                    else if (player2State.IsDead && !player1State.IsDead)
+                    {
+                        // ✅ THÊM: Check cooldown before counting win
+                        if (CanCountWin())
+                        {
+                            _player1Wins++;
+                            Console.WriteLine($"[RoundSystem] ✅ PLAYER 1 WINS ROUND (Player 2 died)");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"[RoundSystem] ⏱️ PLAYER 1 WIN REJECTED - Win cooldown still active");
+                        }
+                    }
+
+                    // Both dead = tie, no win awarded; check for double KO
+                    if (player1State.IsDead && player2State.IsDead)
+                    {
+                        Console.WriteLine("[RoundSystem] 💥 Double KO - no winner this round");
+                    }
+                    else
+                    {
+                        // Mark this round as completed
+                        _roundsPlayed++;
+                    }
+
+                    Console.WriteLine($"[RoundSystem] Round ended by death. roundsPlayed={_roundsPlayed}, P1wins={_player1Wins}, P2wins={_player2Wins}");
+
+                    // Check if match ends (first to 2 wins). Require at least 2 rounds played
+                    if ((_player1Wins >= 2 || _player2Wins >= 2) && _roundsPlayed >= 2)
+                    {
+                        // ✅ SỬA: Sử dụng tên từ PlayerState thay vì username/opponent
+                        string winner = _player1Wins >= 2 
+                            ? (player1State?.PlayerName ?? username) 
+                            : (player2State?.PlayerName ?? opponent);
+                        EndMatch(winner);
+                        return;
+                    }
+
+                    // If we've already completed 3 rounds and nobody reached 2 wins -> draw
+                    if (_roundsPlayed >= 3)
+                    {
+                        EndMatchDraw();
+                        return;
+                    }
+
+                    // Prepare for next round
+                    _roundNumber = _roundsPlayed + 1; // next round number
+                    StartNextRound();
+                }
+                finally
+                {
+                    _roundEnding = false;
+                }
+            }
         }
 
         /// <summary>Resets game state and starts next round</summary>
         private void StartNextRound()
         {
-            // Reset round timer
+            // Ensure all timers stopped before preparing next round
+            try { gameTimer?.Stop(); } catch { }
+            try { _roundTimer?.Stop(); } catch { }
+            try { _roundStartTimer?.Stop(); } catch { }
+
+            // Reset round timer value
             _roundTimeRemainingMs = 3 * 60 * 1000;
             UpdateRoundCenterText();
 
@@ -599,6 +761,10 @@ namespace DoAn_NT106
             // Reset all combat statuses
             player1State.IsStunned = false;
             player2State.IsStunned = false;
+            
+            // Ensure health is positive (reset done above) and clear any lingering timers/states by forcing regen/update
+            try { player1State.RegenerateResources(); } catch { }
+            try { player2State.RegenerateResources(); } catch { }
             player1State.IsAttacking = false;
             player2State.IsAttacking = false;
             player1State.IsParrying = false;
@@ -613,7 +779,7 @@ namespace DoAn_NT106
             player1State.ResetToIdle();
             player2State.ResetToIdle();
 
-            // Reset positions - ✅ SỬA: X = 150 và 900, force reset Y position
+            // Reset positions - ✅ SỬA: X = 150 và 900, force reset Y vị trí
             player1State.X = 150;
             player1State.Y = groundLevel - PLAYER_HEIGHT;
             
@@ -627,8 +793,48 @@ namespace DoAn_NT106
             try { effectManager?.Cleanup(); } catch { }
             try { projectileManager?.Cleanup(); } catch { }
 
+            // ✅ LOG: Verify all states before starting new round
+            Console.WriteLine($"[StartNextRound] Round {_roundNumber} setup complete:");
+            Console.WriteLine($"  P1: HP={player1State.Health} IsDead={player1State.IsDead} Stamina={player1State.Stamina}");
+            Console.WriteLine($"  P2: HP={player2State.Health} IsDead={player2State.IsDead} Stamina={player2State.Stamina}");
+
+            // ✅ THÊM: Send updated state via UDP immediately so opponent sees HP reset
+            if (isOnlineMode && udpClient != null && udpClient.IsConnected)
+            {
+                try
+                {
+                    var me = myPlayerNumber == 1 ? player1State : player2State;
+                    udpClient.UpdateState(
+                        me.X,
+                        me.Y,
+                        me.Health,          // ✅ GỬI HP MỚI (đã reset)
+                        me.Stamina,
+                        me.Mana,
+                        "stand",
+                        me.Facing ?? "right",
+                        false,              // isAttacking
+                        false,              // isParrying
+                        false,              // isStunned
+                        false,              // isSkillActive
+                        false,              // isCharging
+                        false);             // isDashing
+                    
+                    Console.WriteLine($"[StartNextRound] Sent UDP state update: P{myPlayerNumber} HP={me.Health}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[StartNextRound] UDP update error: {ex.Message}");
+                }
+            }
+
             // Start round countdown animation
+            // Ensure start countdown will run freshly
+            _roundStartCountdownMs = 2000;
+            // Prevent immediate EndMatch due to race by ensuring a short buffer before enabling gameplay
+            _lastRoundStartShownMs = Environment.TickCount;
             DisplayRoundStartAnimation();
+
+            Console.WriteLine($"[StartNextRound] Launched next round {_roundNumber} (roundsPlayed={_roundsPlayed}, P1wins={_player1Wins}, P2wins={_player2Wins})");
             this.Invalidate();
         }
 
@@ -646,13 +852,126 @@ namespace DoAn_NT106
             };
         }
 
-        /// <summary>Ends the match and shows XP result form instead of only a dialog</summary>
+        // ✅ THÊM: Helper function to check if can count win (cooldown protection)
+        private bool CanCountWin()
+        {
+            long currentTimeMs = Environment.TickCount64; // Use 64-bit for larger time range
+            long timeSinceLastWinMs = currentTimeMs - _lastWinCountTimeMs;
+            
+            if (timeSinceLastWinMs >= _winCooldownMs)
+            {
+                // Cooldown expired, can count new win
+                _lastWinCountTimeMs = currentTimeMs;  // Update timestamp IMMEDIATELY
+                Console.WriteLine($"[RoundSystem] ✅ WIN COOLDOWN EXPIRED - Can count new win (waited {timeSinceLastWinMs}ms)");
+                return true;
+            }
+            else
+            {
+                // Still in cooldown, reject
+                Console.WriteLine($"[RoundSystem] ⏱️ WIN COOLDOWN ACTIVE - Wait {_winCooldownMs - timeSinceLastWinMs}ms more");
+                return false;
+            }
+        }
+
+        /// <summary>Ends the match and shows winner dialog</summary>
         private void EndMatch(string winner)
         {
+            EndMatch(winner, MatchEndReason.Normal);
+        }
+
+        /// <summary>Ends the match and shows winner dialog with specific reason</summary>
+        private void EndMatch(string winner, MatchEndReason reason)
+        {
+            // Prevent duplicate end-match processing (forfeit/server race)
+            if (_matchEnded)
+            {
+                Console.WriteLine("[RoundSystem] EndMatch called but match already ended - ignoring duplicate call");
+                return;
+            }
+            _matchEnded = true;
+
             _roundInProgress = false;
             try { _roundTimer?.Stop(); } catch { }
             try { gameTimer?.Stop(); } catch { }
             try { walkAnimationTimer?.Stop(); } catch { }
+
+            // Send GAME_END to server so lobby resets
+            if (isOnlineMode && !string.IsNullOrEmpty(roomCode) && roomCode != "000000")
+            {
+                try
+                {
+                    var _ = PersistentTcpClient.Instance.SendRequestAsync(
+                        "GAME_END",
+                        new Dictionary<string, object>
+                        {
+                            { "roomCode", roomCode },
+                            { "username", username }
+                        },
+                        5000
+                    );
+                    Console.WriteLine($"[BattleForm] Sent GAME_END to server for room {roomCode}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[BattleForm] Failed to send GAME_END: {ex.Message}");
+                }
+            }
+
+                // Show MatchResultForm once
+            try
+            {
+                // If match ended due to forfeit, ensure winner shows decisive win but KEEP loser's existing wins
+                if (reason == MatchEndReason.Forfeit)
+                {
+                    try
+                    {
+                        if (player1State != null && string.Equals(winner, player1State.PlayerName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            _player1Wins = Math.Max(_player1Wins, 2);
+                        }
+                        else if (player2State != null && string.Equals(winner, player2State.PlayerName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            _player2Wins = Math.Max(_player2Wins, 2);
+                        }
+                        else
+                        {
+                            // Fallback: match winner string against local vars without zeroing loser
+                            if (!string.IsNullOrEmpty(winner) && string.Equals(winner, username, StringComparison.OrdinalIgnoreCase))
+                            {
+                                if (player1State != null && string.Equals(username, player1State.PlayerName, StringComparison.OrdinalIgnoreCase)) { _player1Wins = Math.Max(_player1Wins, 2); }
+                                else { _player2Wins = Math.Max(_player2Wins, 2); }
+                            }
+                            else if (!string.IsNullOrEmpty(winner) && string.Equals(winner, opponent, StringComparison.OrdinalIgnoreCase))
+                            {
+                                if (player1State != null && string.Equals(opponent, player1State.PlayerName, StringComparison.OrdinalIgnoreCase)) { _player1Wins = Math.Max(_player1Wins, 2); }
+                                else { _player2Wins = Math.Max(_player2Wins, 2); }
+                            }
+                        }
+                    }
+                    catch { }
+                }
+
+                var resultForm = new MatchResultForm();
+                // Determine canonical player1/player2 names from states to avoid inverted display
+                string p1Name = player1State?.PlayerName ?? username;
+                string p2Name = player2State?.PlayerName ?? opponent;
+
+                // Compute loser name robustly
+                string loserName = winner == p1Name ? p2Name : p1Name;
+
+                resultForm.SetMatchResult(winner, loserName, _player1Wins, _player2Wins, reason, p1Name, p2Name);
+                resultForm.ReturnToLobbyRequested += (s, args) => {
+                    try { this.Close(); } catch { }
+                };
+                resultForm.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[RoundSystem] Error showing MatchResultForm: {ex.Message}");
+            }
+
+            // Ensure battle form closes once after dialog
+
 
             // Xác định người chơi hiện tại có phải là winner không
             bool player1IsWinner = string.Equals(winner, username, StringComparison.OrdinalIgnoreCase);
@@ -683,17 +1002,7 @@ namespace DoAn_NT106
                 SkillCount = player1IsWinner ? player1SkillCount : player2SkillCount
             };
 
-            // (Tuỳ bạn) vẫn hiện MessageBox thông báo thắng/thua
-            string msg = $"🎉 {winner} WINS THE MATCH!\n\n" +
-                         $"{username}: {_player1Wins} wins\n" +
-                         $"{opponent}: {_player2Wins} wins";
 
-            MessageBox.Show(
-                msg,
-                "MATCH FINISHED",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Exclamation
-            );
 
             // Mở form tính XP sau khi nhấn OK
             using (var xpForm = new DoAn_NT106.Client.TinhXP(result))
@@ -701,36 +1010,127 @@ namespace DoAn_NT106
                 xpForm.StartPosition = FormStartPosition.CenterScreen;
                 xpForm.ShowDialog(this);
             }
-
-            // Đóng BattleForm và bật lại nhạc theme
-            this.Close();
+            try { this.Close(); } catch { }
             try { DoAn_NT106.SoundManager.PlayMusic(DoAn_NT106.Client.BackgroundMusic.ThemeMusic, loop: true); } catch { }
         }
 
         /// <summary>Ends the match as a draw and shows dialog</summary>
         private void EndMatchDraw()
         {
+            if (_matchEnded)
+            {
+                Console.WriteLine("[RoundSystem] EndMatchDraw called but match already ended - ignoring duplicate call");
+                return;
+            }
+            _matchEnded = true;
+
             _roundInProgress = false;
             try { _roundTimer?.Stop(); } catch { }
             try { gameTimer?.Stop(); } catch { }
             try { walkAnimationTimer?.Stop(); } catch { }
 
-            string result = $"🤝 MATCH DRAW!\n\n" +
-                            $"{username}: {_player1Wins} wins\n" +
-                            $"{opponent}: {_player2Wins} wins";
+            if (isOnlineMode && !string.IsNullOrEmpty(roomCode) && roomCode != "000000")
+            {
+                try
+                {
+                    var _ = PersistentTcpClient.Instance.SendRequestAsync(
+                        "GAME_END",
+                        new Dictionary<string, object>
+                        {
+                            { "roomCode", roomCode },
+                            { "username", username }
+                        },
+                        5000
+                    );
+                    Console.WriteLine($"[BattleForm] Sent GAME_END to server for room {roomCode}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[BattleForm] Failed to send GAME_END: {ex.Message}");
+                }
+            }
 
-            MessageBox.Show(
-                result,
-                "MATCH DRAW",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information
-            );
+            try
+            {
+                var resultForm = new MatchResultForm();
+                resultForm.SetMatchResultDraw(username, opponent, _player1Wins, _player2Wins);
+                resultForm.ReturnToLobbyRequested += (s, args) => { try { this.Close(); } catch { } };
+                resultForm.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[RoundSystem] Error showing MatchResultForm draw: {ex.Message}");
+            }
 
-            // Close battle form and return to lobby
-            this.Close();
-
-            // Resume theme music when returning to MainForm
+            try { this.Close(); } catch { }
             try { DoAn_NT106.SoundManager.PlayMusic(DoAn_NT106.Client.BackgroundMusic.ThemeMusic, loop: true); } catch { }
+        }
+
+        /// <summary>Handles player forfeit/quit - immediate win for opponent</summary>
+        public void HandlePlayerForfeit(int playerNumber)
+        {
+            // Lock to prevent concurrent modification during round handling
+            lock (_roundLock)
+            {
+                if (_roundEnding)
+                {
+                    Console.WriteLine($"[RoundSystem] Ignored forfeit - already handling round end");
+                    return;
+                }
+
+                // If match already ended globally, ignore
+                if (_matchEnded)
+                {
+                    Console.WriteLine("[RoundSystem] Ignored forfeit - match already ended");
+                    return;
+                }
+
+                // Immediately end the match and declare the opponent the winner
+                _roundEnding = true;
+                _matchEnded = true; // mark to avoid duplicate dialogs
+
+                try
+                {
+                    // Stop all timers
+                    _roundInProgress = false;
+                    try { _roundTimer?.Stop(); } catch { }
+                    try { gameTimer?.Stop(); } catch { }
+                    try { walkAnimationTimer?.Stop(); } catch { }
+
+                    Console.WriteLine($"[RoundSystem] ⚠️ FORFEIT: Player {playerNumber} quit the game - awarding immediate match win to opponent");
+
+                    // Determine winner name based on which player quit
+                    string winnerName;
+                    if (playerNumber == 1)
+                    {
+                        // Player 1 quit -> Player 2 wins
+                        _player2Wins = 2; // set to decisive score for display
+                        winnerName = player2State?.PlayerName ?? opponent;
+                        Console.WriteLine($"[RoundSystem] ✅ PLAYER 2 WINS BY FORFEIT (Player 1 quit)");
+                    }
+                    else
+                    {
+                        // Player 2 quit -> Player 1 wins
+                        _player1Wins = 2;
+                        winnerName = player1State?.PlayerName ?? username;
+                        Console.WriteLine($"[RoundSystem] ✅ PLAYER 1 WINS BY FORFEIT (Player 2 quit)");
+                    }
+
+                    // Ensure roundsPlayed reflects match termination for history display
+                    _roundsPlayed = Math.Max(_roundsPlayed, 2);
+
+                    Console.WriteLine($"[RoundSystem] After forfeit: roundsPlayed={_roundsPlayed}, P1wins={_player1Wins}, P2wins={_player2Wins}");
+
+                    // End match immediately with Forfeit reason
+                    EndMatch(winnerName, MatchEndReason.Forfeit);
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[RoundSystem] Forfeit handling error: {ex.Message}");
+                    _roundEnding = false;
+                }
+            }
         }
     }
 }

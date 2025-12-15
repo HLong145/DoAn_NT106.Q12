@@ -362,7 +362,7 @@
     <value>..\Resources\music_battle.mp3;System.IO.MemoryStream, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
   <data name="music_theme" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\music_theme.mp3;System.IO.MemoryStream, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+    <value>..\Resources\Music_theme_christmas.mp3;System.IO.MemoryStream, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
   <data name="punch_KG_warrior_Bringer" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\punch_KG_warrior_Bringer.mp3;System.IO.MemoryStream, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
@@ -411,5 +411,8 @@
   </data>
   <data name="parry_KG_bringer_goatman" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\parry_KG_warrior_bringer.mp3;System.IO.MemoryStream, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="game_end" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Game_end.mp3;System.IO.MemoryStream, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
 </root>
