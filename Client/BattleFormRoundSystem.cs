@@ -50,10 +50,31 @@ namespace DoAn_NT106
         private string GetRoundCenterText()
         {
             var remaining = TimeSpan.FromMilliseconds(Math.Max(0, _roundTimeRemainingMs));
-            
-            // ✅ Đảm bảo có giá trị cho player names
-            string p1Name = !string.IsNullOrEmpty(username) ? username.ToUpper() : "PLAYER 1";
-            string p2Name = !string.IsNullOrEmpty(opponent) ? opponent.ToUpper() : "PLAYER 2";
+
+            // Prefer authoritative player state names when available.
+            // Otherwise derive canonical ordering from host flag (`isCreator`) so P1 is always the host on all clients.
+            string p1Name;
+            string p2Name;
+            if (!string.IsNullOrEmpty(player1State?.PlayerName) && !string.IsNullOrEmpty(player2State?.PlayerName))
+            {
+                p1Name = player1State.PlayerName.ToUpper();
+                p2Name = player2State.PlayerName.ToUpper();
+            }
+            else
+            {
+                if (isCreator)
+                {
+                    // local client is host -> local username is player1
+                    p1Name = !string.IsNullOrEmpty(username) ? username.ToUpper() : "PLAYER 1";
+                    p2Name = !string.IsNullOrEmpty(opponent) ? opponent.ToUpper() : "PLAYER 2";
+                }
+                else
+                {
+                    // local client is guest -> opponent (host) is player1
+                    p1Name = (opponent ?? "PLAYER 1").ToUpper();
+                    p2Name = (username ?? "PLAYER 2").ToUpper();
+                }
+            }
 
             // Header line
             string header = $"[ ROUND {_roundNumber} ]";
@@ -116,8 +137,9 @@ namespace DoAn_NT106
         {
             // ✅ RESET ROUND SYSTEM MỖI LẦN INITIALIZE
             _roundNumber = 1;
-            _player1Wins = 0;
-            _player2Wins = 0;
+            // ❌ KHÔNG RESET: _player1Wins và _player2Wins (giữ lại từ trận trước)
+            // _player1Wins = 0;
+            // _player2Wins = 0;
             _roundsPlayed = 0;
             _roundEnding = false;
             _roundTimeRemainingMs = 3 * 60 * 1000; // 3 minutes per round
@@ -581,7 +603,11 @@ namespace DoAn_NT106
                     // Check if match ends (first to 2 wins). Require at least 2 rounds played
                     if ((_player1Wins >= 2 || _player2Wins >= 2) && _roundsPlayed >= 2)
                     {
-                        EndMatch(_player1Wins >= 2 ? username : opponent);
+                        // ✅ SỬA: Sử dụng tên từ PlayerState thay vì username/opponent
+                        string winner = _player1Wins >= 2 
+                            ? (player1State?.PlayerName ?? username) 
+                            : (player2State?.PlayerName ?? opponent);
+                        EndMatch(winner);
                         return;
                     }
 
@@ -671,7 +697,11 @@ namespace DoAn_NT106
                     // Check if match ends (first to 2 wins). Require at least 2 rounds played
                     if ((_player1Wins >= 2 || _player2Wins >= 2) && _roundsPlayed >= 2)
                     {
-                        EndMatch(_player1Wins >= 2 ? username : opponent);
+                        // ✅ SỬA: Sử dụng tên từ PlayerState thay vì username/opponent
+                        string winner = _player1Wins >= 2 
+                            ? (player1State?.PlayerName ?? username) 
+                            : (player2State?.PlayerName ?? opponent);
+                        EndMatch(winner);
                         return;
                     }
 
@@ -884,11 +914,49 @@ namespace DoAn_NT106
                 }
             }
 
-            // Show MatchResultForm once
+                // Show MatchResultForm once
             try
             {
+                // If match ended due to forfeit, ensure winner shows decisive win but KEEP loser's existing wins
+                if (reason == MatchEndReason.Forfeit)
+                {
+                    try
+                    {
+                        if (player1State != null && string.Equals(winner, player1State.PlayerName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            _player1Wins = Math.Max(_player1Wins, 2);
+                        }
+                        else if (player2State != null && string.Equals(winner, player2State.PlayerName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            _player2Wins = Math.Max(_player2Wins, 2);
+                        }
+                        else
+                        {
+                            // Fallback: match winner string against local vars without zeroing loser
+                            if (!string.IsNullOrEmpty(winner) && string.Equals(winner, username, StringComparison.OrdinalIgnoreCase))
+                            {
+                                if (player1State != null && string.Equals(username, player1State.PlayerName, StringComparison.OrdinalIgnoreCase)) { _player1Wins = Math.Max(_player1Wins, 2); }
+                                else { _player2Wins = Math.Max(_player2Wins, 2); }
+                            }
+                            else if (!string.IsNullOrEmpty(winner) && string.Equals(winner, opponent, StringComparison.OrdinalIgnoreCase))
+                            {
+                                if (player1State != null && string.Equals(opponent, player1State.PlayerName, StringComparison.OrdinalIgnoreCase)) { _player1Wins = Math.Max(_player1Wins, 2); }
+                                else { _player2Wins = Math.Max(_player2Wins, 2); }
+                            }
+                        }
+                    }
+                    catch { }
+                }
+
                 var resultForm = new MatchResultForm();
-                resultForm.SetMatchResult(winner, winner == username ? opponent : username, _player1Wins, _player2Wins, reason, username, opponent);
+                // Determine canonical player1/player2 names from states to avoid inverted display
+                string p1Name = player1State?.PlayerName ?? username;
+                string p2Name = player2State?.PlayerName ?? opponent;
+
+                // Compute loser name robustly
+                string loserName = winner == p1Name ? p2Name : p1Name;
+
+                resultForm.SetMatchResult(winner, loserName, _player1Wins, _player2Wins, reason, p1Name, p2Name);
                 resultForm.ReturnToLobbyRequested += (s, args) => {
                     try { this.Close(); } catch { }
                 };
@@ -976,6 +1044,7 @@ namespace DoAn_NT106
                     return;
                 }
 
+                // Immediately end the match and declare the opponent the winner
                 _roundEnding = true;
                 _matchEnded = true; // mark to avoid duplicate dialogs
 
@@ -987,31 +1056,33 @@ namespace DoAn_NT106
                     try { gameTimer?.Stop(); } catch { }
                     try { walkAnimationTimer?.Stop(); } catch { }
 
-                    Console.WriteLine($"[RoundSystem] ⚠️ FORFEIT: Player {playerNumber} quit the game");
+                    Console.WriteLine($"[RoundSystem] ⚠️ FORFEIT: Player {playerNumber} quit the game - awarding immediate match win to opponent");
 
-                    // Award win to opponent (do NOT need cooldown check for forfeit)
-                    if (playerNumber == 2)
+                    // Determine winner name based on which player quit
+                    string winnerName;
+                    if (playerNumber == 1)
                     {
-                        _player1Wins++;
-                        Console.WriteLine($"[RoundSystem] ✅ PLAYER 1 WINS BY FORFEIT (Player 2 quit)");
-                    }
-                    else if (playerNumber == 1)
-                    {
-                        _player2Wins++;
+                        // Player 1 quit -> Player 2 wins
+                        _player2Wins = 2; // set to decisive score for display
+                        winnerName = player2State?.PlayerName ?? opponent;
                         Console.WriteLine($"[RoundSystem] ✅ PLAYER 2 WINS BY FORFEIT (Player 1 quit)");
                     }
+                    else
+                    {
+                        // Player 2 quit -> Player 1 wins
+                        _player1Wins = 2;
+                        winnerName = player1State?.PlayerName ?? username;
+                        Console.WriteLine($"[RoundSystem] ✅ PLAYER 1 WINS BY FORFEIT (Player 2 quit)");
+                    }
 
-                    // Mark this round as completed
-                    _roundsPlayed++;
+                    // Ensure roundsPlayed reflects match termination for history display
+                    _roundsPlayed = Math.Max(_roundsPlayed, 2);
 
                     Console.WriteLine($"[RoundSystem] After forfeit: roundsPlayed={_roundsPlayed}, P1wins={_player1Wins}, P2wins={_player2Wins}");
 
-                    // Check if match ends (first to 2 wins). Require at least 2 rounds played
-                    if ((_player1Wins >= 2 || _player2Wins >= 2) && _roundsPlayed >= 2)
-                    {
-                        EndMatch(_player1Wins >= 2 ? username : opponent, MatchEndReason.Forfeit);
-                        return;
-                    }
+                    // End match immediately with Forfeit reason
+                    EndMatch(winnerName, MatchEndReason.Forfeit);
+                    return;
                 }
                 catch (Exception ex)
                 {

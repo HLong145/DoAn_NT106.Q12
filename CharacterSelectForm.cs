@@ -150,9 +150,9 @@ namespace DoAn_NT106
                             var mapToUse = !string.IsNullOrEmpty(mapFromServer) ? mapFromServer : selectedMap;
 
                             var battleForm = new BattleForm(
-                                username,
+                                p1Name,  // ✅ SỬA: LUÔN là Player 1 từ server
                                 token,
-                                opponentName,
+                                p2Name,  // ✅ SỬA: LUÔN là Player 2 từ server
                                 p1Char,  // Player 1's selected character
                                 p2Char,  // Player 2's selected character
                                 mapToUse,
@@ -234,19 +234,18 @@ namespace DoAn_NT106
                                 }
                                 else
                                 {
-                                    // ✅ FALLBACK: CREATE OWN BATTLEFORM IF PLAYER 1 FAILED
+                                // ✅ FALLBACK: CREATE OWN BATTLEFORM IF PLAYER 1 FAILED
                                     Console.WriteLine($"[CharacterSelectForm] BattleForm still not found, creating fallback...");
                                 // For fallback or when creating as player2 with no existing BattleForm,
                                 // prefer server map
                                 var mapFromServer2 = GetStringOrNull(data, "selectedMap");
                                 var mapToUse2 = !string.IsNullOrEmpty(mapFromServer2) ? mapFromServer2 : selectedMap;
 
-                                // Create BattleForm with correct player ordering: pass Player1 name first
-                                // Create BattleForm for local player (player2): pass local username first
+                                // ✅ SỬA: LUÔN truyền p1Name trước, p2Name sau (thứ tự từ server)
                                 var battleForm = new BattleForm(
-                                        username,    // local player (player2)
+                                        p1Name,      // ✅ SỬA: LUÔN là Player 1
                                         token,
-                                        p1Name,      // opponent (player1 host)
+                                        p2Name,      // ✅ SỬA: LUÔN là Player 2
                                         p1Char,
                                         p2Char,
                                         mapToUse2,

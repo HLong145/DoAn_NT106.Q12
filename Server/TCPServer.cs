@@ -562,13 +562,17 @@ namespace DoAn_NT106.Server
                     case "LOBBY_START_GAME":
                         return HandleLobbyStartGame(request);
 
-                    // ✅ NEW: character selection in lobby
+                // ✅ NEW: character selection in lobby
                     case "SELECT_CHARACTER":
                         return HandleSelectCharacter(request);
 
                     // ✅ THÊM: character select back - tất cả 2 người quay lại lobby
                     case "CHARACTER_SELECT_BACK":
                         return HandleCharacterSelectBack(request);
+
+                    // ✅ THÊM: Gửi player number khi client hỏi (sau START_GAME broadcast)
+                    case "GET_MY_PLAYER_NUMBER":
+                        return HandleGetMyPlayerNumber(request);
 
                     case "START_GAME":
                         return HandleStartGame(request);
@@ -1761,6 +1765,55 @@ catch (Exception ex)
             catch (Exception ex)
             {
                 server.Log($"❌ HandleGameDamage error: {ex.Message}");
+                return CreateResponse(false, $"Error: {ex.Message}");
+            }
+        }
+
+        // ✅ THÊM: Get my player number (client hỏi sau START_GAME)
+        private string HandleGetMyPlayerNumber(Request request)
+        {
+            try
+            {
+                var roomCode = request.Data?["roomCode"]?.ToString();
+                var username = request.Data?["username"]?.ToString();
+
+                if (string.IsNullOrEmpty(roomCode) || string.IsNullOrEmpty(username))
+                {
+                    return CreateResponse(false, "Room code and username are required");
+                }
+
+                var lobby = lobbyManager.GetLobby(roomCode);
+                if (lobby == null)
+                {
+                    return CreateResponse(false, "Lobby not found");
+                }
+
+                int myPlayerNumber = 0;
+                if (lobby.Player1Username == username)
+                {
+                    myPlayerNumber = 1;
+                }
+                else if (lobby.Player2Username == username)
+                {
+                    myPlayerNumber = 2;
+                }
+                else
+                {
+                    return CreateResponse(false, "Player not in lobby");
+                }
+
+                server.Log($"✅ GET_MY_PLAYER_NUMBER: {username} in room {roomCode} is Player {myPlayerNumber}");
+
+                return CreateResponse(true, "Got player number", new Dictionary<string, object>
+                {
+                    { "myPlayerNumber", myPlayerNumber },
+                    { "player1", lobby.Player1Username },
+                    { "player2", lobby.Player2Username }
+                });
+            }
+            catch (Exception ex)
+            {
+                server.Log($"❌ HandleGetMyPlayerNumber error: {ex.Message}");
                 return CreateResponse(false, $"Error: {ex.Message}");
             }
         }

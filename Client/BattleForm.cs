@@ -589,13 +589,18 @@ namespace DoAn_NT106
         private string player1CharacterType = "girlknight";
         private string player2CharacterType = "girlknight";
 
-        public BattleForm(string username, string token, string opponent, string player1Character, string player2Character, string selectedMap = "battleground1", string roomCode = "000000", int myPlayerNumber = 0, bool isCreator = false)
+        private string player1Name;
+        private string player2Name;
+
+        public BattleForm(string player1NameParam, string token, string player2NameParam, string player1Character, string player2Character, string selectedMap = "battleground1", string roomCode = "000000", int myPlayerNumber = 0, bool isCreator = false)
         {
             InitializeComponent();
 
-            this.username = username;
+            this.player1Name = player1NameParam;     // ✅ SỬAR: Player 1 name từ server
+            this.player2Name = player2NameParam;     // ✅ SỬAR: Player 2 name từ server
+            this.username = myPlayerNumber == 1 ? player1NameParam : player2NameParam;  // ✅ Local player name
+            this.opponent = myPlayerNumber == 1 ? player2NameParam : player1NameParam;  // ✅ Opponent name
             this.token = token;
-            this.opponent = opponent;
             this.roomCode = roomCode;
             this.player1CharacterType = player1Character;
             this.player2CharacterType = player2Character;
@@ -723,7 +728,7 @@ namespace DoAn_NT106
             SetupGame();
             SetupEventHandlers();
 
-            this.Text = $"⚔️ Street Fighter - {username} vs {opponent}";
+            this.Text = $"⚔️ Street Fighter - {player1Name} vs {player2Name}";
             this.DoubleBuffered = true;
             this.KeyPreview = true;
         }
@@ -771,21 +776,12 @@ namespace DoAn_NT106
         /// <summary>
         /// ✅ THÊM: Method for Player 2 to join existing BattleForm
         /// </summary>
-        public void JoinAsPlayer2(string username, string token, string player1Character, string player2Character, int playerNumber)
+        public void JoinAsPlayer2(string player2Name, string token, string player1Character, string player2Character, int playerNumber)
         {
-            Console.WriteLine($"[BattleForm] JoinAsPlayer2 called: {username} as P{playerNumber}");
-            // Preserve the existing host identity as opponent before overwriting local username
-            try
-            {
-                var previousHost = this.username; // when this form was created by host, this.username holds host
-                if (!string.IsNullOrEmpty(previousHost) && !string.Equals(previousHost, username, StringComparison.OrdinalIgnoreCase))
-                {
-                    this.opponent = previousHost;
-                }
-            }
-            catch { }
-
-            this.username = username;
+            Console.WriteLine($"[BattleForm] JoinAsPlayer2 called: {player2Name} as P{playerNumber}");
+            // player1Name already set when Player 1 created the form
+            this.player2Name = player2Name;  // ✅ Set Player 2 name
+            this.username = player2Name;     // ✅ Local player is now Player 2
             this.token = token;
             this.player1CharacterType = player1Character;
             this.player2CharacterType = player2Character;
@@ -864,7 +860,7 @@ namespace DoAn_NT106
 
                 // ===== ✅ INITIALIZE NEW SYSTEMS =====
                 // 1. Initialize PlayerState instances - SỬA Y position
-                player1State = new PlayerState(username, player1CharacterType, 1)
+                player1State = new PlayerState(player1Name, player1CharacterType, 1)
                 {
                     X = 150, // ✅ SỬA: từ 300 → 150
                     Y = groundLevel - PLAYER_HEIGHT,
@@ -875,7 +871,7 @@ namespace DoAn_NT106
                 // ✅ SỬA: Set HP theo character type
                 SetPlayerHealth(player1State, player1CharacterType);
 
-                player2State = new PlayerState(opponent, player2CharacterType, 2)
+                player2State = new PlayerState(player2Name, player2CharacterType, 2)
                 {
                     X = 700, // ✅ SỬA: từ 600 → 900
                     Y = groundLevel - PLAYER_HEIGHT,
@@ -1009,11 +1005,11 @@ namespace DoAn_NT106
             {
                 lblPlayer1Name = new Label
                 {
-                    Text = username,
-                    Location = new Point(20, startY + 3 * (barHeight + spacing) + 90),  // ✅ Dịch xuống dưới portrait (nhỏ)
-                    Size = new Size(barWidth, 25),  // ✅ Tăng chiều cao từ 20 → 25
+                    Text = player1Name,  // ✅ SỬAR: Sử dụng player1Name thay vì username
+                    Location = new Point(20, startY + 3 * (barHeight + spacing) + 90),
+                    Size = new Size(barWidth, 25),
                     ForeColor = Color.Cyan,
-                    Font = new Font("Arial", 12, FontStyle.Bold),  // ✅ Tăng size từ 10 → 12
+                    Font = new Font("Arial", 12, FontStyle.Bold),
                     BackColor = Color.Transparent
                 };
                 this.Controls.Add(lblPlayer1Name);
@@ -1023,11 +1019,11 @@ namespace DoAn_NT106
             {
                 lblPlayer2Name = new Label
                 {
-                    Text = opponent,
-                    Location = new Point(screenWidth - barWidth - 20, startY + 3 * (barHeight + spacing) + 90),  // ✅ Dịch xuống dưới portrait (nhỏ)
-                    Size = new Size(barWidth, 25),  // ✅ Tăng chiều cao từ 20 → 25
+                    Text = player2Name,  // ✅ SỬAR: Sử dụng player2Name thay vì opponent
+                    Location = new Point(screenWidth - barWidth - 20, startY + 3 * (barHeight + spacing) + 90),
+                    Size = new Size(barWidth, 25),
                     ForeColor = Color.Orange,
-                    Font = new Font("Arial", 12, FontStyle.Bold),  // ✅ Tăng size từ 10 → 12
+                    Font = new Font("Arial", 12, FontStyle.Bold),
                     TextAlign = ContentAlignment.TopRight,
                     BackColor = Color.Transparent
                 };

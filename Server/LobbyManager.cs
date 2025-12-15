@@ -668,6 +668,8 @@ namespace DoAn_NT106.Server
                             roomCode = lobby.RoomCode,
                             player1 = lobby.Player1Username,
                             player2 = lobby.Player2Username,
+                            player1Number = 1,  // ✅ THÊM: Explicit player number
+                            player2Number = 2,  // ✅ THÊM: Explicit player number
                             player1Character = state.Player1Character,
                             player2Character = state.Player2Character
                             ,
