@@ -849,58 +849,20 @@ namespace DoAn_NT106
         /// <summary>Ends the match and shows winner dialog with specific reason</summary>
         private void EndMatch(string winner, MatchEndReason reason)
         {
-            _roundInProgress = false;
-            try { _roundTimer?.Stop(); } catch { }
-            try { gameTimer?.Stop(); } catch { }
-            try { walkAnimationTimer?.Stop(); } catch { }
-
-            // ✅ THÊM: Gửi GAME_END để server reset phòng
-            if (isOnlineMode && !string.IsNullOrEmpty(roomCode) && roomCode != "000000")
+            // Prevent duplicate end-match processing (forfeit/server race)
+            if (_matchEnded)
             {
-                try
-                {
-                    var _ = PersistentTcpClient.Instance.SendRequestAsync(
-                        "GAME_END",
-                        new Dictionary<string, object>
-                        {
-                            { "roomCode", roomCode },
-                            { "username", username }
-                        },
-                        5000  // 5 second timeout
-                    );
-                    Console.WriteLine($"[BattleForm] Sent GAME_END to server for room {roomCode}");
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[BattleForm] Failed to send GAME_END: {ex.Message}");
-                }
+                Console.WriteLine("[RoundSystem] EndMatch called but match already ended - ignoring duplicate call");
+                return;
             }
+            _matchEnded = true;
 
-            // Updated: Show MatchResultForm instead of MessageBox
-            var resultForm = new MatchResultForm();
-            resultForm.SetMatchResult(winner, winner == username ? opponent : username, _player1Wins, _player2Wins, reason, username, opponent);
-            resultForm.ReturnToLobbyRequested += (s, args) => {
-                // Return to lobby and close battle form
-                this.Close();
-            };
-            resultForm.ShowDialog();
-
-            // ✅ CLOSE battle form and return to lobby
-            this.Close();
-            
-            // ✅ Resume theme music when returning to MainForm
-            try { DoAn_NT106.SoundManager.PlayMusic(DoAn_NT106.Client.BackgroundMusic.ThemeMusic, loop: true); } catch { }
-        }
-
-        /// <summary>Ends the match as a draw and shows dialog</summary>
-        private void EndMatchDraw()
-        {
             _roundInProgress = false;
             try { _roundTimer?.Stop(); } catch { }
             try { gameTimer?.Stop(); } catch { }
             try { walkAnimationTimer?.Stop(); } catch { }
 
-            // ✅ THÊM: Gửi GAME_END để server reset phòng
+            // Send GAME_END to server so lobby resets
             if (isOnlineMode && !string.IsNullOrEmpty(roomCode) && roomCode != "000000")
             {
                 try
@@ -922,19 +884,76 @@ namespace DoAn_NT106
                 }
             }
 
-            // Updated: Show MatchResultForm instead of MessageBox
-            var resultForm = new MatchResultForm();
-            resultForm.SetMatchResultDraw(username, opponent, _player1Wins, _player2Wins);
-            resultForm.ReturnToLobbyRequested += (s, args) => {
-                // Return to lobby and close battle form
-                this.Close();
-            };
-            resultForm.ShowDialog();
+            // Show MatchResultForm once
+            try
+            {
+                var resultForm = new MatchResultForm();
+                resultForm.SetMatchResult(winner, winner == username ? opponent : username, _player1Wins, _player2Wins, reason, username, opponent);
+                resultForm.ReturnToLobbyRequested += (s, args) => {
+                    try { this.Close(); } catch { }
+                };
+                resultForm.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[RoundSystem] Error showing MatchResultForm: {ex.Message}");
+            }
 
-            // Close battle form and return to lobby
-            this.Close();
+            // Ensure battle form closes once after dialog
+            try { this.Close(); } catch { }
 
-            // Resume theme music when returning to MainForm
+            try { DoAn_NT106.SoundManager.PlayMusic(DoAn_NT106.Client.BackgroundMusic.ThemeMusic, loop: true); } catch { }
+        }
+
+        /// <summary>Ends the match as a draw and shows dialog</summary>
+        private void EndMatchDraw()
+        {
+            if (_matchEnded)
+            {
+                Console.WriteLine("[RoundSystem] EndMatchDraw called but match already ended - ignoring duplicate call");
+                return;
+            }
+            _matchEnded = true;
+
+            _roundInProgress = false;
+            try { _roundTimer?.Stop(); } catch { }
+            try { gameTimer?.Stop(); } catch { }
+            try { walkAnimationTimer?.Stop(); } catch { }
+
+            if (isOnlineMode && !string.IsNullOrEmpty(roomCode) && roomCode != "000000")
+            {
+                try
+                {
+                    var _ = PersistentTcpClient.Instance.SendRequestAsync(
+                        "GAME_END",
+                        new Dictionary<string, object>
+                        {
+                            { "roomCode", roomCode },
+                            { "username", username }
+                        },
+                        5000
+                    );
+                    Console.WriteLine($"[BattleForm] Sent GAME_END to server for room {roomCode}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[BattleForm] Failed to send GAME_END: {ex.Message}");
+                }
+            }
+
+            try
+            {
+                var resultForm = new MatchResultForm();
+                resultForm.SetMatchResultDraw(username, opponent, _player1Wins, _player2Wins);
+                resultForm.ReturnToLobbyRequested += (s, args) => { try { this.Close(); } catch { } };
+                resultForm.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[RoundSystem] Error showing MatchResultForm draw: {ex.Message}");
+            }
+
+            try { this.Close(); } catch { }
             try { DoAn_NT106.SoundManager.PlayMusic(DoAn_NT106.Client.BackgroundMusic.ThemeMusic, loop: true); } catch { }
         }
 
@@ -944,13 +963,21 @@ namespace DoAn_NT106
             // Lock to prevent concurrent modification during round handling
             lock (_roundLock)
             {
-                if (_roundEnding) 
+                if (_roundEnding)
                 {
                     Console.WriteLine($"[RoundSystem] Ignored forfeit - already handling round end");
                     return;
                 }
 
+                // If match already ended globally, ignore
+                if (_matchEnded)
+                {
+                    Console.WriteLine("[RoundSystem] Ignored forfeit - match already ended");
+                    return;
+                }
+
                 _roundEnding = true;
+                _matchEnded = true; // mark to avoid duplicate dialogs
 
                 try
                 {

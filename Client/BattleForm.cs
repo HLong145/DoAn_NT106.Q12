@@ -12,6 +12,8 @@ namespace DoAn_NT106
 {
     public partial class BattleForm : Form
     {
+        // Guard to prevent duplicate match end handling (forfeit/server race)
+        private bool _matchEnded = false;
         private string username;
         private string token;
         private string opponent;
