@@ -880,101 +880,8 @@ namespace DoAn_NT106
             var resultForm = new MatchResultForm();
             resultForm.SetMatchResult(winner, winner == username ? opponent : username, _player1Wins, _player2Wins, reason, username, opponent);
             resultForm.ReturnToLobbyRequested += (s, args) => {
-                // Return to lobby and close battle form — behave like Back to Lobby in MainMenuForm
-                try
-                {
-                    try { gameTimer?.Stop(); } catch { }
-                    try { walkAnimationTimer?.Stop(); } catch { }
-
-                    // If online mode, notify server we are leaving the room
-                    if (isOnlineMode)
-                    {
-                        try
-                        {
-                            var tcp = DoAn_NT106.Services.PersistentTcpClient.Instance;
-                            _ = System.Threading.Tasks.Task.Run(async () =>
-                            {
-                                try
-                                {
-                                    var r = await tcp.LeaveRoomAsync(roomCode, username);
-                                    Console.WriteLine($"[BattleForm] LeaveRoomAsync: {r.Success} - {r.Message}");
-                                }
-                                catch (Exception ex)
-                                {
-                                    Console.WriteLine($"[BattleForm] LeaveRoomAsync error: {ex.Message}");
-                                }
-                            });
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"[BattleForm] Error sending leave room: {ex.Message}");
-                        }
-                    }
-
-                    // Close battle form
-                    try { this.Close(); } catch { }
-
-                    // Show JoinRoomForm (return to lobby)
-                    try
-                    {
-                        // Close any existing GameLobbyForm instances for a clean return to lobby
-                        try
-                        {
-                            var openLobbies = Application.OpenForms.OfType<PixelGameLobby.GameLobbyForm>().ToList();
-                            foreach (var lf in openLobbies)
-                            {
-                                try { lf.Close(); } catch { }
-                            }
-                        }
-                        catch { }
-
-                        // If offline, prefer to show owner JoinRoomForm if present
-                        if (!isOnlineMode)
-                        {
-                            if (this.Owner is PixelGameLobby.JoinRoomForm ownerJoin)
-                            {
-                                try { ownerJoin.Show(); ownerJoin.BringToFront(); } catch { }
-                            }
-                            else
-                            {
-                                var existing = Application.OpenForms.OfType<PixelGameLobby.JoinRoomForm>().FirstOrDefault();
-                                if (existing != null) { try { existing.Show(); existing.BringToFront(); } catch { } }
-                            }
-                        }
-                        else
-                        {
-                            // Online mode: show/join JoinRoomForm so player sees lobby list
-                            var existing = Application.OpenForms.OfType<PixelGameLobby.JoinRoomForm>().FirstOrDefault();
-                            if (existing != null)
-                            {
-                                try { if (existing.WindowState == FormWindowState.Minimized) existing.WindowState = FormWindowState.Normal; existing.Show(); existing.BringToFront(); } catch { }
-                            }
-                            else
-                            {
-                                try
-                                {
-                                    var join = new PixelGameLobby.JoinRoomForm(username, token)
-                                    {
-                                        StartPosition = FormStartPosition.CenterScreen
-                                    };
-                                    join.Show();
-                                }
-                                catch (Exception ex)
-                                {
-                                    Console.WriteLine($"[BattleForm] Error showing JoinRoomForm: {ex.Message}");
-                                }
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"[BattleForm] Error returning to lobby: {ex.Message}");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[BattleForm] ReturnToLobbyRequested handler error: {ex.Message}");
-                }
+                // Return to lobby and close battle form
+                this.Close();
             };
             resultForm.ShowDialog();
 
@@ -1019,70 +926,8 @@ namespace DoAn_NT106
             var resultForm = new MatchResultForm();
             resultForm.SetMatchResultDraw(username, opponent, _player1Wins, _player2Wins);
             resultForm.ReturnToLobbyRequested += (s, args) => {
-                // Return to lobby and close battle form — behave like Back to Lobby in MainMenuForm
-                try
-                {
-                    try { gameTimer?.Stop(); } catch { }
-                    try { walkAnimationTimer?.Stop(); } catch { }
-
-                    if (isOnlineMode)
-                    {
-                        try
-                        {
-                            var tcp = DoAn_NT106.Services.PersistentTcpClient.Instance;
-                            _ = System.Threading.Tasks.Task.Run(async () =>
-                            {
-                                try
-                                {
-                                    var r = await tcp.LeaveRoomAsync(roomCode, username);
-                                    Console.WriteLine($"[BattleForm] LeaveRoomAsync: {r.Success} - {r.Message}");
-                                }
-                                catch (Exception ex)
-                                {
-                                    Console.WriteLine($"[BattleForm] LeaveRoomAsync error: {ex.Message}");
-                                }
-                            });
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"[BattleForm] Error sending leave room: {ex.Message}");
-                        }
-                    }
-
-                    try { this.Close(); } catch { }
-
-                    try
-                    {
-                        var existing = Application.OpenForms.OfType<PixelGameLobby.JoinRoomForm>().FirstOrDefault();
-                        if (existing != null)
-                        {
-                            try { if (existing.WindowState == FormWindowState.Minimized) existing.WindowState = FormWindowState.Normal; existing.Show(); existing.BringToFront(); } catch { }
-                        }
-                        else
-                        {
-                            try
-                            {
-                                var join = new PixelGameLobby.JoinRoomForm(username, token)
-                                {
-                                    StartPosition = FormStartPosition.CenterScreen
-                                };
-                                join.Show();
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine($"[BattleForm] Error showing JoinRoomForm: {ex.Message}");
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"[BattleForm] Error returning to lobby: {ex.Message}");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[BattleForm] ReturnToLobbyRequested handler error: {ex.Message}");
-                }
+                // Return to lobby and close battle form
+                this.Close();
             };
             resultForm.ShowDialog();
 
