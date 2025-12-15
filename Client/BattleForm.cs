@@ -1205,6 +1205,17 @@ namespace DoAn_NT106
                 ShowHitEffect
             );
 
+            // ? NEW: Update opponent projectiles (ch? v?, không gây damage)
+            projectileManager.UpdateOpponentProjectiles(
+                (playerNum, x, y, _) =>
+                {
+                    var p = playerNum == 1 ? player1State : player2State;
+                    // Use actual configured hurtbox
+                    var hb = GetPlayerHitbox(p);
+                    return new Rectangle(hb.X, hb.Y, hb.Width, hb.Height);
+                }
+            );
+
             projectileManager.UpdateSpellAnimation();
 
             // ===== OLD PROJECTILE CODE (compatibility) =====
@@ -1503,6 +1514,108 @@ namespace DoAn_NT106
                         // Nếu animation thay đổi (và không phải stand → stand)
                         else if (animationChanged)
                         {
+                            // ✅ NEW: Phát hiện skill để spawn opponent projectile
+                            if (action == "fireball")
+                            {
+                                Console.WriteLine($"[UDP] 🎯 Opponent {opponentNum} used skill (fireball)!");
+                                
+                                try
+                                {
+                                    // Xác định character type của opponent
+                                    string oppCharType = opponentNum == 1 ? player1CharacterType : player2CharacterType;
+                                    
+                                    // Chỉ Warrior và Bringer of Death có projectile/spell
+                                    if (oppCharType == "warrior")
+                                    {
+                                        // ✅ Warrior projectile: tính toán spawn từ hit frame (frame 3)
+                                        // Frame timing: 7fps, mỗi frame = 1000/7 ≈ 143ms
+                                        // Hit frame 3 = 3 * 143 = 429ms
+                                        int delayBeforeSpawn = 429; // ms
+                                        
+                                        var spawnTimer = new System.Windows.Forms.Timer { Interval = delayBeforeSpawn };
+                                        spawnTimer.Tick += (s, e) =>
+                                        {
+                                            spawnTimer.Stop();
+                                            spawnTimer.Dispose();
+                                            
+                                            try
+                                            {
+                                                var oppHurtbox = GetPlayerHitbox(opp);
+                                                
+                                                // Tính hướng dựa trên facing, KHÔNG so sánh position
+                                                int projDirection = opp.Facing == "right" ? 1 : -1;
+                                                
+                                                int projStartX, projStartY;
+                                                if (projDirection > 0)
+                                                {
+                                                    // Bắn phải: từ bên phải hurtbox
+                                                    projStartX = oppHurtbox.X + oppHurtbox.Width;
+                                                }
+                                                else
+                                                {
+                                                    // Bắn trái: từ bên trái hurtbox
+                                                    projStartX = oppHurtbox.X - 160;
+                                                }
+                                                projStartY = oppHurtbox.Y + (oppHurtbox.Height / 2) - (160 / 2);
+                                                
+                                                Console.WriteLine($"[UDP] Spawning warrior projectile at X={projStartX}, Y={projStartY}, dir={projDirection}, facing={opp.Facing}");
+                                                projectileManager.SpawnOpponentWarriorProjectile(projStartX, projStartY, projDirection, opponentNum);
+                                            }
+                                            catch (Exception ex)
+                                            {
+                                                Console.WriteLine($"[UDP] Error spawning warrior projectile: {ex.Message}");
+                                            }
+                                        };
+                                        spawnTimer.Start();
+                                    }
+                                    else if (oppCharType == "bringerofdeath")
+                                    {
+                                        // ✅ Bringer of Death spell: spawn từ hit frame (frame 6)
+                                        // Frame timing: 8fps, mỗi frame = 1000/8 = 125ms
+                                        // Hit frame 6 = 6 * 125 = 750ms
+                                        int delayBeforeSpawn = 750; // ms
+                                        
+                                        var spawnTimer = new System.Windows.Forms.Timer { Interval = delayBeforeSpawn };
+                                        spawnTimer.Tick += (s, e) =>
+                                        {
+                                            spawnTimer.Stop();
+                                            spawnTimer.Dispose();
+                                            
+                                            try
+                                            {
+                                                // ✅ Spell xuất hiện tại vị trí của MÌNH (canh theo hitbox của mình)
+                                                // Vì spell bringer là ổn định tại một vị trí, không di chuyển
+                                                var meState = myPlayerNumber == 1 ? player1State : player2State;
+                                                var meHurtbox = GetPlayerHitbox(meState);
+                                                
+                                                int centerX = meHurtbox.X + meHurtbox.Width / 2;
+                                                int centerY = meHurtbox.Y + meHurtbox.Height / 2;
+                                                
+                                                // Apply same spell offsets as local
+                                                int projStartX = centerX - 10 + 20 - 50; // same calculation as SpawnSpell
+                                                int projStartY = centerY - 200 + 20;
+                                                
+                                                Console.WriteLine($"[UDP] Spawning bringer spell at X={projStartX}, Y={projStartY} (mình, hitbox canh)");
+                                                projectileManager.SpawnOpponentSpell(projStartX, projStartY, opponentNum);
+                                            }
+                                            catch (Exception ex)
+                                            {
+                                                Console.WriteLine($"[UDP] Error spawning bringer spell: {ex.Message}");
+                                            }
+                                        };
+                                        spawnTimer.Start();
+                                    }
+                                    else
+                                    {
+                                        // ❌ Goatman và Knight Girl KHÔNG có projectile - bỏ qua
+                                        Console.WriteLine($"[UDP] ⏭️ {oppCharType} doesn't have projectile (only Warrior and BringerOfDeath do)");
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine($"[UDP] Error handling opponent skill: {ex.Message}");
+                                }
+                            }
                             // Nếu thay đổi sang walk/jump từ animation khác (lần đầu)
                             if (isWalkOrJump && !currentIsWalkOrJump)
                             {
@@ -1840,6 +1953,13 @@ namespace DoAn_NT106
 
             e.Handled = true;
         }
+
+        private BattleForm Refresh()
+        {
+            Console.WriteLine("Form refreshed"); return this;
+        } // chát chơi màu mè quá chắc phải làm lại cả project
+
+
 
         private void BattleForm_KeyUp(object sender, KeyEventArgs e)
         {
