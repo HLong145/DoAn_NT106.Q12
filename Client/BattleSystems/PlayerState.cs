@@ -39,6 +39,8 @@ namespace DoAn_NT106.Client.BattleSystems
         public int Stamina { get; set; } = 100;
         public int Mana { get; set; } = 0; // ✅ Khởi đầu với 0 (không phải 100)
 
+        public int AttackCount { get; set; } = 0;
+
         // Dash state
         public int DashDirection { get; set; }
 

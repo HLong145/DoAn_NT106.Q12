@@ -1,6 +1,9 @@
 ﻿using DoAn_NT106.Services;
+using DoAn_NT106.Client;
 using System;
 using System.Drawing;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -37,6 +40,9 @@ namespace DoAn_NT106
 
             SetupFloatingAnimation();                         
             tcpClient = PersistentTcpClient.Instance;         
+            tcpClient = PersistentTcpClient.Instance;
+            this.Load += FormDangNhap_Load;
+            tcpClient.OnDisconnected += HandleServerDisconnected;
 
             if (!isAutoLoginPerformed)
             {
@@ -91,6 +97,42 @@ namespace DoAn_NT106
             base.OnShown(e);
             this.BringToFront();
             this.Focus();
+        }
+
+        private async void FormDangNhap_Load(object sender, EventArgs e)
+        {
+            await ConnectionHelper.CheckConnectionOnLoadAsync(
+            this,
+            onSuccess: () => SetControlsEnabled(true),  // Enable lại khi thành công
+            onFail: null
+            );// Mặc định sẽ hiện dialog retry/cancel
+        }
+
+        private void HandleServerDisconnected(string message)
+        {
+            ConnectionHelper.HandleDisconnect(
+                this,
+                message,
+                onRetrySuccess: () => SetControlsEnabled(true),
+                onCancel: () => this.Close()
+            );
+        }
+        private void SetControlsEnabled(bool enabled)
+        {
+            if (this.InvokeRequired)
+            {
+                this.Invoke(new Action(() => SetControlsEnabled(enabled)));
+                return;
+            }
+
+            btn_Login.Enabled = enabled;
+            btn_Register.Enabled = enabled;
+            btn_Forgot.Enabled = enabled;
+            tb_Username.Enabled = enabled;
+            tb_Password.Enabled = enabled;
+            chk_Remember.Enabled = enabled;
+            chk_ShowPassword.Enabled = enabled;
+            chk_Captcha.Enabled = enabled;
         }
 
         #endregion
@@ -387,6 +429,11 @@ namespace DoAn_NT106
             if (e.CloseReason == CloseReason.UserClosing)
             {
                 e.Cancel = false;
+            }
+
+            if (tcpClient != null)
+            {
+                tcpClient.OnDisconnected -= HandleServerDisconnected;
             }
 
             base.OnFormClosing(e);

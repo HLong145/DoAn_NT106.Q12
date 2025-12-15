@@ -102,7 +102,6 @@ namespace PixelGameLobby
 
         #region Form Events
 
-        // FORM EVENTS
         private async void GameLobbyForm_Load(object sender, EventArgs e)
         {
             // Đăng ký sự kiên
@@ -115,6 +114,9 @@ namespace PixelGameLobby
 
         private async void GameLobbyForm_FormClosing(object sender, FormClosingEventArgs e)
         {
+            // Unsubscribe events ngay lập tức
+            TcpClient.OnBroadcast -= HandleBroadcast;
+
             // Tránh gọi nhiều lần
             if (hasLeft)
             {
@@ -135,16 +137,23 @@ namespace PixelGameLobby
                 {
                     await LeaveRoomSafelyAsync();
                     isLeaving = true;
+
+                    // Mở joinroom trước khi đóng
+                    OpenNewJoinRoomForm();
+
                     this.Close();
                 }
 
                 return;
             }
 
-            // Cleanup (xoá sự kiện)
-            TcpClient.OnBroadcast -= HandleBroadcast;
-            TcpClient.OnDisconnected -= HandleDisconnected;
+            // Nếu đang leave, mở JoinRoomForm mới
+            if (isLeaving && !hasLeft)
+            {
+                OpenNewJoinRoomForm();
+            }
         }
+
 
         #endregion
 
@@ -242,6 +251,24 @@ namespace PixelGameLobby
             catch (Exception ex)
             {
                 Console.WriteLine($"[GameLobby] Leave error: {ex.Message}");
+            }
+        }
+
+        private void OpenNewJoinRoomForm()
+        {
+            try
+            {
+                Console.WriteLine("[GameLobby] Opening new JoinRoomForm...");
+
+                var joinRoomForm = new JoinRoomForm(username, token);
+                joinRoomForm.StartPosition = FormStartPosition.CenterScreen;
+                joinRoomForm.Show();
+
+                Console.WriteLine("[GameLobby] ✅ New JoinRoomForm opened");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GameLobby] ❌ Error opening JoinRoomForm: {ex.Message}");
             }
         }
 
@@ -647,10 +674,6 @@ namespace PixelGameLobby
                 catch { }
                 return;
             }
-
-            MessageBox.Show($"Disconnected from server: {reason}", "Disconnected",
-                MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            this.Close();
         }
 
         #endregion
@@ -819,15 +842,23 @@ namespace PixelGameLobby
         {
             if (hasLeft) return;
 
-            var result = MessageBox.Show("Are you sure you want to leave?", "Confirm",
-                MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            var result = MessageBox.Show(
+                "Are you sure you want to leave?",
+                "Confirm",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
 
             if (result == DialogResult.Yes)
             {
                 leaveRoomButton.Enabled = false;
                 leaveRoomButton.Text = "LEAVING...";
+
                 await LeaveRoomSafelyAsync();
                 isLeaving = true;
+
+                // Mở Joinroom mới trước khi đóng
+                OpenNewJoinRoomForm();
+
                 this.Close();
             }
         }
