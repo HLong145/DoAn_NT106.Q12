@@ -319,7 +319,42 @@ namespace DoAn_NT106.Server
                     }
 
                     Log($"🎮 Host {username} starting game in lobby {roomCode}");
+
+                    // Ensure RoomManager starts the game state and UDP match is created BEFORE broadcasting
+                    try
+                    {
+                        if (roomManager != null)
+                        {
+                            // Initialize game state in RoomManager first
+                            bool started = roomManager.StartGame(roomCode);
+                            Log(started ? "✅ RoomManager.StartGame succeeded" : "⚠️ RoomManager.StartGame failed or returned false");
+
+                            // Try to create UDP match via RoomManager's UDPGameServer reference
+                            var udp = roomManager.UdpGameServer;
+                            if (udp != null)
+                            {
+                                var p1 = lobby.Player1Username;
+                                var p2 = lobby.Player2Username;
+                                var res = udp.CreateMatch(roomCode, p1, p2);
+                                if (res.Success)
+                                {
+                                    Log($"✅ UDP Match created for room {roomCode} (via LobbyManager)");
+                                }
+                                else
+                                {
+                                    Log($"⚠️ UDP CreateMatch failed for room {roomCode}: {res.Message}");
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"❌ Error starting room/udp from LobbyManager: {ex.Message}");
+                    }
+
+                    // Now broadcast START (clients will receive after UDP match exists)
                     BroadcastStartGame(lobby);
+
                     return (true, "Game started");
                 }
             }

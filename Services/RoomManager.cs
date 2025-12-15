@@ -368,37 +368,53 @@ namespace DoAn_NT106.Server
                     try
                     {
                         string opponent = wasPlayer1 ? room.Player2Username : room.Player1Username;
-                        if (!string.IsNullOrEmpty(opponent))
+
+                        // Construct GAME_ENDED payload (winner is the remaining player)
+                        var winner = opponent;
+                        var gameEndedPayload = new
                         {
-                            var opponentClient = GetClientHandler(roomCode, opponent);
-                            var payload = new
-                            {
-                                Action = "GAME_ENDED",
-                                Data = new { roomCode = roomCode, winner = opponent, reason = "opponent_left" }
-                            };
-                            string json = System.Text.Json.JsonSerializer.Serialize(payload);
-                            opponentClient?.SendMessage(json);
-                            Log($"📢 Notified opponent {opponent} of forfeit win in room {roomCode}");
+                            Action = "GAME_ENDED",
+                            Data = new { roomCode = roomCode, winner = winner, reason = "opponent_left" }
+                        };
+                        string gameEndedJson = System.Text.Json.JsonSerializer.Serialize(gameEndedPayload);
+
+                        // Notify both clients (if connected) so UI can handle end-of-match consistently
+                        try
+                        {
+                            if (room.Player1Client != null)
+                                room.Player1Client.SendMessage(gameEndedJson);
+                            if (room.Player2Client != null)
+                                room.Player2Client.SendMessage(gameEndedJson);
+
+                            Log($"📢 Broadcasted GAME_ENDED for room {roomCode} (winner={winner})");
+                        }
+                        catch (Exception ex)
+                        {
+                            Log($"⚠️ Error broadcasting GAME_ENDED: {ex.Message}");
                         }
 
-                        // Try to end UDP match
+                        // End UDP match if running
                         try
                         {
                             var udpRes = UdpGameServer?.EndMatch(roomCode);
                             if (udpRes != null && udpRes.Value.Success)
                                 Log($"✅ UDP Match ended for room {roomCode} due to player leave");
+                            else if (udpRes != null)
+                                Log($"⚠️ UDP EndMatch returned: {udpRes.Value.Message}");
                         }
                         catch (Exception ex)
                         {
                             Log($"❌ Error ending UDP match for {roomCode}: {ex.Message}");
                         }
 
-                        // Reset lobby state
+                        // Reset lobby for rematch/return to lobby
                         try
                         {
                             var reset = LobbyManager?.ResetLobbyForRematch(roomCode);
                             if (reset != null && reset.Value.Success)
                                 Log($"✅ Lobby {roomCode} reset after forfeit");
+                            else if (reset != null)
+                                Log($"⚠️ ResetLobbyForRematch returned: {reset.Value.Message}");
                         }
                         catch (Exception ex)
                         {

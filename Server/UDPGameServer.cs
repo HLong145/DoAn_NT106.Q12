@@ -115,6 +115,32 @@ namespace DoAn_NT106.Server
                     LastActivity = DateTime.Now
                 };
 
+                // If a match for this room already exists, treat CreateMatch as idempotent
+                // - update usernames and timestamps
+                // - clear stored endpoints so new clients can re-register
+                if (activeMatches.TryGetValue(roomCode, out var existing))
+                {
+                    existing.Player1Username = player1;
+                    existing.Player2Username = player2;
+                    existing.CreatedAt = DateTime.Now;
+                    existing.LastActivity = DateTime.Now;
+
+                    // Remove any stored endpoints associated with this room so reconnect works cleanly
+                    var toRemove = playerEndpoints
+                        .Where(kvp => kvp.Value.RoomCode == roomCode)
+                        .Select(kvp => kvp.Key)
+                        .ToList();
+
+                    foreach (var key in toRemove)
+                        playerEndpoints.TryRemove(key, out _);
+
+                    existing.Player1Endpoint = null;
+                    existing.Player2Endpoint = null;
+
+                    Log($"?? Match updated/recreated: {roomCode} ({player1} vs {player2})");
+                    return (true, $"UDP ready on port {udpPort}");
+                }
+
                 if (activeMatches.TryAdd(roomCode, match))
                 {
                     Log($"?? Match created: {roomCode} ({player1} vs {player2})");
@@ -175,8 +201,38 @@ namespace DoAn_NT106.Server
             {
                 while (!token.IsCancellationRequested && isRunning)
                 {
-                    var result = await udpSocket.ReceiveAsync();
-                    _ = Task.Run(() => ProcessPacket(result.Buffer, result.RemoteEndPoint), token);
+                    try
+                    {
+                        var result = await udpSocket.ReceiveAsync();
+                        _ = Task.Run(() => ProcessPacket(result.Buffer, result.RemoteEndPoint), token);
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        // socket closed while stopping
+                        break;
+                    }
+                    catch (System.Net.Sockets.SocketException sex)
+                    {
+                        // Transient socket errors (ICMP unreachable, etc.) - log and continue
+                        if (!token.IsCancellationRequested && isRunning)
+                        {
+                            Log($"? UDP receive socket error (recovering): {sex.Message}");
+                            try { await Task.Delay(100, token); } catch { }
+                            continue;
+                        }
+                        break;
+                    }
+                    catch (Exception exInner)
+                    {
+                        // Unexpected - log and short delay then continue
+                        if (!token.IsCancellationRequested && isRunning)
+                        {
+                            Log($"? UDP receive transient error (recovering): {exInner.Message}");
+                            try { await Task.Delay(100, token); } catch { }
+                            continue;
+                        }
+                        break;
+                    }
                 }
             }
             catch (ObjectDisposedException)
@@ -268,7 +324,8 @@ namespace DoAn_NT106.Server
                     try
                     {
                         // Inspect action field if present and handle damage notifications specially
-                        int actionLenIndex = 22; // matches UDPGameClient.BuildPacket
+                        // NOTE: actionLen is stored at byte index 21 and action starts at index 22
+                        int actionLenIndex = 21; // matches UDPGameClient.BuildPacket (actionLen @21)
                         if (data.Length > actionLenIndex)
                         {
                             int actionLen = data[actionLenIndex];

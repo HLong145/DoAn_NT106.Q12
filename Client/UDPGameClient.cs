@@ -260,7 +260,8 @@ namespace DoAn_NT106.Client
                 byte[] actionBytes = System.Text.Encoding.UTF8.GetBytes(currentAction);
                 int actionLen = Math.Min(actionBytes.Length, 20); // Max 20 chars
 
-                byte[] packet = new byte[23 + actionLen];
+                // packet length = header (22 bytes) + actionLen
+                byte[] packet = new byte[22 + actionLen];
 
                 // RoomCode (6 bytes, padded with nulls)
                 byte[] roomCodeBytes = System.Text.Encoding.UTF8.GetBytes(roomCode.PadRight(6, '\0'));

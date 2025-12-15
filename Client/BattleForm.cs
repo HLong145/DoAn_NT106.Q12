@@ -1916,123 +1916,73 @@ namespace DoAn_NT106
             // Escape/menu handling remains shared for all modes
             if (e.KeyCode == Keys.Escape)
             {
-                // Open main menu: Back to Lobby (go to PixelGameLobbyForm) or Continued
                 try
                 {
                     if (!isPaused)
                     {
                         PauseGame();
-                        using (var menu = new MainMenuForm(roomCode))  // ✅ TRUYỀN roomCode
+                        using (var menu = new MainMenuForm(roomCode))
                         {
                             var res = menu.ShowDialog(this);
                             if (res == DialogResult.OK)
                             {
-                                // Back to Lobby: stop timers and return to appropriate lobby
                                 try { gameTimer?.Stop(); } catch { }
                                 try { walkAnimationTimer?.Stop(); } catch { }
 
+                                // Close this BattleForm and return to lobby UI
                                 this.Close();
 
-                                // If offline mode (roomCode default "000000") -> try to show existing JoinRoomForm owner
                                 bool isOffline = string.IsNullOrEmpty(roomCode) || roomCode == "000000";
                                 if (isOffline)
                                 {
-                                    // Prefer showing the owner JoinRoomForm if provided
                                     if (this.Owner is PixelGameLobby.JoinRoomForm ownerJoin)
                                     {
-                                        try
-                                        {
-                                            ownerJoin.Show();
-                                            ownerJoin.BringToFront();
-                                        }
-                                        catch
-                                        {
-                                            // try to find any existing JoinRoomForm in open forms
-                                            var existing = Application.OpenForms.OfType<PixelGameLobby.JoinRoomForm>().FirstOrDefault();
-                                            if (existing != null)
-                                            {
-                                                existing.Show();
-                                                existing.BringToFront();
-                                            }
-                                            else
-                                            {
-                                                // No JoinRoomForm found; don't create UI duplicates. Log and exit to caller.
-                                                Console.WriteLine("[BattleForm] No JoinRoomForm owner and none found in OpenForms. Skipping creation.");
-                                            }
-                                        }
+                                        try { ownerJoin.Show(); ownerJoin.BringToFront(); }
+                                        catch { Console.WriteLine("[BattleForm] Failed to show owner JoinRoomForm"); }
                                     }
                                     else
                                     {
-                                        var existing = Application.OpenForms.OfType<PixelGameLobby.JoinRoomForm>().FirstOrDefault();
-                                        if (existing != null)
-                                        {
-                                            existing.Show();
-                                            existing.BringToFront();
-                                        }
-                                        else
-                                        {
-                                            // No existing JoinRoomForm found. Do not create a new one to avoid duplicates.
-                                            Console.WriteLine("[BattleForm] No existing JoinRoomForm to return to; skipping creation.");
-                                        }
+                                        var existingJoin = Application.OpenForms.OfType<PixelGameLobby.JoinRoomForm>().FirstOrDefault();
+                                        if (existingJoin != null) { existingJoin.Show(); existingJoin.BringToFront(); }
+                                        else { Console.WriteLine("[BattleForm] No existing JoinRoomForm found for offline mode; skipping creation."); }
                                     }
                                 }
                                 else
                                 {
-                                    // Online room lobby
                                     try
                                     {
                                         var tcp = DoAn_NT106.Services.PersistentTcpClient.Instance;
-                                        // Leave the lobby on server in background
                                         _ = System.Threading.Tasks.Task.Run(async () =>
                                         {
-                                            try
-                                            {
-                                                var r = await tcp.LeaveRoomAsync(roomCode, username);
-                                                Console.WriteLine($"[BattleForm] LeaveRoomAsync: {r.Success} - {r.Message}");
-                                            }
-                                            catch (Exception ex)
-                                            {
-                                                Console.WriteLine($"[BattleForm] LeaveRoomAsync error: {ex.Message}");
-                                            }
+                                            try { var r = await tcp.LeaveRoomAsync(roomCode, username); Console.WriteLine($"[BattleForm] LeaveRoomAsync: {r.Success} - {r.Message}"); }
+                                            catch (Exception ex) { Console.WriteLine($"[BattleForm] LeaveRoomAsync error: {ex.Message}"); }
                                         });
 
-                                        // Close any open lobby windows (GameLobby / PixelGameLobby) so we return cleanly
-                                        try
+                                        PixelGameLobby.GameLobbyForm lobbyForm = null;
+                                        foreach (Form f in Application.OpenForms)
                                         {
-                                            var open = Application.OpenForms.OfType<Form>().ToList();
-                                            foreach (var f in open)
+                                            if (f is PixelGameLobby.GameLobbyForm gf)
                                             {
-                                                var t = f.GetType().Name ?? "";
-                                                if (t.Contains("GameLobby") || t.Contains("PixelGameLobby") || t.Contains("LobbyForm"))
+                                                try
                                                 {
-                                                    try { if (!f.IsDisposed && f != this) f.Close(); } catch { }
+                                                    var field = f.GetType().GetField("roomCode", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
+                                                    if (field != null)
+                                                    {
+                                                        var val = field.GetValue(f) as string;
+                                                        if (!string.IsNullOrEmpty(val) && string.Equals(val, roomCode, StringComparison.OrdinalIgnoreCase)) { lobbyForm = gf; break; }
+                                                    }
                                                 }
+                                                catch { }
+                                                if (lobbyForm == null) lobbyForm = gf;
                                             }
                                         }
-                                        catch { }
 
-                                        // Return to JoinRoomForm so player sees lobby list
-                                        try
+                                        if (lobbyForm != null) { try { if (lobbyForm.WindowState == FormWindowState.Minimized) lobbyForm.WindowState = FormWindowState.Normal; lobbyForm.Show(); lobbyForm.BringToFront(); } catch (Exception ex) { Console.WriteLine($"[BattleForm] Error showing GameLobbyForm: {ex.Message}"); } }
+                                        else
                                         {
-                                            var existing = Application.OpenForms.OfType<PixelGameLobby.JoinRoomForm>().FirstOrDefault();
-                                            if (existing != null)
-                                            {
-                                                if (existing.WindowState == FormWindowState.Minimized) existing.WindowState = FormWindowState.Normal;
-                                                existing.Show();
-                                                existing.BringToFront();
-                                            }
-                                            else
-                                            {
-                                                var join = new PixelGameLobby.JoinRoomForm(username, token)
-                                                {
-                                                    StartPosition = FormStartPosition.CenterScreen
-                                                };
-                                                join.Show();
-                                            }
-                                        }
-                                        catch (Exception ex)
-                                        {
-                                            Console.WriteLine($"[BattleForm] Error showing JoinRoomForm: {ex.Message}");
+                                            var existingJoin = Application.OpenForms.OfType<PixelGameLobby.JoinRoomForm>().FirstOrDefault();
+                                            if (existingJoin != null) { if (existingJoin.WindowState == FormWindowState.Minimized) existingJoin.WindowState = FormWindowState.Normal; existingJoin.Show(); existingJoin.BringToFront(); }
+                                            else { try { var newLobby = new PixelGameLobby.GameLobbyForm(roomCode, username, token); newLobby.Show(); } catch (Exception ex) { Console.WriteLine($"[BattleForm] Error showing fallback lobby: {ex.Message}"); } }
                                         }
                                     }
                                     catch (Exception ex)

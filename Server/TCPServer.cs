@@ -69,6 +69,10 @@ namespace DoAn_NT106.Server
             // ✅ THÊM: Khởi tạo UDP Game Server
             udpGameServer = new UDPGameServer(UDP_PORT);
             udpGameServer.OnLog += LogMessage;
+
+            // ✅ FIX: Ensure RoomManager has valid references to LobbyManager and UDP server
+            roomManager.UdpGameServer = udpGameServer;
+            roomManager.LobbyManager = lobbyManager;
         }
 
         
@@ -94,6 +98,10 @@ namespace DoAn_NT106.Server
 
                 // ✅ THÊM: Start UDP Server
                 udpGameServer.Start();
+
+                // Ensure lobbyManager/roomManager references are linked after UDP server starts
+                roomManager.UdpGameServer = udpGameServer;
+                roomManager.LobbyManager = lobbyManager;
 
                 Log($"✅ Server started on port {port}");
                 Log($"✅ UDP Game Server ready on port {UDP_PORT}");
@@ -1428,15 +1436,30 @@ namespace DoAn_NT106.Server
 
                 if (result.Success)
                 {
-                    // ✅ THÊM: Lấy thông tin room để tạo UDP match
-                    var room = roomManager.GetRoom(roomCode);
-                    if (room != null)
+                // ✅ THÊM: Lấy thông tin từ LobbyManager (đáng tin cậy hơn ngay trước START_GAME)
+                    var lobby = lobbyManager?.GetLobby(roomCode);
+                    if (lobby != null)
                     {
+                        // Use lobby usernames to create UDP match session (ensures both players present)
+                        var p1 = lobby.Player1Username;
+                        var p2 = lobby.Player2Username;
+
+                        // If one of the players is missing, try fallback to RoomManager
+                        if (string.IsNullOrEmpty(p1) || string.IsNullOrEmpty(p2))
+                        {
+                            var fallback = roomManager.GetRoom(roomCode);
+                            if (fallback != null)
+                            {
+                                p1 = string.IsNullOrEmpty(p1) ? fallback.Player1Username : p1;
+                                p2 = string.IsNullOrEmpty(p2) ? fallback.Player2Username : p2;
+                            }
+                        }
+
                         // Tạo UDP match session
                         var udpResult = udpGameServer.CreateMatch(
-                            roomCode, 
-                            room.Player1Username, 
-                            room.Player2Username
+                            roomCode,
+                            p1,
+                            p2
                         );
 
                         if (udpResult.Success)
