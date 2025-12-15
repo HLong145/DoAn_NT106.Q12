@@ -843,6 +843,12 @@ namespace DoAn_NT106
         /// <summary>Ends the match and shows winner dialog</summary>
         private void EndMatch(string winner)
         {
+            EndMatch(winner, MatchEndReason.Normal);
+        }
+
+        /// <summary>Ends the match and shows winner dialog with specific reason</summary>
+        private void EndMatch(string winner, MatchEndReason reason)
+        {
             _roundInProgress = false;
             try { _roundTimer?.Stop(); } catch { }
             try { gameTimer?.Stop(); } catch { }
@@ -870,16 +876,14 @@ namespace DoAn_NT106
                 }
             }
 
-            string result = $"🎉 {winner} WINS THE MATCH!\n\n" +
-                            $"{username}: {_player1Wins} wins\n" +
-                            $"{opponent}: {_player2Wins} wins";
-
-            MessageBox.Show(
-                result,
-                "MATCH FINISHED",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Exclamation
-            );
+            // Updated: Show MatchResultForm instead of MessageBox
+            var resultForm = new MatchResultForm();
+            resultForm.SetMatchResult(winner, winner == username ? opponent : username, _player1Wins, _player2Wins, reason, username, opponent);
+            resultForm.ReturnToLobbyRequested += (s, args) => {
+                // Return to lobby and close battle form
+                this.Close();
+            };
+            resultForm.ShowDialog();
 
             // ✅ CLOSE battle form and return to lobby
             this.Close();
@@ -918,16 +922,14 @@ namespace DoAn_NT106
                 }
             }
 
-            string result = $"🤝 MATCH DRAW!\n\n" +
-                            $"{username}: {_player1Wins} wins\n" +
-                            $"{opponent}: {_player2Wins} wins";
-
-            MessageBox.Show(
-                result,
-                "MATCH DRAW",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information
-            );
+            // Updated: Show MatchResultForm instead of MessageBox
+            var resultForm = new MatchResultForm();
+            resultForm.SetMatchResultDraw(username, opponent, _player1Wins, _player2Wins);
+            resultForm.ReturnToLobbyRequested += (s, args) => {
+                // Return to lobby and close battle form
+                this.Close();
+            };
+            resultForm.ShowDialog();
 
             // Close battle form and return to lobby
             this.Close();
@@ -980,21 +982,9 @@ namespace DoAn_NT106
                     // Check if match ends (first to 2 wins). Require at least 2 rounds played
                     if ((_player1Wins >= 2 || _player2Wins >= 2) && _roundsPlayed >= 2)
                     {
-                        EndMatch(_player1Wins >= 2 ? username : opponent);
+                        EndMatch(_player1Wins >= 2 ? username : opponent, MatchEndReason.Forfeit);
                         return;
                     }
-
-                    // If we've already completed 3 rounds and nobody reached 2 wins -> draw
-                    if (_roundsPlayed >= 3)
-                    {
-                        EndMatchDraw();
-                        return;
-                    }
-
-                    // If match not ended yet, prepare for next round (rare case - forfeit mid-match)
-                    _roundNumber = _roundsPlayed + 1;
-                    _roundEnding = false;
-                    StartNextRound();
                 }
                 catch (Exception ex)
                 {
