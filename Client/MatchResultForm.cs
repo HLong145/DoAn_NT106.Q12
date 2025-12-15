@@ -28,6 +28,7 @@ namespace DoAn_NT106
         private bool _isDraw;
         private MatchEndReason _endReason;
         private System.Windows.Forms.Timer myTimer;
+        private bool _soundPlayed = false;
 
         public event EventHandler ReturnToLobbyRequested;
 
@@ -45,6 +46,7 @@ namespace DoAn_NT106
                 this.BringToFront();
                 this.Focus();
                 StartAnimations();
+                PlayGameEndSound();
                 Console.WriteLine("✅ MatchResultForm shown!");
             };
         }
@@ -251,6 +253,27 @@ namespace DoAn_NT106
         private void MatchResultForm_Load(object sender, EventArgs e)
         {
             StartAnimations();
+        }
+
+        /// <summary>
+        /// Play game end sound synchronized between both clients
+        /// </summary>
+        private void PlayGameEndSound()
+        {
+            if (_soundPlayed)
+                return;
+
+            try
+            {
+                _soundPlayed = true;
+                // Play game_end sound effect
+                SoundManager.PlaySound(Client.SoundEffect.GameEnd);
+                Console.WriteLine("🔊 Game end sound played");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ Error playing game end sound: {ex.Message}");
+            }
         }
 
         #endregion
