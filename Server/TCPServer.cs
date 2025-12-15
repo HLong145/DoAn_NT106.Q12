@@ -566,6 +566,10 @@ namespace DoAn_NT106.Server
                     case "SELECT_CHARACTER":
                         return HandleSelectCharacter(request);
 
+                    // ✅ THÊM: character select back - tất cả 2 người quay lại lobby
+                    case "CHARACTER_SELECT_BACK":
+                        return HandleCharacterSelectBack(request);
+
                     case "START_GAME":
                         return HandleStartGame(request);
                     case "GAME_ACTION":
@@ -623,6 +627,87 @@ namespace DoAn_NT106.Server
             catch (Exception ex)
             {
                 server.Log($"❌ HandleSelectCharacter error: {ex.Message}");
+                return CreateResponse(false, $"Error: {ex.Message}");
+            }
+        }
+
+        // ✅ THÊM: Handle character select back - broadcast RETURN_TO_LOBBY cho cả 2 người
+        private string HandleCharacterSelectBack(Request request)
+        {
+            try
+            {
+                var roomCode = request.Data?["roomCode"]?.ToString();
+                var username = request.Data?["username"]?.ToString();
+
+                if (string.IsNullOrEmpty(roomCode) || string.IsNullOrEmpty(username))
+                {
+                    return CreateResponse(false, "Room code and username are required");
+                }
+
+                server.Log($"📤 CHARACTER_SELECT_BACK: {username} from room {roomCode}");
+
+                // Lấy lobby để tìm cả 2 player
+                var lobby = lobbyManager.GetLobby(roomCode);
+                if (lobby != null)
+                {
+                    // ✅ Reset lobby state: Clear character selections
+                    var resetResult = lobbyManager.ResetLobbyForRematch(roomCode);
+                    if (resetResult.Success)
+                    {
+                        server.Log($"✅ Lobby {roomCode} reset after character select back");
+                    }
+
+                    // ✅ Broadcast RETURN_TO_LOBBY cho CẢ 2 PLAYER
+                    var returnPayload = new
+                    {
+                        Action = "RETURN_TO_LOBBY",
+                        Data = new
+                        {
+                            roomCode = roomCode,
+                            reason = "character_select_back"
+                        }
+                    };
+
+                    string json = System.Text.Json.JsonSerializer.Serialize(returnPayload);
+
+                    // Gửi cho Player 1
+                    if (lobby.Player1Client != null)
+                    {
+                        try
+                        {
+                            lobby.Player1Client.SendMessage(json);
+                            server.Log($"📢 Sent RETURN_TO_LOBBY to Player 1: {lobby.Player1Username}");
+                        }
+                        catch (Exception ex)
+                        {
+                            server.Log($"⚠️ Failed to send RETURN_TO_LOBBY to Player 1: {ex.Message}");
+                        }
+                    }
+
+                    // Gửi cho Player 2
+                    if (lobby.Player2Client != null)
+                    {
+                        try
+                        {
+                            lobby.Player2Client.SendMessage(json);
+                            server.Log($"📢 Sent RETURN_TO_LOBBY to Player 2: {lobby.Player2Username}");
+                        }
+                        catch (Exception ex)
+                        {
+                            server.Log($"⚠️ Failed to send RETURN_TO_LOBBY to Player 2: {ex.Message}");
+                        }
+                    }
+                }
+                else
+                {
+                    server.Log($"⚠️ Lobby not found for room {roomCode}");
+                }
+
+                return CreateResponse(true, "Return to lobby broadcasted");
+            }
+            catch (Exception ex)
+            {
+                server.Log($"❌ HandleCharacterSelectBack error: {ex.Message}");
                 return CreateResponse(false, $"Error: {ex.Message}");
             }
         }
@@ -1260,7 +1345,7 @@ namespace DoAn_NT106.Server
             { "onlineUsers", onlineUsers }
         });
             }
-            catch (Exception ex)
+catch (Exception ex)
             {
                 return CreateResponse(false, $"Error: {ex.Message}");
             }

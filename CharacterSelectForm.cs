@@ -82,8 +82,18 @@ namespace DoAn_NT106
         // ✅ LISTEN TO SERVER BROADCASTS (INCLUDING START_GAME)
         private void TcpClient_OnBroadcast(string action, JsonElement data)
         {
-            if (action != "START_GAME") return;
+            if (action == "START_GAME")
+            {
+                HandleStartGameBroadcast(data);
+            }
+            else if (action == "RETURN_TO_LOBBY")
+            {
+                HandleReturnToLobbyBroadcast(data);
+            }
+        }
 
+        private void HandleStartGameBroadcast(JsonElement data)
+        {
             Console.WriteLine("[CharacterSelectForm] Received START_GAME broadcast");
 
             try
@@ -266,6 +276,45 @@ namespace DoAn_NT106
             catch (Exception ex)
             {
                 Console.WriteLine($"[CharacterSelectForm] START_GAME parse error: {ex.Message}");
+            }
+        }
+
+        // ✅ THÊM: Handle RETURN_TO_LOBBY broadcast
+        private void HandleReturnToLobbyBroadcast(JsonElement data)
+        {
+            Console.WriteLine("[CharacterSelectForm] Received RETURN_TO_LOBBY broadcast");
+
+            try
+            {
+                string msgRoomCode = GetStringOrNull(data, "roomCode");
+                if (!string.Equals(msgRoomCode, roomCode, StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.WriteLine($"[CharacterSelectForm] RETURN_TO_LOBBY for different room: {msgRoomCode}");
+                    return;
+                }
+
+                Console.WriteLine($"[CharacterSelectForm] Returning to lobby for room {roomCode}");
+
+                // ✅ UNREGISTER BROADCAST BEFORE CLOSING
+                PersistentTcpClient.Instance.OnBroadcast -= TcpClient_OnBroadcast;
+
+                // ✅ RETURN TO LOBBY ON UI THREAD
+                this.BeginInvoke(new Action(() =>
+                {
+                    try
+                    {
+                        ReturnToLobby();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[CharacterSelectForm] Error returning to lobby: {ex.Message}");
+                        MessageBox.Show($"Error returning to lobby: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CharacterSelectForm] RETURN_TO_LOBBY parse error: {ex.Message}");
             }
         }
 
@@ -749,6 +798,7 @@ namespace DoAn_NT106
                     btnConfirm.Enabled = true;
                     btnConfirm.Text = "✓ CONFIRM";
                 }
+                
             }
             catch (Exception ex)
             {
@@ -763,9 +813,6 @@ namespace DoAn_NT106
 
         private void BtnBack_Click(object sender, EventArgs e)
         {
-            // Unregister before leaving
-            PersistentTcpClient.Instance.OnBroadcast -= TcpClient_OnBroadcast;
-            
             // Quay lại GameLobbyForm
             var result = MessageBox.Show(
                 "Are you sure you want to go back to the lobby?",
@@ -776,7 +823,112 @@ namespace DoAn_NT106
 
             if (result == DialogResult.Yes)
             {
-                // Tạo lại GameLobbyForm với thông tin phòng
+                // ✅ Gửi request về server để notify cả 2 người quay về lobby
+                if (!string.IsNullOrEmpty(roomCode) && roomCode != "000000")
+                {
+                    try
+                    {
+                        btnBack.Enabled = false;
+                        btnBack.Text = "⏳ RETURNING...";
+
+                        var _ = PersistentTcpClient.Instance.SendRequestAsync(
+                            "CHARACTER_SELECT_BACK",
+                            new Dictionary<string, object>
+                            {
+                                { "roomCode", roomCode },
+                                { "username", username }
+                            },
+                            5000  // 5 giây timeout
+                        ).ContinueWith(task =>
+                        {
+                            this.BeginInvoke(new Action(() =>
+                            {
+                                try
+                                {
+                                    if (task.IsCompletedSuccessfully)
+                                    {
+                                        var response = task.Result;
+                                        if (response.Success)
+                                        {
+                                            Console.WriteLine("[CharacterSelectForm] CHARACTER_SELECT_BACK sent successfully");
+                                            // Server sẽ broadcast RETURN_TO_LOBBY cho cả 2 người
+                                            // Handler sẽ xử lý việc quay về lobby
+                                        }
+                                        else
+                                        {
+                                            Console.WriteLine($"[CharacterSelectForm] CHARACTER_SELECT_BACK failed: {response.Message}");
+                                            // Vẫn quay lại nếu server error
+                                            ReturnToLobby();
+                                        }
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine($"[CharacterSelectForm] CHARACTER_SELECT_BACK timeout/error");
+                                        // Vẫn quay lại nếu timeout
+                                        ReturnToLobby();
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine($"[CharacterSelectForm] Error handling CHARACTER_SELECT_BACK response: {ex.Message}");
+                                    ReturnToLobby();
+                                }
+                            }));
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[CharacterSelectForm] Error sending CHARACTER_SELECT_BACK: {ex.Message}");
+                        ReturnToLobby();
+                    }
+                }
+                else
+                {
+                    // Offline mode hoặc không có room code
+                    ReturnToLobby();
+                }
+            }
+        }
+
+        // ✅ THÊM: Helper method để quay lại lobby
+        private void ReturnToLobby()
+        {
+            try
+            {
+                // ✅ KIỂM TRA: Có GameLobbyForm nào đang mở cho phòng này không?
+                PixelGameLobby.GameLobbyForm existingLobbyForm = null;
+                foreach (Form form in Application.OpenForms)
+                {
+                    if (form.GetType().Name == "GameLobbyForm")
+                    {
+                        // Kiểm tra xem form này có phải của phòng hiện tại không
+                        // Bằng cách kiểm tra các control hoặc thông qua reflection
+                        var roomCodeField = form.GetType().GetField("roomCode", 
+                            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                        if (roomCodeField != null)
+                        {
+                            var formRoomCode = roomCodeField.GetValue(form) as string;
+                            if (formRoomCode == roomCode)
+                            {
+                                existingLobbyForm = form as PixelGameLobby.GameLobbyForm;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // ✅ NẾU ĐÃ CÓ FORM LOBBY RỒI: Chỉ cần show lại thôi
+                if (existingLobbyForm != null && !existingLobbyForm.IsDisposed)
+                {
+                    Console.WriteLine($"[CharacterSelectForm] Found existing GameLobbyForm for room {roomCode}, showing it");
+                    existingLobbyForm.Show();
+                    existingLobbyForm.BringToFront();
+                    this.Close();
+                    return;
+                }
+
+                // ✅ NẾU CHƯA CÓ: TẠO FORM LOBBY MỚI
+                Console.WriteLine($"[CharacterSelectForm] No existing GameLobbyForm found, creating new one for room {roomCode}");
                 var lobbyForm = new PixelGameLobby.GameLobbyForm(roomCode, username, token);
                 lobbyForm.FormClosed += (s, args) =>
                 {
@@ -785,6 +937,14 @@ namespace DoAn_NT106
                 };
 
                 lobbyForm.Show();
+                this.Close();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CharacterSelectForm] Error in ReturnToLobby: {ex.Message}");
+                // Fallback: luôn tạo form mới nếu có lỗi
+                var fallbackForm = new PixelGameLobby.GameLobbyForm(roomCode, username, token);
+                fallbackForm.Show();
                 this.Close();
             }
         }
