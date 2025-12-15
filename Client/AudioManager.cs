@@ -26,8 +26,7 @@ namespace DoAn_NT106.Client
         Round2,
         Round3,
         SkillWarrior,
-        SkillBringer,
-        GameEnd
+        SkillBringer
     }
 
     /// <summary>Enums for background music</summary>
@@ -116,8 +115,7 @@ namespace DoAn_NT106.Client
                 { SoundEffect.Round2, "round-2.mp3" },
                 { SoundEffect.Round3, "round-3.mp3" },
                 { SoundEffect.SkillWarrior, "skill_warrior.mp3" },
-                { SoundEffect.SkillBringer, "skill_bringer.mp3" },
-                { SoundEffect.GameEnd, "game_end.mp3" }
+                { SoundEffect.SkillBringer, "skill_bringer.mp3" }
             };
 
             _musicPaths = new Dictionary<BackgroundMusic, string>
