@@ -31,7 +31,7 @@
             // 
             // mainPanel
             // 
-            mainPanel.BackColor = Color.FromArgb(101, 67, 51);
+            mainPanel.BackColor = Color.FromArgb(255, 224, 192);
             mainPanel.Controls.Add(btnBack);
             mainPanel.Controls.Add(tabControl);
             mainPanel.Controls.Add(lblHeader);
@@ -77,6 +77,7 @@
             // 
             // txtOffline
             // 
+            txtOffline.BackColor = Color.FromArgb(255, 224, 192);
             txtOffline.BorderStyle = BorderStyle.None;
             txtOffline.Dock = DockStyle.Fill;
             txtOffline.Font = new Font("Courier New", 11F);
@@ -90,23 +91,24 @@
             // tabOnline
             // 
             tabOnline.Controls.Add(txtOnline);
-            tabOnline.Location = new Point(4, 29);
+            tabOnline.Location = new Point(4, 32);
             tabOnline.Name = "tabOnline";
             tabOnline.Padding = new Padding(3);
-            tabOnline.Size = new Size(712, 347);
+            tabOnline.Size = new Size(712, 344);
             tabOnline.TabIndex = 1;
             tabOnline.Text = "Online Controls";
             tabOnline.UseVisualStyleBackColor = true;
             // 
             // txtOnline
             // 
+            txtOnline.BackColor = Color.FromArgb(255, 224, 192);
             txtOnline.BorderStyle = BorderStyle.None;
             txtOnline.Dock = DockStyle.Fill;
             txtOnline.Font = new Font("Courier New", 11F);
             txtOnline.Location = new Point(3, 3);
             txtOnline.Name = "txtOnline";
             txtOnline.ReadOnly = true;
-            txtOnline.Size = new Size(706, 341);
+            txtOnline.Size = new Size(706, 338);
             txtOnline.TabIndex = 0;
             txtOnline.Text = "";
             // 
