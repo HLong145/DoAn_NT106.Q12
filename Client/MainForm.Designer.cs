@@ -196,12 +196,12 @@ namespace DoAn_NT106
             label4.BackColor = Color.FromArgb(180, 83, 9);
             label4.Font = new Font("Courier New", 14F, FontStyle.Bold, GraphicsUnit.Point, 0);
             label4.ForeColor = Color.FromArgb(64, 0, 0);
-            label4.Location = new Point(287, 640);
+            label4.Location = new Point(276, 640);
             label4.Margin = new Padding(4, 0, 4, 0);
             label4.Name = "label4";
-            label4.Size = new Size(208, 27);
+            label4.Size = new Size(236, 27);
             label4.TabIndex = 15;
-            label4.Text = "Beserk Goatman";
+            label4.Text = "Goatman Beserker";
             // 
             // label3
             // 
@@ -290,9 +290,9 @@ namespace DoAn_NT106
             // 
             pictureBox5.BackColor = Color.Transparent;
             pictureBox5.Image = Properties.Resources.logogame;
-            pictureBox5.Location = new Point(130, 0);
+            pictureBox5.Location = new Point(92, 0);
             pictureBox5.Name = "pictureBox5";
-            pictureBox5.Size = new Size(724, 269);
+            pictureBox5.Size = new Size(764, 269);
             pictureBox5.SizeMode = PictureBoxSizeMode.Zoom;
             pictureBox5.TabIndex = 7;
             pictureBox5.TabStop = false;
