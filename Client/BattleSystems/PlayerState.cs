@@ -39,7 +39,10 @@ namespace DoAn_NT106.Client.BattleSystems
         public int Stamina { get; set; } = 100;
         public int Mana { get; set; } = 0; // ✅ Khởi đầu với 0 (không phải 100)
 
-        public int AttackCount { get; set; } = 0;
+        // Counters for XP/stats
+        public int AttackCount { get; set; } = 0; // successful hits
+        public int ParryCount { get; set; } = 0;  // successful parries
+        public int SkillCount { get; set; } = 0;  // skill hits
 
         // Dash state
         public int DashDirection { get; set; }
@@ -124,14 +127,14 @@ namespace DoAn_NT106.Client.BattleSystems
         {
             if (Stamina < amount) return false;
             Stamina -= amount;
-            
+
             // ✅ THÊM: Reset timer hồi stamina khi dùng
             lastStaminaUsedTime = Environment.TickCount;
             if (staminaRegenTimer.Enabled)
             {
                 staminaRegenTimer.Stop();
             }
-            
+
             return true;
         }
 

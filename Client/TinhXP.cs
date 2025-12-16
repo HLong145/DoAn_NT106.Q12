@@ -207,54 +207,6 @@ namespace DoAn_NT106.Client
 
         private void btn_Continue_Click(object sender, EventArgs e)
         {
-            // Điều hướng tuỳ theo cách vào trận
-            if (_result != null)
-            {
-                switch (_result.ReturnMode)
-                {
-                    case MatchReturnMode.ReturnToGameLobby:
-                        // Quay lại phòng đang join (PixelGameLobbyForm)
-                        if (!string.IsNullOrEmpty(_result.RoomCode) &&
-                            !string.IsNullOrEmpty(_result.PlayerUsername) &&
-                            !string.IsNullOrEmpty(_result.Token))
-                        {
-                            var lobby = new PixelGameLobby.GameLobbyForm(
-                                _result.RoomCode,
-                                _result.PlayerUsername,
-                                _result.Token);
-                            lobby.StartPosition = FormStartPosition.CenterScreen;
-                            lobby.Show();
-                        }
-                        break;
-
-                    case MatchReturnMode.ReturnToJoinRoom:
-                    default:
-                        // Quay lại JoinRoomForm (trường hợp test room hoặc offline)
-                        try
-                        {
-                            // Nếu JoinRoomForm đang mở thì focus lại
-                            var existing = Application.OpenForms
-                                .OfType<PixelGameLobby.JoinRoomForm>()
-                                .FirstOrDefault();
-                            if (existing != null)
-                            {
-                                existing.Show();
-                                existing.BringToFront();
-                            }
-                            else
-                            {
-                                // Tạo JoinRoomForm mới nếu không có
-                                var join = new PixelGameLobby.JoinRoomForm();
-                                join.StartPosition = FormStartPosition.CenterScreen;
-                                join.Show();
-                            }
-                        }
-                        catch { }
-                        break;
-                }
-            }
-
-            // Đóng form tính XP sau khi điều hướng
             this.Close();
         }
 

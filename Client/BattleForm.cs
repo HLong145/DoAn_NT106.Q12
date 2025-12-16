@@ -1507,6 +1507,7 @@ namespace DoAn_NT106
                                             combatSystem.IsNetworked = true;
                                             combatSystem.LocalPlayerNumber = myPlayerNumber;
                                             
+
                                             var me = myPlayerNumber == 1 ? player1State : player2State;
                                             var currentHealth = me.Health;
                                             
@@ -1581,7 +1582,15 @@ namespace DoAn_NT106
                     
                     // ✅ UPDATED: Only update health/stamina/mana if round is in progress
                     // During round countdown, ignore these updates to prevent premature HP reset
-                    if (_roundInProgress)
+                    if (action == "ROUND_RESET")
+                    {
+                        // FORCE apply health/stamina/mana reset even during countdown
+                        opp.Health = health;
+                        opp.Stamina = stamina;
+                        opp.Mana = mana;
+                        Console.WriteLine($"[UDP] Applied ROUND_RESET from opponent P{opponentNum}: HP={health} ST={stamina} MA={mana}");
+                    }
+                    else if (_roundInProgress)
                     {
                         opp.Health = health;
                         opp.Stamina = stamina;
@@ -1634,7 +1643,7 @@ namespace DoAn_NT106
                             if (action == "fireball")
                             {
                                 Console.WriteLine($"[UDP] 🎯 Opponent {opponentNum} used skill (fireball)!");
-                                
+
                                 try
                                 {
                                     // Xác định character type của opponent
@@ -1707,6 +1716,7 @@ namespace DoAn_NT106
                                                 int centerX = meHurtbox.X + meHurtbox.Width / 2;
                                                 int centerY = meHurtbox.Y + meHurtbox.Height / 2;
                                                 
+
                                                 // Apply same spell offsets as local
                                                 int projStartX = centerX - 10 + 20 - 50; // same calculation as SpawnSpell
                                                 int projStartY = centerY - 200 + 20;
@@ -1916,11 +1926,9 @@ namespace DoAn_NT106
                         break;
                     case Keys.U:
                         if (player2State.CanParry) combatSystem.StartParry(2);
-                         player2ParryCount++; 
                         break;
                     case Keys.I:
                         if (player2State.CanAttack) combatSystem.ToggleSkill(2);
-                         player2SkillCount++;
                         break;
                 }
                 e.Handled = true;
@@ -2384,6 +2392,7 @@ namespace DoAn_NT106
             int safeMarginRight = 80;  // Keep players 80px from right edge
             
 
+
             // Check if both players fit in viewport
             int leftMost = Math.Min(p1Hb.Left, p2Hb.Left);
             int rightMost = Math.Max(p1Hb.Right, p2Hb.Right);
@@ -2641,9 +2650,7 @@ namespace DoAn_NT106
             else if (characterType == "bringerofdeath")
             {
                 sizeScale = 1.6f;
-                // ✅ SỬA: yOffset = 0, groundAdjustment âm để nâng lên
-                yOffset = 0;
-                groundAdjustment = -95; // Nâng lên 40px so với mặt đất
+                yOffset += (int)(10 * globalCharacterScale);
             }
             else if (characterType == "goatman")
             {
@@ -2788,8 +2795,11 @@ namespace DoAn_NT106
                 else player2ComboCount++;
             }
 
-            if (playerNum == 1) player1State.AttackCount++;
-            else player2State.AttackCount++;
+            // NOTE: AttackCount should only be incremented when a hit actually lands.
+            // CombatSystem.ApplyDamage already increments PlayerState.AttackCount/SkillCount
+            // when damage is applied. Do NOT increment AttackCount here (attempts).
+            // if (playerNum == 1) player1State.AttackCount++;
+            // else player2State.AttackCount++;
         }
         private void OnFrameChanged(object sender, EventArgs e)
         {
@@ -2984,7 +2994,7 @@ namespace DoAn_NT106
                 }
 
                 // KIỂM TRA 1: Form đã sẵn sàng chưa?
-                if (this.ClientSize.Height <= 100 || this.IsDisposed || !this.IsHandleCreated)
+                if (this.ClientSize.Height <=  100 || this.IsDisposed || !this.IsHandleCreated)
                 {
                     // Nếu form chưa sẵn sàng, đợi một chút và thử lại
                     Console.WriteLine($"[SetBackground] Form chưa sẵn sàng, ClientSize.Height={this.ClientSize.Height}");

@@ -1307,6 +1307,11 @@ namespace DoAn_NT106.Client.BattleSystems
             Console.WriteLine($"  Health_before={target.Health}, IsStunned={target.IsStunned}");
             Console.WriteLine($"  IsDashing={target.IsDashing}, IsParrying={target.IsParrying}");
 
+            // Capture attacker pre-damage state to classify hit type
+            bool attackerWasAttacking = attacker?.IsAttacking ?? false;
+            bool attackerWasSkillActive = attacker?.IsSkillActive ?? false;
+            bool attackerWasCharging = attacker?.IsCharging ?? false;
+
             // ✅ CHECK: Nếu đang dash thì miễn sát thương
             if (target.IsDashing)
             {
@@ -1321,7 +1326,15 @@ namespace DoAn_NT106.Client.BattleSystems
                 Console.WriteLine($"[ApplyDamage] ❌ TARGET PARRYING - BLOCKED");
                 target.Stamina = Math.Min(100, target.Stamina + 8);
                 target.RegenerateManaOnParrySuccess();
-                target.RegenerateManaOnParrySuccess();
+                // increment parry counter for target (successful parry)
+                try
+                {
+                    target.ParryCount++;
+                    Console.WriteLine($"[ApplyDamage] ✅ ParryCount incremented for P{target.PlayerNumber} -> {target.ParryCount}");
+                }
+                catch { }
+
+                // single call to parry success regen
                 showHitEffectCallback?.Invoke("Blocked!", Color.Cyan);
                 CancelAttack(targetPlayer == 1 ? 2 : 1);
                 invalidateCallback?.Invoke();
@@ -1375,6 +1388,25 @@ namespace DoAn_NT106.Client.BattleSystems
             target.TakeDamage(damage);
             target.RegenerateManaOnHitMiss();
             Console.WriteLine($"[ApplyDamage] ✅✅✅ DAMAGE APPLIED - Health: {target.Health}");
+            
+            // Increment attack/skill counters on attacker for successful hit (only when damage applied)
+            try
+            {
+                if (attacker != null)
+                {
+                    if (attackerWasSkillActive)
+                    {
+                        attacker.SkillCount++;
+                        Console.WriteLine($"[ApplyDamage] ✅ SkillCount incremented for P{attacker.PlayerNumber} -> {attacker.SkillCount}");
+                    }
+                    else
+                    {
+                        attacker.AttackCount++;
+                        Console.WriteLine($"[ApplyDamage] ✅ AttackCount incremented for P{attacker.PlayerNumber} -> {attacker.AttackCount}");
+                    }
+                }
+            }
+            catch { }
             
             showHitEffectCallback?.Invoke($"-{damage}", Color.Red);
             effectManager.ShowHitEffectAtPosition(target.CharacterType, target.X, target.Y, invalidateCallback);

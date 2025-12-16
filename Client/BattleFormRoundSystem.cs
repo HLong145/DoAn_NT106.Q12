@@ -30,6 +30,9 @@ namespace DoAn_NT106
         private Label _lblRoundCenter; // centered between HP/Stamina/Mana bars
         private bool _roundInProgress = false;
 
+        // New: request flag to control return-to-lobby closing after XP form
+        private bool _requestReturnToLobby = false;
+
         // Round countdown timer for showing "ROUND X" at start
         private System.Windows.Forms.Timer _roundStartTimer;
         private int _roundStartCountdownMs = 0;
@@ -810,7 +813,7 @@ namespace DoAn_NT106
                         me.Health,          // ✅ GỬI HP MỚI (đã reset)
                         me.Stamina,
                         me.Mana,
-                        "stand",
+                        "ROUND_RESET",    // <-- send special action so receiver applies HP even during countdown
                         me.Facing ?? "right",
                         false,              // isAttacking
                         false,              // isParrying
@@ -819,7 +822,7 @@ namespace DoAn_NT106
                         false,              // isCharging
                         false);             // isDashing
                     
-                    Console.WriteLine($"[StartNextRound] Sent UDP state update: P{myPlayerNumber} HP={me.Health}");
+                    Console.WriteLine($"[StartNextRound] Sent UDP ROUND_RESET update: P{myPlayerNumber} HP={me.Health}");
                 }
                 catch (Exception ex)
                 {
@@ -917,7 +920,10 @@ namespace DoAn_NT106
                 }
             }
 
-                // Show MatchResultForm once
+            // Reset request flag
+            _requestReturnToLobby = false;
+
+            // Show MatchResultForm once
             try
             {
                 // If match ended due to forfeit, ensure winner shows decisive win but KEEP loser's existing wins
@@ -936,16 +942,8 @@ namespace DoAn_NT106
                         else
                         {
                             // Fallback: match winner string against local vars without zeroing loser
-                            if (!string.IsNullOrEmpty(winner) && string.Equals(winner, username, StringComparison.OrdinalIgnoreCase))
-                            {
-                                if (player1State != null && string.Equals(username, player1State.PlayerName, StringComparison.OrdinalIgnoreCase)) { _player1Wins = Math.Max(_player1Wins, 2); }
-                                else { _player2Wins = Math.Max(_player2Wins, 2); }
-                            }
-                            else if (!string.IsNullOrEmpty(winner) && string.Equals(winner, opponent, StringComparison.OrdinalIgnoreCase))
-                            {
-                                if (player1State != null && string.Equals(opponent, player1State.PlayerName, StringComparison.OrdinalIgnoreCase)) { _player1Wins = Math.Max(_player1Wins, 2); }
-                                else { _player2Wins = Math.Max(_player2Wins, 2); }
-                            }
+                            if (!string.IsNullOrEmpty(winner) && string.Equals(winner, username, StringComparison.OrdinalIgnoreCase)) { if (player1State != null && string.Equals(username, player1State.PlayerName, StringComparison.OrdinalIgnoreCase)) { _player1Wins = Math.Max(_player1Wins, 2); } else { _player2Wins = Math.Max(_player2Wins, 2); } }
+                            else if (!string.IsNullOrEmpty(winner) && string.Equals(winner, opponent, StringComparison.OrdinalIgnoreCase)) { if (player1State != null && string.Equals(opponent, player1State.PlayerName, StringComparison.OrdinalIgnoreCase)) { _player1Wins = Math.Max(_player1Wins, 2); } else { _player2Wins = Math.Max(_player2Wins, 2); } }
                         }
                     }
                     catch { }
@@ -960,9 +958,12 @@ namespace DoAn_NT106
                 string loserName = winner == p1Name ? p2Name : p1Name;
 
                 resultForm.SetMatchResult(winner, loserName, _player1Wins, _player2Wins, reason, p1Name, p2Name);
+
+                // Don't close BattleForm here; set flag and let EndMatch close after XP is shown
                 resultForm.ReturnToLobbyRequested += (s, args) => {
-                    try { this.Close(); } catch { }
+                    try { _requestReturnToLobby = true; } catch { }
                 };
+
                 resultForm.ShowDialog();
             }
             catch (Exception ex)
@@ -974,7 +975,12 @@ namespace DoAn_NT106
 
 
             // Xác định người chơi hiện tại có phải là winner không
-            bool player1IsWinner = string.Equals(winner, username, StringComparison.OrdinalIgnoreCase);
+            bool localPlayerIsWinner = string.Equals(winner, username, StringComparison.OrdinalIgnoreCase);
+
+            // Determine winner slot (player1 or player2) to pick correct counters
+            string p1NameFinal = player1State?.PlayerName ?? username;
+            string p2NameFinal = player2State?.PlayerName ?? opponent;
+            bool winnerIsPlayer1 = string.Equals(winner, p1NameFinal, StringComparison.OrdinalIgnoreCase);
 
             // Tính tổng thời gian trận đấu
             TimeSpan totalMatchTime;
@@ -993,13 +999,13 @@ namespace DoAn_NT106
             {
                 PlayerUsername = username,
                 OpponentUsername = opponent,
-                PlayerIsWinner = player1IsWinner,
+                PlayerIsWinner = localPlayerIsWinner,
                 MatchTime = totalMatchTime,
                 PlayerWins = _player1Wins,
                 OpponentWins = _player2Wins,
-                ParryCount = player1IsWinner ? player1ParryCount : player2ParryCount,
-                AttackCount = player1IsWinner ? player1State.AttackCount : player2State.AttackCount,
-                SkillCount = player1IsWinner ? player1SkillCount : player2SkillCount
+                ParryCount = winnerIsPlayer1 ? (player1State?.ParryCount ?? 0) : (player2State?.ParryCount ?? 0),
+                AttackCount = winnerIsPlayer1 ? (player1State?.AttackCount ?? 0) : (player2State?.AttackCount ?? 0),
+                SkillCount = winnerIsPlayer1 ? (player1State?.SkillCount ?? 0) : (player2State?.SkillCount ?? 0)
             };
 
 
@@ -1010,7 +1016,13 @@ namespace DoAn_NT106
                 xpForm.StartPosition = FormStartPosition.CenterScreen;
                 xpForm.ShowDialog(this);
             }
-            try { this.Close(); } catch { }
+
+            // Close BattleForm only if user requested return earlier
+            if (_requestReturnToLobby)
+            {
+                try { this.Close(); } catch { }
+            }
+
             try { DoAn_NT106.SoundManager.PlayMusic(DoAn_NT106.Client.BackgroundMusic.ThemeMusic, loop: true); } catch { }
         }
 
