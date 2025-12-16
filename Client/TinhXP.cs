@@ -1,6 +1,7 @@
 ﻿using DoAn_NT106.Services;
 using System;
 using System.Drawing;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace DoAn_NT106.Client
@@ -22,28 +23,39 @@ namespace DoAn_NT106.Client
             this.AutoScrollMinSize = Size.Empty;
             _result = result ?? throw new ArgumentNullException(nameof(result));
 
-            CalculateAndDisplayXp();
+            // Start async load to avoid blocking UI
+            _ = LoadAndDisplayXpAsync();
         }
 
         public TinhXP() : this(new MatchResult())
         {
         }
 
-        private void CalculateAndDisplayXp()
+        private async Task LoadAndDisplayXpAsync()
         {
             // Simple XP rule: win = 100 XP, lose = 40 XP
             _calculatedXp = _result.PlayerIsWinner ? 100 : 40;
 
             const int xpPerLevel = 1000;
 
-            // Get current XP from DB
+            // Get current XP from local database (run on thread pool)
             _xpBefore = 0;
             try
             {
                 if (!string.IsNullOrEmpty(_result.PlayerUsername))
                 {
-                    var db = new DatabaseService();
-                    _xpBefore = db.GetPlayerXp(_result.PlayerUsername);
+                    _xpBefore = await Task.Run(() =>
+                    {
+                        try
+                        {
+                            var db = new DatabaseService();
+                            return db.GetPlayerXp(_result.PlayerUsername);
+                        }
+                        catch
+                        {
+                            return 0;
+                        }
+                    }).ConfigureAwait(false);
                 }
             }
             catch
@@ -58,25 +70,47 @@ namespace DoAn_NT106.Client
 
             _xpNeededForNextLevel = _levelAfter * xpPerLevel;
 
-            // Update DB with new XP and level
+            // Persist new XP and level into database (best-effort)
             try
             {
                 if (!string.IsNullOrEmpty(_result.PlayerUsername))
                 {
-                    var db = new DatabaseService();
-                    db.UpdatePlayerXp(_result.PlayerUsername, _xpAfter, _xpNeededForNextLevel);
-
-                    if (_levelAfter > _levelBefore)
+                    await Task.Run(() =>
                     {
-                        db.UpdatePlayerLevel(_result.PlayerUsername, _levelAfter);
-                    }
+                        try
+                        {
+                            var db = new DatabaseService();
+                            db.UpdatePlayerXp(_result.PlayerUsername, _xpAfter, _xpNeededForNextLevel);
+                            if (_levelAfter > _levelBefore)
+                            {
+                                db.UpdatePlayerLevel(_result.PlayerUsername, _levelAfter);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[TinhXP] DB update failed: {ex.Message}");
+                        }
+                    }).ConfigureAwait(false);
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                Console.WriteLine($"[TinhXP] Update DB error: {ex.Message}");
             }
 
-            // Update UI: only update controls that still exist in Designer
+            // Update UI on UI thread
+            if (InvokeRequired)
+            {
+                Invoke(new Action(UpdateUi));
+            }
+            else
+            {
+                UpdateUi();
+            }
+        }
+
+        private void UpdateUi()
+        {
             if (lbl_XPEarnedValue != null)
             {
                 lbl_XPEarnedValue.Text = "+" + _calculatedXp + " XP";
@@ -114,7 +148,6 @@ namespace DoAn_NT106.Client
                 }
             }
 
-            // Update progress labels and XP bar (these controls remain)
             if (lbl_XPProgress != null)
             {
                 if (_levelAfter > _levelBefore)
@@ -129,13 +162,16 @@ namespace DoAn_NT106.Client
 
             if (lbl_XPProgressValue != null)
             {
-                lbl_XPProgressValue.Text = $"{_xpAfter} / {_xpNeededForNextLevel} XP";
+                // Show XP within current level / xpPerLevel (based on DB xp + earned xp)
+                const int xpPerLevel = 1000;
+                int xpInCurrentLevel = _xpAfter % xpPerLevel;
+                lbl_XPProgressValue.Text = $"{xpInCurrentLevel} / {xpPerLevel} XP";
             }
 
-            int xpInCurrentLevel = _xpAfter % xpPerLevel;
-            float percent = xpPerLevel > 0 ? (xpInCurrentLevel * 100f / xpPerLevel) : 0f;
-
-            // lbl_XPPercent removed in Designer, so don't reference it
+            // Update progress bar fill based on xp from DB + gained XP
+            const int xpPerLevelConst = 1000;
+            int xpInCurr = _xpAfter % xpPerLevelConst;
+            float percent = xpPerLevelConst > 0 ? (xpInCurr * 100f / xpPerLevelConst) : 0f;
 
             if (pnl_XPBarFill != null && pnl_XPBarContainer != null)
             {
@@ -152,7 +188,7 @@ namespace DoAn_NT106.Client
             this.Close();
         }
 
-        // Removed view-stats and details panel code as those controls were removed from Designer
+        // Removed server fetch/update methods; DB is used as source of truth
     }
 
     public enum MatchReturnMode
