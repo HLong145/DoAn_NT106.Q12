@@ -2650,7 +2650,8 @@ namespace DoAn_NT106
             else if (characterType == "bringerofdeath")
             {
                 sizeScale = 1.6f;
-                yOffset += (int)(10 * globalCharacterScale);
+                yOffset = 0;    
+                groundAdjustment = -95;
             }
             else if (characterType == "goatman")
             {
