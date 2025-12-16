@@ -33,7 +33,7 @@ namespace DoAn_NT106
 
             InitializeCustomUI();               
             this.VisibleChanged += FormDangKy_VisibleChanged;
-
+            
 
             tcpClient = PersistentTcpClient.Instance;
 
@@ -52,6 +52,12 @@ namespace DoAn_NT106
             this.BringToFront();
             this.Focus();
             StartAnimations();
+            MessageBox.Show("Phone number registration does not support password reset. \nPlease use email if you want to account recovery.",
+                "⚠ Registration Notice",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+
+
         }
 
         #endregion
