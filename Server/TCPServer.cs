@@ -881,7 +881,7 @@ namespace DoAn_NT106.Server
 
                 // 3. SMTP sender configuration (replace with real sender/app password)
                 string senderEmail = "linhquangcbl@gmail.com"; // sender email
-                string senderAppPassword = "gpwf gvor avuo pmjp"; // app password (example)
+                string senderAppPassword = "anjunyjfnjabptzf"; // app password (example)
 
                 var emailService = new EmailService(senderEmail, senderAppPassword);
 
