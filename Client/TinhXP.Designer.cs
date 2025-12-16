@@ -79,8 +79,8 @@
             timer_XPAnimation = new System.Windows.Forms.Timer(components);
             timer_FloatingClouds = new System.Windows.Forms.Timer(components);
             pnl_Main = new Pnl_Pixel();
-            pictureBox3 = new PictureBox();
-            pictureBox2 = new PictureBox();
+            lbl_XPProgressValue = new Label();
+            lbl_XPProgress = new Label();
             pnl_Title = new Pnl_Pixel();
             pictureBox1 = new PictureBox();
             pic_TitleCloud1 = new PictureBox();
@@ -96,15 +96,11 @@
             pnl_Divider1 = new Panel();
             lbl_XPEarned = new Label();
             lbl_XPEarnedValue = new Label();
-            lbl_XPProgress = new Label();
-            lbl_XPProgressValue = new Label();
             pnl_XPBarContainer = new Panel();
             pnl_XPBarFill = new Panel();
             btn_Continue = new Btn_Pixel();
             pic_Cloud4 = new PictureBox();
             pnl_Main.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)pictureBox3).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)pictureBox2).BeginInit();
             pnl_Title.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)pictureBox1).BeginInit();
             ((System.ComponentModel.ISupportInitialize)pic_TitleCloud1).BeginInit();
@@ -126,47 +122,46 @@
             // pnl_Main
             // 
             pnl_Main.BackColor = Color.FromArgb(210, 105, 30);
-            pnl_Main.Controls.Add(pictureBox3);
-            pnl_Main.Controls.Add(pictureBox2);
+            pnl_Main.Controls.Add(lbl_XPProgressValue);
+            pnl_Main.Controls.Add(lbl_XPProgress);
             pnl_Main.Controls.Add(pnl_Title);
             pnl_Main.Controls.Add(pnl_PlayerInfo);
             pnl_Main.Controls.Add(pnl_Divider1);
             pnl_Main.Controls.Add(lbl_XPEarned);
             pnl_Main.Controls.Add(lbl_XPEarnedValue);
-            pnl_Main.Controls.Add(lbl_XPProgress);
-            pnl_Main.Controls.Add(lbl_XPProgressValue);
             pnl_Main.Controls.Add(pnl_XPBarContainer);
             pnl_Main.Controls.Add(btn_Continue);
             pnl_Main.Location = new Point(24, 16);
-            pnl_Main.Margin = new Padding(2, 2, 2, 2);
+            pnl_Main.Margin = new Padding(2);
             pnl_Main.Name = "pnl_Main";
             pnl_Main.Size = new Size(392, 404);
             pnl_Main.TabIndex = 0;
             pnl_Main.Paint += pnl_Main_Paint;
             // 
-            // pictureBox3
+            // lbl_XPProgressValue
             // 
-            pictureBox3.BackColor = Color.Transparent;
-            pictureBox3.Image = Properties.Resources.mây;
-            pictureBox3.Location = new Point(272, 343);
-            pictureBox3.Margin = new Padding(2, 2, 2, 2);
-            pictureBox3.Name = "pictureBox3";
-            pictureBox3.Size = new Size(110, 52);
-            pictureBox3.SizeMode = PictureBoxSizeMode.Zoom;
-            pictureBox3.TabIndex = 16;
-            pictureBox3.TabStop = false;
+            lbl_XPProgressValue.BackColor = Color.Transparent;
+            lbl_XPProgressValue.Font = new Font("Courier New", 8F, FontStyle.Bold);
+            lbl_XPProgressValue.ForeColor = Color.White;
+            lbl_XPProgressValue.Location = new Point(204, 235);
+            lbl_XPProgressValue.Margin = new Padding(2, 0, 2, 0);
+            lbl_XPProgressValue.Name = "lbl_XPProgressValue";
+            lbl_XPProgressValue.Size = new Size(168, 23);
+            lbl_XPProgressValue.TabIndex = 6;
+            lbl_XPProgressValue.Text = "1276 / 2000 XP";
+            lbl_XPProgressValue.TextAlign = ContentAlignment.MiddleRight;
             // 
-            // pictureBox2
+            // lbl_XPProgress
             // 
-            pictureBox2.BackColor = Color.Transparent;
-            pictureBox2.Image = Properties.Resources.mây;
-            pictureBox2.Location = new Point(-13, 343);
-            pictureBox2.Margin = new Padding(2, 2, 2, 2);
-            pictureBox2.Name = "pictureBox2";
-            pictureBox2.Size = new Size(110, 52);
-            pictureBox2.SizeMode = PictureBoxSizeMode.Zoom;
-            pictureBox2.TabIndex = 15;
-            pictureBox2.TabStop = false;
+            lbl_XPProgress.BackColor = Color.Transparent;
+            lbl_XPProgress.Font = new Font("Courier New", 8F, FontStyle.Bold);
+            lbl_XPProgress.ForeColor = Color.White;
+            lbl_XPProgress.Location = new Point(20, 235);
+            lbl_XPProgress.Margin = new Padding(2, 0, 2, 0);
+            lbl_XPProgress.Name = "lbl_XPProgress";
+            lbl_XPProgress.Size = new Size(180, 34);
+            lbl_XPProgress.TabIndex = 5;
+            lbl_XPProgress.Text = "Level 12 → Level 13";
             // 
             // pnl_Title
             // 
@@ -176,7 +171,7 @@
             pnl_Title.Controls.Add(lbl_Title);
             pnl_Title.Controls.Add(lbl_Subtitle);
             pnl_Title.Location = new Point(12, 12);
-            pnl_Title.Margin = new Padding(2, 2, 2, 2);
+            pnl_Title.Margin = new Padding(2);
             pnl_Title.Name = "pnl_Title";
             pnl_Title.Size = new Size(368, 72);
             pnl_Title.TabIndex = 0;
@@ -186,7 +181,7 @@
             pictureBox1.BackColor = Color.Transparent;
             pictureBox1.Image = Properties.Resources.mây;
             pictureBox1.Location = new Point(282, 37);
-            pictureBox1.Margin = new Padding(2, 2, 2, 2);
+            pictureBox1.Margin = new Padding(2);
             pictureBox1.Name = "pictureBox1";
             pictureBox1.Size = new Size(88, 34);
             pictureBox1.SizeMode = PictureBoxSizeMode.Zoom;
@@ -198,7 +193,7 @@
             pic_TitleCloud1.BackColor = Color.Transparent;
             pic_TitleCloud1.Image = Properties.Resources.mây;
             pic_TitleCloud1.Location = new Point(-14, 37);
-            pic_TitleCloud1.Margin = new Padding(2, 2, 2, 2);
+            pic_TitleCloud1.Margin = new Padding(2);
             pic_TitleCloud1.Name = "pic_TitleCloud1";
             pic_TitleCloud1.Size = new Size(88, 34);
             pic_TitleCloud1.SizeMode = PictureBoxSizeMode.Zoom;
@@ -241,7 +236,7 @@
             pnl_PlayerInfo.Controls.Add(lbl_TimeTitle);
             pnl_PlayerInfo.Controls.Add(lbl_TimeValue);
             pnl_PlayerInfo.Location = new Point(20, 96);
-            pnl_PlayerInfo.Margin = new Padding(2, 2, 2, 2);
+            pnl_PlayerInfo.Margin = new Padding(2);
             pnl_PlayerInfo.Name = "pnl_PlayerInfo";
             pnl_PlayerInfo.Size = new Size(352, 68);
             pnl_PlayerInfo.TabIndex = 1;
@@ -325,7 +320,7 @@
             // 
             pnl_Divider1.BackColor = Color.FromArgb(139, 69, 19);
             pnl_Divider1.Location = new Point(20, 172);
-            pnl_Divider1.Margin = new Padding(2, 2, 2, 2);
+            pnl_Divider1.Margin = new Padding(2);
             pnl_Divider1.Name = "pnl_Divider1";
             pnl_Divider1.Size = new Size(352, 2);
             pnl_Divider1.TabIndex = 2;
@@ -355,38 +350,13 @@
             lbl_XPEarnedValue.Text = "+284 XP";
             lbl_XPEarnedValue.TextAlign = ContentAlignment.MiddleCenter;
             // 
-            // lbl_XPProgress
-            // 
-            lbl_XPProgress.BackColor = Color.Transparent;
-            lbl_XPProgress.Font = new Font("Courier New", 8F, FontStyle.Bold);
-            lbl_XPProgress.ForeColor = Color.White;
-            lbl_XPProgress.Location = new Point(20, 235);
-            lbl_XPProgress.Margin = new Padding(2, 0, 2, 0);
-            lbl_XPProgress.Name = "lbl_XPProgress";
-            lbl_XPProgress.Size = new Size(180, 14);
-            lbl_XPProgress.TabIndex = 5;
-            lbl_XPProgress.Text = "Level 12 → Level 13";
-            // 
-            // lbl_XPProgressValue
-            // 
-            lbl_XPProgressValue.BackColor = Color.Transparent;
-            lbl_XPProgressValue.Font = new Font("Courier New", 8F, FontStyle.Bold);
-            lbl_XPProgressValue.ForeColor = Color.White;
-            lbl_XPProgressValue.Location = new Point(202, 235);
-            lbl_XPProgressValue.Margin = new Padding(2, 0, 2, 0);
-            lbl_XPProgressValue.Name = "lbl_XPProgressValue";
-            lbl_XPProgressValue.Size = new Size(170, 14);
-            lbl_XPProgressValue.TabIndex = 6;
-            lbl_XPProgressValue.Text = "1276 / 2000 XP";
-            lbl_XPProgressValue.TextAlign = ContentAlignment.MiddleRight;
-            // 
             // pnl_XPBarContainer
             // 
             pnl_XPBarContainer.BackColor = Color.FromArgb(42, 31, 26);
             pnl_XPBarContainer.BorderStyle = BorderStyle.FixedSingle;
             pnl_XPBarContainer.Controls.Add(pnl_XPBarFill);
-            pnl_XPBarContainer.Location = new Point(20, 254);
-            pnl_XPBarContainer.Margin = new Padding(2, 2, 2, 2);
+            pnl_XPBarContainer.Location = new Point(20, 286);
+            pnl_XPBarContainer.Margin = new Padding(2);
             pnl_XPBarContainer.Name = "pnl_XPBarContainer";
             pnl_XPBarContainer.Size = new Size(352, 29);
             pnl_XPBarContainer.TabIndex = 7;
@@ -395,7 +365,7 @@
             // 
             pnl_XPBarFill.BackColor = Color.FromArgb(34, 139, 34);
             pnl_XPBarFill.Location = new Point(0, 0);
-            pnl_XPBarFill.Margin = new Padding(2, 2, 2, 2);
+            pnl_XPBarFill.Margin = new Padding(2);
             pnl_XPBarFill.Name = "pnl_XPBarFill";
             pnl_XPBarFill.Size = new Size(0, 29);
             pnl_XPBarFill.TabIndex = 0;
@@ -406,8 +376,8 @@
             btn_Continue.FlatStyle = FlatStyle.Flat;
             btn_Continue.Font = new Font("Courier New", 11F, FontStyle.Bold);
             btn_Continue.ForeColor = Color.White;
-            btn_Continue.Location = new Point(28, 303);
-            btn_Continue.Margin = new Padding(2, 2, 2, 2);
+            btn_Continue.Location = new Point(20, 326);
+            btn_Continue.Margin = new Padding(2);
             btn_Continue.Name = "btn_Continue";
             btn_Continue.Size = new Size(352, 36);
             btn_Continue.TabIndex = 14;
@@ -419,7 +389,7 @@
             pic_Cloud4.BackColor = Color.Transparent;
             pic_Cloud4.Image = Properties.Resources.mayxanh;
             pic_Cloud4.Location = new Point(-46, 300);
-            pic_Cloud4.Margin = new Padding(2, 2, 2, 2);
+            pic_Cloud4.Margin = new Padding(2);
             pic_Cloud4.Name = "pic_Cloud4";
             pic_Cloud4.Size = new Size(94, 32);
             pic_Cloud4.SizeMode = PictureBoxSizeMode.Zoom;
@@ -437,14 +407,12 @@
             Controls.Add(pnl_Main);
             Controls.Add(pic_Cloud4);
             FormBorderStyle = FormBorderStyle.FixedDialog;
-            Margin = new Padding(2, 2, 2, 2);
+            Margin = new Padding(2);
             MaximizeBox = false;
             Name = "TinhXP";
             StartPosition = FormStartPosition.CenterScreen;
             Text = "Match Summary";
             pnl_Main.ResumeLayout(false);
-            ((System.ComponentModel.ISupportInitialize)pictureBox3).EndInit();
-            ((System.ComponentModel.ISupportInitialize)pictureBox2).EndInit();
             pnl_Title.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)pictureBox1).EndInit();
             ((System.ComponentModel.ISupportInitialize)pic_TitleCloud1).EndInit();
@@ -473,12 +441,6 @@
         {
             // TODO: Add your floating clouds animation logic here.
         }
-
-        // Add this event handler method to your partial class TinhXP
-        // Add this method to your partial class TinhXP
-
-        private PictureBox pictureBox2;
         private PictureBox pictureBox1;
-        private PictureBox pictureBox3;
     }
 }

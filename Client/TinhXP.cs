@@ -162,10 +162,9 @@ namespace DoAn_NT106.Client
 
             if (lbl_XPProgressValue != null)
             {
-                // Show XP within current level / xpPerLevel (based on DB xp + earned xp)
+                // Show total XP accumulated so far / xpPerLevel (simple compact format)
                 const int xpPerLevel = 1000;
-                int xpInCurrentLevel = _xpAfter % xpPerLevel;
-                lbl_XPProgressValue.Text = $"{xpInCurrentLevel} / {xpPerLevel} XP";
+                lbl_XPProgressValue.Text = $"{_xpAfter} / {xpPerLevel}";
             }
 
             // Update progress bar fill based on xp from DB + gained XP
