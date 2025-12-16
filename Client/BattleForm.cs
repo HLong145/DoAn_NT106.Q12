@@ -1932,90 +1932,83 @@ namespace DoAn_NT106
             {
                 try
                 {
-                    if (!isPaused)
+                    // Show menu but do NOT pause the game. Timers and UDP continue running.
+                    using (var menu = new MainMenuForm(roomCode))
                     {
-                        PauseGame();
-                        using (var menu = new MainMenuForm(roomCode))
+                        var res = menu.ShowDialog(this);
+                        if (res == DialogResult.OK)
                         {
-                            var res = menu.ShowDialog(this);
-                            if (res == DialogResult.OK)
+                            try { gameTimer?.Stop(); } catch { }
+                            try { walkAnimationTimer?.Stop(); } catch { }
+
+                            // Close this BattleForm and return to lobby UI
+                            this.Close();
+
+                            bool isOffline = string.IsNullOrEmpty(roomCode) || roomCode == "000000";
+                            if (isOffline)
                             {
-                                try { gameTimer?.Stop(); } catch { }
-                                try { walkAnimationTimer?.Stop(); } catch { }
-
-                                // Close this BattleForm and return to lobby UI
-                                this.Close();
-
-                                bool isOffline = string.IsNullOrEmpty(roomCode) || roomCode == "000000";
-                                if (isOffline)
+                                if (this.Owner is PixelGameLobby.JoinRoomForm ownerJoin)
                                 {
-                                    if (this.Owner is PixelGameLobby.JoinRoomForm ownerJoin)
-                                    {
-                                        try { ownerJoin.Show(); ownerJoin.BringToFront(); }
-                                        catch { Console.WriteLine("[BattleForm] Failed to show owner JoinRoomForm"); }
-                                    }
-                                    else
-                                    {
-                                        var existingJoin = Application.OpenForms.OfType<PixelGameLobby.JoinRoomForm>().FirstOrDefault();
-                                        if (existingJoin != null) { existingJoin.Show(); existingJoin.BringToFront(); }
-                                        else { Console.WriteLine("[BattleForm] No existing JoinRoomForm found for offline mode; skipping creation."); }
-                                    }
+                                    try { ownerJoin.Show(); ownerJoin.BringToFront(); }
+                                    catch { Console.WriteLine("[BattleForm] Failed to show owner JoinRoomForm"); }
                                 }
                                 else
                                 {
-                                    try
-                                    {
-                                        var tcp = DoAn_NT106.Services.PersistentTcpClient.Instance;
-                                        _ = System.Threading.Tasks.Task.Run(async () =>
-                                        {
-                                            try { var r = await tcp.LeaveRoomAsync(roomCode, username); Console.WriteLine($"[BattleForm] LeaveRoomAsync: {r.Success} - {r.Message}"); }
-                                            catch (Exception ex) { Console.WriteLine($"[BattleForm] LeaveRoomAsync error: {ex.Message}"); }
-                                        });
-
-                                        PixelGameLobby.GameLobbyForm lobbyForm = null;
-                                        foreach (Form f in Application.OpenForms)
-                                        {
-                                            if (f is PixelGameLobby.GameLobbyForm gf)
-                                            {
-                                                try
-                                                {
-                                                    var field = f.GetType().GetField("roomCode", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
-                                                    if (field != null)
-                                                    {
-                                                        var val = field.GetValue(f) as string;
-                                                        if (!string.IsNullOrEmpty(val) && string.Equals(val, roomCode, StringComparison.OrdinalIgnoreCase)) { lobbyForm = gf; break; }
-                                                    }
-                                                }
-                                                catch { }
-                                                if (lobbyForm == null) lobbyForm = gf;
-                                            }
-                                        }
-
-                                        if (lobbyForm != null) { try { if (lobbyForm.WindowState == FormWindowState.Minimized) lobbyForm.WindowState = FormWindowState.Normal; lobbyForm.Show(); lobbyForm.BringToFront(); } catch (Exception ex) { Console.WriteLine($"[BattleForm] Error showing GameLobbyForm: {ex.Message}"); } }
-                                        else
-                                        {
-                                            var existingJoin = Application.OpenForms.OfType<PixelGameLobby.JoinRoomForm>().FirstOrDefault();
-                                            if (existingJoin != null) { if (existingJoin.WindowState == FormWindowState.Minimized) existingJoin.WindowState = FormWindowState.Normal; existingJoin.Show(); existingJoin.BringToFront(); }
-                                            else { try { var newLobby = new PixelGameLobby.GameLobbyForm(roomCode, username, token); newLobby.Show(); } catch (Exception ex) { Console.WriteLine($"[BattleForm] Error showing fallback lobby: {ex.Message}"); } }
-                                        }
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        Console.WriteLine($"[BattleForm] Error returning to lobby: {ex.Message}");
-                                    }
+                                    var existingJoin = Application.OpenForms.OfType<PixelGameLobby.JoinRoomForm>().FirstOrDefault();
+                                    if (existingJoin != null) { existingJoin.Show(); existingJoin.BringToFront(); }
+                                    else { Console.WriteLine("[BattleForm] No existing JoinRoomForm found for offline mode; skipping creation."); }
                                 }
                             }
                             else
                             {
-                                ResumeGame();
+                                try
+                                {
+                                    var tcp = DoAn_NT106.Services.PersistentTcpClient.Instance;
+                                    _ = System.Threading.Tasks.Task.Run(async () =>
+                                    {
+                                        try { var r = await tcp.LeaveRoomAsync(roomCode, username); Console.WriteLine($"[BattleForm] LeaveRoomAsync: {r.Success} - {r.Message}"); }
+                                        catch (Exception ex) { Console.WriteLine($"[BattleForm] LeaveRoomAsync error: {ex.Message}"); }
+                                    });
+
+                                    PixelGameLobby.GameLobbyForm lobbyForm = null;
+                                    foreach (Form f in Application.OpenForms)
+                                    {
+                                        if (f is PixelGameLobby.GameLobbyForm gf)
+                                        {
+                                            try
+                                            {
+                                                var field = f.GetType().GetField("roomCode", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
+                                                if (field != null)
+                                                {
+                                                    var val = field.GetValue(f) as string;
+                                                    if (!string.IsNullOrEmpty(val) && string.Equals(val, roomCode, StringComparison.OrdinalIgnoreCase)) { lobbyForm = gf; break; }
+                                                }
+                                            }
+                                            catch { }
+                                            if (lobbyForm == null) lobbyForm = gf;
+                                        }
+                                    }
+
+                                    if (lobbyForm != null) { try { if (lobbyForm.WindowState == FormWindowState.Minimized) lobbyForm.WindowState = FormWindowState.Normal; lobbyForm.Show(); lobbyForm.BringToFront(); } catch (Exception ex) { Console.WriteLine($"[BattleForm] Error showing GameLobbyForm: {ex.Message}"); } }
+                                    else
+                                    {
+                                        var existingJoin = Application.OpenForms.OfType<PixelGameLobby.JoinRoomForm>().FirstOrDefault();
+                                        if (existingJoin != null) { if (existingJoin.WindowState == FormWindowState.Minimized) existingJoin.WindowState = FormWindowState.Normal; existingJoin.Show(); existingJoin.BringToFront(); }
+                                        else { try { var newLobby = new PixelGameLobby.GameLobbyForm(roomCode, username, token); newLobby.Show(); } catch (Exception ex) { Console.WriteLine($"[BattleForm] Error showing fallback lobby: {ex.Message}"); } }
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine($"[BattleForm] Error returning to lobby: {ex.Message}");
+                                }
                             }
                         }
+                        // else: user closed menu without leaving -- do nothing, game continues
                     }
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"[BattleForm] Escape menu error: {ex.Message}");
-                    try { ResumeGame(); } catch { }
                 }
             }
 
