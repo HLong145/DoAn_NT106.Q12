@@ -236,17 +236,17 @@ namespace DoAn_NT106.Client.BattleSystems
         /// <summary>
         /// Check if player can attack
         /// </summary>
-        public bool CanAttack => !IsStunned && !IsCharging && !IsDashing;
+        public bool CanAttack => !IsStunned && !IsCharging && !IsDashing && !IsJumping; // BLOCK attacks while jumping
 
         /// <summary>
         /// Check if player can dash
         /// </summary>
-        public bool CanDash => !IsStunned && !IsCharging && !IsDashing && !IsAttacking;
+        public bool CanDash => !IsStunned && !IsCharging && !IsDashing && !IsAttacking && !IsJumping; // BLOCK dash while jumping
 
         /// <summary>
         /// Check if player can parry
         /// </summary>
-        public bool CanParry => !IsStunned && !IsCharging && !IsDashing && !IsParryOnCooldown;
+        public bool CanParry => !IsStunned && !IsCharging && !IsDashing && !IsParryOnCooldown && !IsJumping; // BLOCK parry while jumping
 
         /// <summary>
         /// ✅ THÊM: Cleanup timers khi form đóng
