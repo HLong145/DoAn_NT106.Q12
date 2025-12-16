@@ -91,10 +91,10 @@
             // tabOnline
             // 
             tabOnline.Controls.Add(txtOnline);
-            tabOnline.Location = new Point(4, 32);
+            tabOnline.Location = new Point(4, 29);
             tabOnline.Name = "tabOnline";
             tabOnline.Padding = new Padding(3);
-            tabOnline.Size = new Size(712, 344);
+            tabOnline.Size = new Size(712, 347);
             tabOnline.TabIndex = 1;
             tabOnline.Text = "Online Controls";
             tabOnline.UseVisualStyleBackColor = true;
@@ -108,12 +108,13 @@
             txtOnline.Location = new Point(3, 3);
             txtOnline.Name = "txtOnline";
             txtOnline.ReadOnly = true;
-            txtOnline.Size = new Size(706, 338);
+            txtOnline.Size = new Size(706, 341);
             txtOnline.TabIndex = 0;
             txtOnline.Text = "";
             // 
             // lblHeader
             // 
+            lblHeader.BackColor = Color.FromArgb(64, 0, 0);
             lblHeader.Font = new Font("Courier New", 20F, FontStyle.Bold);
             lblHeader.ForeColor = Color.Gold;
             lblHeader.Location = new Point(20, 18);
