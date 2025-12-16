@@ -513,7 +513,7 @@ namespace DoAn_NT106
                 FormDangNhap loginForm = new FormDangNhap();
                 loginForm.StartPosition = FormStartPosition.CenterScreen;
                 loginForm.Show();
-                this.Close();
+                this.Hide();
             }
             catch (Exception ex)
             {
@@ -525,7 +525,7 @@ namespace DoAn_NT106
         {
             JoinRoomForm joinForm = new JoinRoomForm(username, token);
             joinForm.Show();
-            this.Close();  // ĐÓNG hoàn toàn MainForm
+            this.Hide();  // ĐÓNG hoàn toàn MainForm
         }
 
         //  Avatar available in game (use avt_* resources)
