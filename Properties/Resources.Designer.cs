@@ -362,6 +362,16 @@ namespace DoAn_NT106.Properties {
         /// <summary>
         ///   Looks up a localized resource of type System.Drawing.Bitmap.
         /// </summary>
+        internal static System.Drawing.Bitmap button_leaderboard {
+            get {
+                object obj = ResourceManager.GetObject("button_leaderboard", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Drawing.Bitmap.
+        /// </summary>
         internal static System.Drawing.Bitmap c6d82a81_54de_43be_a1c7_439b407ae76c {
             get {
                 object obj = ResourceManager.GetObject("c6d82a81-54de-43be-a1c7-439b407ae76c", resourceCulture);

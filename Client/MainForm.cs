@@ -1,5 +1,5 @@
 ﻿using DoAn_NT106.Services;
-using DoAn_NT106.Client; // ✅ THÊM CHO SOUNDMANAGER
+using DoAn_NT106.Client;
 using PixelGameLobby;
 using System;
 using System.Collections.Generic;
@@ -32,6 +32,19 @@ namespace DoAn_NT106
             public int Size { get; set; }
             public Color Color { get; set; }
             public bool IsStar { get; set; }
+        }
+
+        private void BtnLeaderboard_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                var lb = new LeaderBoardForm();
+                lb.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Error opening LeaderBoard: " + ex.Message);
+            }
         }
 
         private void BtnMusic_Click(object sender, EventArgs e)

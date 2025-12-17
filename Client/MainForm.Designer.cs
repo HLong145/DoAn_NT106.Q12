@@ -25,6 +25,7 @@ namespace DoAn_NT106
             lblAvatarHint = new Label();
             lblUserName = new Label();
             btn_play = new Btn_Pixel();
+            btnLeaderboard = new PictureBox();
             btnLogout = new Btn_Pixel();
             btnMusic = new Btn_Pixel();
             panelMainContent = new Panel();
@@ -65,6 +66,7 @@ namespace DoAn_NT106
             panelSidebar.Controls.Add(lblAvatarHint);
             panelSidebar.Controls.Add(lblUserName);
             panelSidebar.Controls.Add(btn_play);
+            panelSidebar.Controls.Add(btnLeaderboard);
             panelSidebar.Controls.Add(btnLogout);
             panelSidebar.Controls.Add(btnMusic);
             panelSidebar.Dock = DockStyle.Left;
@@ -125,13 +127,26 @@ namespace DoAn_NT106
             btn_play.Text = "▶ PLAY NOW ◀";
             btn_play.Click += btn_play_Click;
             // 
+            // btnLeaderboard
+            // 
+            btnLeaderboard.BackColor = Color.Transparent;
+            btnLeaderboard.Cursor = Cursors.Hand;
+            btnLeaderboard.Image = Properties.Resources.button_leaderboard;
+            btnLeaderboard.Location = new Point(0, 725);
+            btnLeaderboard.Name = "btnLeaderboard";
+            btnLeaderboard.Size = new Size(306, 80);
+            btnLeaderboard.SizeMode = PictureBoxSizeMode.Zoom;
+            btnLeaderboard.TabIndex = 11;
+            btnLeaderboard.TabStop = false;
+            btnLeaderboard.Click += BtnLeaderboard_Click;
+            // 
             // btnLogout
             // 
             btnLogout.BtnColor = Color.FromArgb(194, 24, 91);
             btnLogout.FlatStyle = FlatStyle.Flat;
             btnLogout.Font = new Font("Courier New", 12F, FontStyle.Bold);
             btnLogout.ForeColor = Color.White;
-            btnLogout.Location = new Point(29, 598);
+            btnLogout.Location = new Point(29, 620);
             btnLogout.Name = "btnLogout";
             btnLogout.Size = new Size(267, 69);
             btnLogout.TabIndex = 9;
@@ -144,7 +159,7 @@ namespace DoAn_NT106
             btnMusic.FlatStyle = FlatStyle.Flat;
             btnMusic.Font = new Font("Courier New", 12F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnMusic.ForeColor = Color.White;
-            btnMusic.Location = new Point(29, 695);
+            btnMusic.Location = new Point(28, 543);
             btnMusic.Name = "btnMusic";
             btnMusic.Size = new Size(268, 50);
             btnMusic.TabIndex = 10;
@@ -427,5 +442,6 @@ namespace DoAn_NT106
         private Label label5;
         private Label label4;
         private Btn_Pixel btnMusic;
+        private System.Windows.Forms.PictureBox btnLeaderboard;
     }
 }
