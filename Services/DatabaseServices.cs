@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
@@ -537,6 +538,46 @@ namespace DoAn_NT106.Services
             {
                 otps.TryRemove(key, out _);
             }
+        }
+
+        /// <summary>
+        /// Lấy top players sắp theo USER_LEVEL desc, sau đó XP desc
+        /// </summary>
+        public List<PlayerRank> GetTopPlayers(int limit = 10)
+        {
+            var list = new List<PlayerRank>();
+            try
+            {
+                using (var connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+
+                    // Query ordered by level desc then xp desc
+                    string query = "SELECT USERNAME, USER_LEVEL, XP FROM PLAYERS ORDER BY USER_LEVEL DESC, XP DESC";
+
+                    using (var command = new SqlCommand(query, connection))
+                    using (var reader = command.ExecuteReader())
+                    {
+                        int count = 0;
+                        while (reader.Read() && count < limit)
+                        {
+                            list.Add(new PlayerRank
+                            {
+                                Username = reader["USERNAME"]?.ToString(),
+                                UserLevel = reader["USER_LEVEL"] != DBNull.Value ? Convert.ToInt32(reader["USER_LEVEL"]) : 1,
+                                Xp = reader["XP"] != DBNull.Value ? Convert.ToInt32(reader["XP"]) : 0
+                            });
+                            count++;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ GetTopPlayers error: {ex.Message}");
+            }
+
+            return list;
         }
 
        
@@ -1176,6 +1217,14 @@ namespace DoAn_NT106.Services
         public class LobbyChatMessage : ChatMessage
         {
             public string RoomCode { get; set; }
+        }
+
+        // Simple DTO for leaderboard
+        public class PlayerRank
+        {
+            public string Username { get; set; }
+            public int UserLevel { get; set; }
+            public int Xp { get; set; }
         }
 
         #endregion

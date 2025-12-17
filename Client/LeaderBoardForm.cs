@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Drawing;
 using System.Linq;
+using System.IO;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using DoAn_NT106.Services;
@@ -29,56 +30,16 @@ namespace DoAn_NT106
                 try
                 {
                     var db = new DatabaseService();
-                    // Query top 20 by level desc, xp desc. DatabaseService doesn't expose this directly,
-                    // so use reflection on DatabaseService if method missing - fallback to reading all players not possible here.
-                    // We'll attempt to call a method named GetTopPlayers if it exists.
-                    var method = db.GetType().GetMethod("GetTopPlayers");
-                    if (method != null)
+                    var res = db.GetTopPlayers(10);
+                    var list = new List<(string Username, int Level, int Xp)>();
+                    if (res != null)
                     {
-                        var res = method.Invoke(db, new object[] { 20 }) as System.Collections.IEnumerable;
-                        var list = new List<(string Username, int Level, int Xp)>();
-                        if (res != null)
+                        foreach (var item in res)
                         {
-                            foreach (var item in res)
-                            {
-                                var uname = item.GetType().GetProperty("USERNAME")?.GetValue(item)?.ToString() ?? item.GetType().GetProperty("Username")?.GetValue(item)?.ToString();
-                                int lvl = 1;
-                                int xp = 0;
-                                var p1 = item.GetType().GetProperty("USER_LEVEL") ?? item.GetType().GetProperty("UserLevel") ?? item.GetType().GetProperty("Level");
-                                var p2 = item.GetType().GetProperty("XP") ?? item.GetType().GetProperty("Xp") ?? item.GetType().GetProperty("TotalXp");
-                                if (p1 != null) int.TryParse(p1.GetValue(item)?.ToString(), out lvl);
-                                if (p2 != null) int.TryParse(p2.GetValue(item)?.ToString(), out xp);
-                                list.Add((uname ?? "?", lvl, xp));
-                            }
+                            list.Add((item.Username ?? "?", item.UserLevel, item.Xp));
                         }
-                        return list;
                     }
-
-                    // Fallback: try to call GetAllPlayers then order in-memory
-                    var methodAll = db.GetType().GetMethod("GetAllPlayers");
-                    if (methodAll != null)
-                    {
-                        var res = methodAll.Invoke(db, null) as System.Collections.IEnumerable;
-                        var list = new List<(string Username, int Level, int Xp)>();
-                        if (res != null)
-                        {
-                            foreach (var item in res)
-                            {
-                                var uname = item.GetType().GetProperty("USERNAME")?.GetValue(item)?.ToString() ?? item.GetType().GetProperty("Username")?.GetValue(item)?.ToString();
-                                int lvl = 1;
-                                int xp = 0;
-                                var p1 = item.GetType().GetProperty("USER_LEVEL") ?? item.GetType().GetProperty("UserLevel") ?? item.GetType().GetProperty("Level");
-                                var p2 = item.GetType().GetProperty("XP") ?? item.GetType().GetProperty("Xp") ?? item.GetType().GetProperty("TotalXp");
-                                if (p1 != null) int.TryParse(p1.GetValue(item)?.ToString(), out lvl);
-                                if (p2 != null) int.TryParse(p2.GetValue(item)?.ToString(), out xp);
-                                list.Add((uname ?? "?", lvl, xp));
-                            }
-                        }
-                        return list.OrderByDescending(x => x.Level).ThenByDescending(x => x.Xp).Take(20).ToList();
-                    }
-
-                    // Last fallback: return empty list
-                    return new List<(string Username, int Level, int Xp)>();
+                    return list;
                 }
                 catch (Exception ex)
                 {
@@ -91,16 +52,97 @@ namespace DoAn_NT106
         private async Task LoadTopPlayersAsync()
         {
             var data = await FetchTopPlayersAsync();
-            dgv.Rows.Clear();
-            int rank = 1;
-            foreach (var p in data)
+
+            // Update top 3 display
+            var top3 = data.Take(3).ToList();
+            if (top3.Count >= 1)
             {
-                dgv.Rows.Add(rank, p.Username, p.Level, p.Xp);
-                rank++;
+                lblTop1Name.Text = top3[0].Username;
+                lblTop1Level.Text = $"Lv {top3[0].Level}";
+                lblTop1Score.Text = top3[0].Xp.ToString();
+            }
+            else
+            {
+                lblTop1Name.Text = "-";
+                lblTop1Score.Text = "-";
             }
 
-            // If not enough data, show placeholders
-            while (rank <= 20)
+            if (top3.Count >= 2)
+            {
+                lblTop2Name.Text = top3[1].Username;
+                lblTop2Level.Text = $"Lv {top3[1].Level}";
+                lblTop2Score.Text = top3[1].Xp.ToString();
+            }
+            else
+            {
+                lblTop2Name.Text = "-";
+                lblTop2Score.Text = "-";
+            }
+
+            if (top3.Count >= 3)
+            {
+                lblTop3Name.Text = top3[2].Username;
+                lblTop3Level.Text = $"Lv {top3[2].Level}";
+                lblTop3Score.Text = top3[2].Xp.ToString();
+            }
+            else
+            {
+                lblTop3Name.Text = "-";
+                lblTop3Score.Text = "-";
+            }
+
+            // Load avatars for top3 if user saved one locally (UserAvatars\{username}.txt)
+            try
+            {
+                // top1
+                if (top3.Count >= 1)
+                {
+                    var img = LoadPlayerAvatar(top3[0].Username, pbTop1.ClientSize) ?? Properties.Resources.boy1;
+                    pbTop1.Image = img;
+                    pbTop1.SizeMode = PictureBoxSizeMode.Zoom;
+                    pbTop1.Visible = true;
+                    pbCrown.Visible = true;
+                    // ensure crown and avatars are on top
+                    pbTop1.BringToFront();
+                    pbCrown.BringToFront();
+                }
+
+                // top2
+                if (top3.Count >= 2)
+                {
+                    var img = LoadPlayerAvatar(top3[1].Username, pbTop2.ClientSize) ?? Properties.Resources.boy2;
+                    pbTop2.Image = img;
+                    pbTop2.SizeMode = PictureBoxSizeMode.Zoom;
+                    pbTop2.Visible = true;
+                    pbTop2.BringToFront();
+                    pbRank2.Visible = true;
+                    pbRank2.BringToFront();
+                }
+
+                // top3
+                if (top3.Count >= 3)
+                {
+                    var img = LoadPlayerAvatar(top3[2].Username, pbTop3.ClientSize) ?? Properties.Resources.boy3;
+                    pbTop3.Image = img;
+                    pbTop3.SizeMode = PictureBoxSizeMode.Zoom;
+                    pbTop3.Visible = true;
+                    pbTop3.BringToFront();
+                    pbRank3.Visible = true;
+                    pbRank3.BringToFront();
+                }
+            }
+            catch { }
+
+            // Populate the grid starting from rank 4
+            dgv.Rows.Clear();
+            int rank = 4;
+            foreach (var p in data.Skip(3))
+            {
+                dgv.Rows.Add(rank, p.Level, p.Username, p.Xp);
+                rank++;
+            }
+            // Fill placeholders to show up to 10
+            while (rank <= 10)
             {
                 dgv.Rows.Add(rank, "-", "-", "-");
                 rank++;
@@ -110,6 +152,47 @@ namespace DoAn_NT106
         private void btnClose_Click(object sender, EventArgs e)
         {
             this.Close();
+        }
+
+        private Image LoadPlayerAvatar(string username, Size targetSize)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(username)) return null;
+                string folder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "UserAvatars");
+                string txt = Path.Combine(folder, username + ".txt");
+                if (!File.Exists(txt)) return null;
+                string content = File.ReadAllText(txt).Trim();
+                if (!int.TryParse(content, out int idx)) return null;
+
+                // Map index to resource (same as MainForm.gameAvatars ordering)
+                Image res = idx switch
+                {
+                    0 => Properties.Resources.avt_knightgirl,
+                    1 => Properties.Resources.avt_bringer,
+                    2 => Properties.Resources.avt_warrior,
+                    3 => Properties.Resources.avt_goatman,
+                    _ => null
+                };
+
+                if (res == null) return null;
+
+                // Create fitted image
+                var bmp = new Bitmap(targetSize.Width > 0 ? targetSize.Width : res.Width, targetSize.Height > 0 ? targetSize.Height : res.Height);
+                using (var g = Graphics.FromImage(bmp))
+                {
+                    g.Clear(Color.Transparent);
+                    g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                    float scale = Math.Min((float)bmp.Width / res.Width, (float)bmp.Height / res.Height);
+                    int w = (int)(res.Width * scale);
+                    int h = (int)(res.Height * scale);
+                    int x = (bmp.Width - w) / 2;
+                    int y = (bmp.Height - h) / 2;
+                    g.DrawImage(res, new Rectangle(x, y, w, h));
+                }
+                return bmp;
+            }
+            catch { return null; }
         }
     }
 }

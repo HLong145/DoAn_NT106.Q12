@@ -392,6 +392,16 @@ namespace DoAn_NT106.Properties {
         /// <summary>
         ///   Looks up a localized resource of type System.Drawing.Bitmap.
         /// </summary>
+        internal static System.Drawing.Bitmap crown {
+            get {
+                object obj = ResourceManager.GetObject("crown", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Drawing.Bitmap.
+        /// </summary>
         internal static System.Drawing.Bitmap D {
             get {
                 object obj = ResourceManager.GetObject("D", resourceCulture);
@@ -793,6 +803,16 @@ namespace DoAn_NT106.Properties {
         /// <summary>
         ///   Looks up a localized resource of type System.Drawing.Bitmap.
         /// </summary>
+        internal static System.Drawing.Bitmap label_leaderboard {
+            get {
+                object obj = ResourceManager.GetObject("label_leaderboard", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Drawing.Bitmap.
+        /// </summary>
         internal static System.Drawing.Bitmap logogame {
             get {
                 object obj = ResourceManager.GetObject("logogame", resourceCulture);
@@ -983,6 +1003,26 @@ namespace DoAn_NT106.Properties {
         internal static System.IO.UnmanagedMemoryStream punch_KG_warrior_Bringer {
             get {
                 return ResourceManager.GetStream("punch_KG_warrior_Bringer", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Drawing.Bitmap.
+        /// </summary>
+        internal static System.Drawing.Bitmap rank2 {
+            get {
+                object obj = ResourceManager.GetObject("rank2", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Drawing.Bitmap.
+        /// </summary>
+        internal static System.Drawing.Bitmap rank3 {
+            get {
+                object obj = ResourceManager.GetObject("rank3", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
             }
         }
         
