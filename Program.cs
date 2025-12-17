@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Diagnostics;
+using System.Linq;
 using System.Windows.Forms;
 using DoAn_NT106.Client;
 using DoAn_NT106.Client.Class;
@@ -7,79 +9,206 @@ namespace DoAn_NT106
 {
     internal static class Program
     {
+        // FLAG ĐỂ TRÁNH SHUTDOWN NHIỀU LẦN
+        private static bool isShuttingDown = false;
+        private static readonly object shutdownLock = new object();
+
+        // TIMER ĐỂ DELAY KIỂM TRA (tránh shutdown khi đang chuyển form)
+        private static System.Windows.Forms.Timer shutdownCheckTimer;
+        private static int pendingCloseCount = 0;
+
         [STAThread]
         static void Main(string[] args)
         {
-            // ✅ THÊM GLOBAL EXCEPTION HANDLER
+            // GLOBAL EXCEPTION HANDLERS
             AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
             Application.ThreadException += Application_ThreadException;
+            AppDomain.CurrentDomain.ProcessExit += CurrentDomain_ProcessExit;
 
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
             try
             {
-                // ✅ Initialize Sound Manager and UI Audio Wiring at startup
+                // Initialize Sound Manager and UI Audio Wiring at startup
                 SoundManager.Initialize();
                 UIAudioWiring.Start();
                 Console.WriteLine("🎵 UIAudioWiring started - all buttons will play sound");
 
-                // Start UI styling enforcer (remove borders and control boxes at runtime)
+                // Start UI styling enforcer
                 UIStyling.Start();
 
-                if (args.Length > 0 && args[0].Equals("--login", StringComparison.OrdinalIgnoreCase))
-                {
-                    // Process này chỉ dùng cho client login/register
-                    // Có thể dùng FormManager để quản lý Login/Register
-                    FormManager.StartApplication();
-                }
-                else
-                {
-                    // Process "launcher" mặc định → mở Dashboard
-                    Application.Run(new Dashboard());
-                }
+                // KHỞI TẠO TIMER KIỂM TRA SHUTDOWN (delay 500ms)
+                shutdownCheckTimer = new System.Windows.Forms.Timer();
+                shutdownCheckTimer.Interval = 500; // 500ms delay
+                shutdownCheckTimer.Tick += ShutdownCheckTimer_Tick;
+
+                // HOOK VÀO TẤT CẢ FORMS ĐƯỢC TẠO
+                Application.Idle += Application_Idle;
+
+                // CHẠY THẲNG LOGIN FORM
+                Console.WriteLine("🚀 Starting Login Form...");
+                Application.Run(new FormDangNhap());
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"❌ Fatal error: {ex}");
                 MessageBox.Show($"Fatal error: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-            finally
+
+            // KHI APPLICATION.RUN KẾT THÚC → FORCE SHUTDOWN
+            ForceShutdown();
+        }
+
+        // THEO DÕI TẤT CẢ FORMS - HOOK EVENTS
+        private static void Application_Idle(object sender, EventArgs e)
+        {
+            foreach (Form form in Application.OpenForms)
             {
-                // ✅ ENSURE COMPLETE CLEANUP
-                CleanupAndExit();
+                if (form.Tag?.ToString() != "Hooked")
+                {
+                    form.Tag = "Hooked";
+                    form.FormClosed += AnyForm_FormClosed;
+                    form.VisibleChanged += AnyForm_VisibleChanged;
+                    Console.WriteLine($"📋 Hooked form: {form.Name} ({form.GetType().Name})");
+                }
             }
         }
 
-        // ✅ GLOBAL UNHANDLED EXCEPTION HANDLER
+        // KHI FORM ẨN ĐI (this.Hide()) - KHÔNG SHUTDOWN NGAY
+        private static void AnyForm_VisibleChanged(object sender, EventArgs e)
+        {
+            if (isShuttingDown) return;
+
+            Form form = sender as Form;
+            if (form != null && !form.Visible)
+            {
+                Console.WriteLine($"👁️ Form hidden: {form.Name} ({form.GetType().Name})");
+                // Không làm gì - chỉ log
+            }
+        }
+
+        // KHI FORM ĐÓNG (this.Close()) - DELAY KIỂM TRA
+        private static void AnyForm_FormClosed(object sender, FormClosedEventArgs e)
+        {
+            if (isShuttingDown) return;
+
+            Form closedForm = sender as Form;
+            Console.WriteLine($"🚪 Form closed: {closedForm?.Name} ({closedForm?.GetType().Name}), Reason: {e.CloseReason}");
+
+            // RESET VÀ START TIMER - delay kiểm tra để form mới có thời gian show
+            pendingCloseCount++;
+            shutdownCheckTimer.Stop();
+            shutdownCheckTimer.Start();
+        }
+
+        // TIMER TICK - KIỂM TRA SAU KHI DELAY
+        private static void ShutdownCheckTimer_Tick(object sender, EventArgs e)
+        {
+            shutdownCheckTimer.Stop();
+
+            if (isShuttingDown) return;
+
+            Console.WriteLine($"⏰ Checking forms after delay... (pending closes: {pendingCloseCount})");
+            pendingCloseCount = 0;
+
+            // KIỂM TRA CÒN FORM VISIBLE KHÔNG
+            bool hasVisibleForm = false;
+            int totalForms = Application.OpenForms.Count;
+
+            foreach (Form form in Application.OpenForms)
+            {
+                if (!form.IsDisposed)
+                {
+                    Console.WriteLine($"   📋 Form: {form.Name} ({form.GetType().Name}) - Visible: {form.Visible}");
+                    if (form.Visible)
+                    {
+                        hasVisibleForm = true;
+                    }
+                }
+            }
+
+            Console.WriteLine($"   📊 Total forms: {totalForms}, Has visible: {hasVisibleForm}");
+
+            // NẾU KHÔNG CÒN FORM VISIBLE → SHUTDOWN
+            if (!hasVisibleForm)
+            {
+                Console.WriteLine("⚠️ No visible forms remaining - initiating shutdown...");
+                ForceShutdown();
+            }
+        }
+
+        // GLOBAL UNHANDLED EXCEPTION HANDLER
         private static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
         {
             Exception ex = e.ExceptionObject as Exception;
             Console.WriteLine($"❌ Unhandled exception: {ex?.Message}");
-            CleanupAndExit();
+            ForceShutdown();
         }
 
-        // ✅ GLOBAL THREAD EXCEPTION HANDLER
+        // GLOBAL THREAD EXCEPTION HANDLER
         private static void Application_ThreadException(object sender, System.Threading.ThreadExceptionEventArgs e)
         {
             Console.WriteLine($"❌ Thread exception: {e.Exception?.Message}");
         }
 
-        // ✅ CLEANUP AND FORCE EXIT
-        private static void CleanupAndExit()
+        // PROCESS EXIT EVENT
+        private static void CurrentDomain_ProcessExit(object sender, EventArgs e)
+        {
+            Console.WriteLine("📤 Process exit event");
+            CleanupResources();
+        }
+
+        // CLEANUP TẤT CẢ RESOURCES
+        private static void CleanupResources()
         {
             try
             {
                 Console.WriteLine("🧹 Cleaning up resources...");
-                
-                // ✅ Stop sound manager
-                SoundManager.Cleanup();
 
-                // ✅ Stop UI Audio wiring
-                UIAudioWiring.Stop();
+                // Stop timer
+                try
+                {
+                    shutdownCheckTimer?.Stop();
+                    shutdownCheckTimer?.Dispose();
+                }
+                catch { }
+
+                // Disconnect PersistentTcpClient (quan trọng nhất)
+                try
+                {
+                    PersistentTcpClient.Instance.Disconnect();
+                    Console.WriteLine("✅ PersistentTcpClient disconnected");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"⚠️ PersistentTcpClient cleanup error: {ex.Message}");
+                }
+
+                // Stop sound manager
+                try
+                {
+                    SoundManager.StopMusic();
+                    SoundManager.Cleanup();
+                    Console.WriteLine("✅ SoundManager cleaned up");
+                }
+                catch { }
+
+                // Stop UI Audio wiring
+                try
+                {
+                    UIAudioWiring.Stop();
+                    Console.WriteLine("✅ UIAudioWiring stopped");
+                }
+                catch { }
 
                 // Stop UI styling helper
-                UIStyling.Stop();
+                try
+                {
+                    UIStyling.Stop();
+                    Console.WriteLine("✅ UIStyling stopped");
+                }
+                catch { }
 
                 Console.WriteLine("✅ Cleanup complete");
             }
@@ -87,45 +216,79 @@ namespace DoAn_NT106
             {
                 Console.WriteLine($"⚠️ Cleanup error: {ex.Message}");
             }
-            finally
+        }
+
+        // ĐÓNG TẤT CẢ FORMS
+        private static void CloseAllForms()
+        {
+            try
             {
-                // ✅ FORCE EXIT - Không chấp nhận bất kỳ background thread nào
-                Console.WriteLine("🛑 Force exit now");
-                Environment.Exit(0);
+                var formsToClose = Application.OpenForms.Cast<Form>().ToList();
+
+                foreach (Form form in formsToClose)
+                {
+                    try
+                    {
+                        if (!form.IsDisposed)
+                        {
+                            Console.WriteLine($"🔒 Force closing form: {form.Name} ({form.GetType().Name})");
+                            form.Close();
+                            form.Dispose();
+                        }
+                    }
+                    catch { }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ Error closing forms: {ex.Message}");
             }
         }
-    }
 
-    public static class FormManager
-    {
-        public static void StartApplication()
+        // FORCE SHUTDOWN
+        public static void ForceShutdown()
         {
-            var loginForm = new FormDangNhap();
-            var registerForm = new FormDangKy();
-
-            registerForm.Hide();
-
-            loginForm.SwitchToRegister += (s, e) =>
+            lock (shutdownLock)
             {
-                Console.WriteLine("🔄 Switching to Register form...");
-                loginForm.Hide();
-                registerForm.Show();
-                registerForm.BringToFront();
-            };
+                if (isShuttingDown) return;
+                isShuttingDown = true;
+            }
 
-            registerForm.SwitchToLogin += (s, e) =>
+            Console.WriteLine("🛑 Force shutdown initiated...");
+
+            // ĐÓNG TẤT CẢ FORMS
+            CloseAllForms();
+
+            // CLEANUP RESOURCES
+            CleanupResources();
+
+            // KILL CHILD PROCESSES
+            try
             {
-                Console.WriteLine("🔄 Switching to Login form...");
-                registerForm.Hide();
-                registerForm.ResetForm();
-                loginForm.Show();
-                loginForm.BringToFront();
-            };
+                string currentProcessName = Process.GetCurrentProcess().ProcessName;
+                int currentProcessId = Process.GetCurrentProcess().Id;
 
-            loginForm.FormClosed += (s, e) => Application.Exit();
+                foreach (var process in Process.GetProcessesByName(currentProcessName))
+                {
+                    if (process.Id != currentProcessId)
+                    {
+                        try
+                        {
+                            Console.WriteLine($"🛑 Killing process: {process.ProcessName} (PID: {process.Id})");
+                            process.Kill();
+                        }
+                        catch { }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ Error killing child processes: {ex.Message}");
+            }
 
-            // Chạy message loop với loginForm là main form
-            Application.Run(loginForm);
+            // FORCE EXIT
+            Console.WriteLine("🛑 Force exit now");
+            Environment.Exit(0);
         }
     }
 }
