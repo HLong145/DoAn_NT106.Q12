@@ -1,4 +1,5 @@
-﻿using DoAn_NT106.Services;
+﻿using DoAn_NT106.Client.Class;
+using DoAn_NT106.Services;
 using System;
 using System.Drawing;
 using System.Numerics;
@@ -6,7 +7,7 @@ using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement.StartPanel;
 
-namespace DoAn_NT106
+namespace DoAn_NT106.Client
 {
     public partial class FormDangKy : Form
     {

@@ -7,9 +7,9 @@ namespace DoAn_NT106.Client
 {
     public partial class Dashboard : Form
     {
-        // ✅ THÊM TRACKING CHO CHILD PROCESSES
+        //   TRACKING CHO CHILD PROCESSES
         private Process clientProcess;
-        // ✅ FLAG ĐỂ TRÁNH GỌI MESSAGEBOX NHIỀU LẦN
+        //  FLAG ĐỂ TRÁNH GỌI MESSAGEBOX NHIỀU LẦN
         private bool isClosing = false;
 
         public Dashboard()
@@ -22,7 +22,7 @@ namespace DoAn_NT106.Client
         /// </summary>
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
-            // ✅ KIỂM TRA FLAG ĐỂ TRÁNH GỌI NHIỀU LẦN
+            //  KIỂM TRA FLAG ĐỂ TRÁNH GỌI NHIỀU LẦN
             if (isClosing)
             {
                 e.Cancel = false;
@@ -39,21 +39,21 @@ namespace DoAn_NT106.Client
             }
             else
             {
-                // ✅ SET FLAG ĐỂ TRÁNH MESSAGEBOX LẦN THỨ 2
+                //  SET FLAG ĐỂ TRÁNH MESSAGEBOX LẦN THỨ 2
                 isClosing = true;
                 e.Cancel = false;
 
-                // ✅ KILL CHILD PROCESS NẾU CÓ
+                //  KILL CHILD PROCESS NẾU CÓ
                 KillChildProcess();
                 
-                // ✅ FORCE SHUTDOWN
+                //  FORCE SHUTDOWN
                 ForceShutdown();
             }
 
             base.OnFormClosing(e);
         }
 
-        // ✅ HỖ TRỢ FUNCTION: KILL CHILD PROCESS
+        //  HỖ TRỢ FUNCTION: KILL CHILD PROCESS
         private void KillChildProcess()
         {
             try
@@ -65,7 +65,7 @@ namespace DoAn_NT106.Client
                     clientProcess.WaitForExit(3000); // Chờ 3 giây
                     clientProcess?.Dispose();
                     clientProcess = null;
-                    Console.WriteLine("✅ Child process terminated");
+                    Console.WriteLine(" Child process terminated");
                 }
             }
             catch (Exception ex)
@@ -74,12 +74,12 @@ namespace DoAn_NT106.Client
             }
         }
 
-        // ✅ HỖ TRỢ FUNCTION: FORCE SHUTDOWN
+        //  HỖ TRỢ FUNCTION: FORCE SHUTDOWN
         private void ForceShutdown()
         {
             Console.WriteLine("🛑 Force shutdown initiated...");
             
-            // ✅ Tìm và kill tất cả child processes
+            //  Tìm và kill tất cả child processes
             try
             {
                 foreach (var process in Process.GetProcessesByName(Process.GetCurrentProcess().ProcessName))
@@ -97,7 +97,7 @@ namespace DoAn_NT106.Client
             }
             catch { }
 
-            // ✅ FORCE EXIT - Không dùng Application.Exit() vì nó sẽ trigger OnFormClosing lần nữa
+            //  FORCE EXIT - Không dùng Application.Exit() vì nó sẽ trigger OnFormClosing lần nữa
             Console.WriteLine("🛑 Force exit now");
             Environment.Exit(0);
         }
@@ -108,7 +108,7 @@ namespace DoAn_NT106.Client
             {
                 Console.WriteLine("Starting NEW Client Login process...");
 
-                // ✅ TRACK PROCESS
+                //  TRACK PROCESS
                 clientProcess = Process.Start(new ProcessStartInfo
                 {
                     FileName = Application.ExecutablePath,   // exe hiện tại
@@ -116,9 +116,9 @@ namespace DoAn_NT106.Client
                     UseShellExecute = true
                 });
 
-                Console.WriteLine($"✅ Client process started (PID: {clientProcess?.Id})");
+                Console.WriteLine($" Client process started (PID: {clientProcess?.Id})");
 
-                // ✅ MONITOR PROCESS
+                //  MONITOR PROCESS
                 if (clientProcess != null)
                 {
                     clientProcess.EnableRaisingEvents = true;
@@ -145,14 +145,14 @@ namespace DoAn_NT106.Client
         {
             try
             {
-                // ✅ MỞ SERVER FORM
+                //  MỞ SERVER FORM
                 ServerForm serverForm = new ServerForm();
                 serverForm.Show();
 
                 MessageBox.Show("Server window opened!\n\nClick 'Start' to begin listening for connections on port 8080.",
                     "🖥️ Server Mode", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
-                // ✅ KHI SERVER ĐÓNG → HIỆN LẠI DASHBOARD
+                //  KHI SERVER ĐÓNG → HIỆN LẠI DASHBOARD
                 serverForm.FormClosed += (s, args) =>
                 {
                     this.Show();
@@ -183,14 +183,14 @@ namespace DoAn_NT106.Client
 
             Console.WriteLine("🎯 Initializing ClientApplicationController...");
 
-            // ✅ TẠO VÀ KẾT NỐI FORM NGAY LẬP TỨC
+            //  TẠO VÀ KẾT NỐI FORM NGAY LẬP TỨC
             InitializeAndConnectForms();
 
             // Hiển thị form đăng nhập
             ShowLoginForm();
         }
 
-        // ✅ PHƯƠNG THỨC: KHỞI TẠO VÀ KẾT NỐI FORM
+        //  PHƯƠNG THỨC: KHỞI TẠO VÀ KẾT NỐI FORM
         private void InitializeAndConnectForms()
         {
             // Tạo form đăng nhập
@@ -203,7 +203,7 @@ namespace DoAn_NT106.Client
 
             Console.WriteLine("🔗 Connecting events...");
 
-            // ✅ KẾT NỐI SỰ KIỆN: Login → Register
+            //  KẾT NỐI SỰ KIỆN: Login → Register
             loginForm.SwitchToRegister += (s, e) =>
             {
                 Console.WriteLine("🔄 Switching to Register form from Login...");
@@ -213,7 +213,7 @@ namespace DoAn_NT106.Client
                 registerForm.BringToFront();
             };
 
-            // ✅ KẾT NỐI SỰ KIỆN: Register → Login  
+            //  KẾT NỐI SỰ KIỆN: Register → Login  
             registerForm.SwitchToLogin += (s, e) =>
             {
                 Console.WriteLine("🔄 Switching to Login form from Register...");
@@ -240,7 +240,7 @@ namespace DoAn_NT106.Client
                 }
             };
 
-            Console.WriteLine("✅ Events connected successfully!");
+            Console.WriteLine(" Events connected successfully!");
         }
 
         private void ShowLoginForm()

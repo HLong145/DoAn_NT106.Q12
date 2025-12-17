@@ -3,7 +3,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 
-namespace DoAn_NT106
+namespace DoAn_NT106.Client
 {
     // 🌳 Panel hiệu ứng pixel (nền gỗ)
     public class Pnl_Pixel : Panel

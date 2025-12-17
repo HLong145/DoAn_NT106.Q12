@@ -1,4 +1,4 @@
-﻿namespace DoAn_NT106
+﻿namespace DoAn_NT106.Client
 {
     partial class FormDangNhap
     {

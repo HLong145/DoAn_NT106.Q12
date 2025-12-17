@@ -1,6 +1,6 @@
 using System;
 
-namespace DoAn_NT106.Services
+namespace DoAn_NT106.Client
 {
     /// <summary>
     /// Centralized configuration for server connections (TCP & UDP)

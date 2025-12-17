@@ -1,4 +1,4 @@
-﻿namespace PixelGameLobby
+﻿namespace DoAn_NT106.Client
 {
     partial class JoinRoomForm
     {

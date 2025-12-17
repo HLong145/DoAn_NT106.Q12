@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace DoAn_NT106.Services
+namespace DoAn_NT106.Server
 {
     public class SecurityService
     {

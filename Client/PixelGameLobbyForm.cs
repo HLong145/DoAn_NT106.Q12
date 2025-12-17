@@ -1,5 +1,5 @@
 using DoAn_NT106;
-using DoAn_NT106.Services;
+using DoAn_NT106.Client.Class;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -7,7 +7,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace PixelGameLobby
+namespace DoAn_NT106.Client
 {
     public partial class GameLobbyForm : Form
     {

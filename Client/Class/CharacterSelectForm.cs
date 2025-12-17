@@ -2,10 +2,9 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
-using DoAn_NT106.Services;
 using System.Text.Json;
 
-namespace DoAn_NT106
+namespace DoAn_NT106.Client.Class
 {
     public class CharacterInfo
     {
@@ -67,8 +66,8 @@ namespace DoAn_NT106
             this.selectedMap = selectedMap;  // ✅ SAVE MAP
 
             // ✅ GÁN GIÁ TRỊ MẶC ĐỊNH CHO CHARACTER
-            this.player1Character = "girlknight"; // Người chơi hiện tại chọn
-            this.player2Character = "girlknight"; // Đối thủ (tạm thời giả định)
+            player1Character = "girlknight"; // Người chơi hiện tại chọn
+            player2Character = "girlknight"; // Đối thủ (tạm thời giả định)
 
             InitializeCharacters();
             InitializeUI();
@@ -137,7 +136,7 @@ namespace DoAn_NT106
                 PersistentTcpClient.Instance.OnBroadcast -= TcpClient_OnBroadcast;
 
                 // ✅ MOVE TO BATTLE ON UI THREAD
-                this.BeginInvoke(new Action(() =>
+                BeginInvoke(new Action(() =>
                 {
                     try
                     {
@@ -163,11 +162,11 @@ namespace DoAn_NT106
 
                             battleForm.FormClosed += (s, args) =>
                             {
-                                this.Close();
+                                Close();
                             };
 
                             battleForm.Show();
-                            this.Hide();
+                            Hide();
                         }
                         else
                         {
@@ -200,13 +199,13 @@ namespace DoAn_NT106
                                     myPlayerNumber
                                 );
                                 existingBattleForm.BringToFront();
-                                this.Close();
+                                Close();
                             }
                             else
                             {
                                 // ✅ PLAYER 1 HASN'T CREATED YET - WAIT AND RETRY
                                 Console.WriteLine($"[CharacterSelectForm] BattleForm not found yet, waiting...");
-                                System.Threading.Thread.Sleep(500);
+                                Thread.Sleep(500);
                                 
                                 // Retry once more
                                 existingBattleForm = null;
@@ -230,7 +229,7 @@ namespace DoAn_NT106
                                         myPlayerNumber
                                     );
                                     existingBattleForm.BringToFront();
-                                    this.Close();
+                                    Close();
                                 }
                                 else
                                 {
@@ -256,11 +255,11 @@ namespace DoAn_NT106
 
                                     battleForm.FormClosed += (s, args) =>
                                     {
-                                        this.Close();
+                                        Close();
                                     };
 
                                     battleForm.Show();
-                                    this.Hide();
+                                    Hide();
                                 }
                             }
                         }
@@ -298,7 +297,7 @@ namespace DoAn_NT106
                 PersistentTcpClient.Instance.OnBroadcast -= TcpClient_OnBroadcast;
 
                 // ✅ RETURN TO LOBBY ON UI THREAD
-                this.BeginInvoke(new Action(() =>
+                BeginInvoke(new Action(() =>
                 {
                     try
                     {
@@ -419,7 +418,7 @@ namespace DoAn_NT106
                 // Nếu resource là byte array (từ Resources.resx)
                 if (resource is byte[] bytes && bytes.Length > 0)
                 {
-                    using (var ms = new System.IO.MemoryStream(bytes))
+                    using (var ms = new MemoryStream(bytes))
                     {
                         var image = Image.FromStream(ms);
                         // Tạo bản sao để stream có thể đóng an toàn
@@ -475,12 +474,12 @@ namespace DoAn_NT106
 
         private void InitializeUI()
         {
-            this.Text = $"Select Your Character - {username}";
-            this.Size = new Size(900, 700);
-            this.StartPosition = FormStartPosition.CenterScreen;
-            this.FormBorderStyle = FormBorderStyle.FixedDialog;
-            this.MaximizeBox = false;
-            this.BackColor = primaryBrown;
+            Text = $"Select Your Character - {username}";
+            Size = new Size(900, 700);
+            StartPosition = FormStartPosition.CenterScreen;
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            MaximizeBox = false;
+            BackColor = primaryBrown;
 
             // Main Panel
             mainPanel = new Pnl_Pixel
@@ -489,7 +488,7 @@ namespace DoAn_NT106
                 Size = new Size(850, 630),
                 BackColor = darkBrown
             };
-            this.Controls.Add(mainPanel);
+            Controls.Add(mainPanel);
 
             // Title
             lblTitle = new Label
@@ -752,7 +751,7 @@ namespace DoAn_NT106
 
         private string CreateStatBar(int value, int maxValue)
         {
-            int bars = (int)((value / (float)maxValue) * 10);
+            int bars = (int)(value / (float)maxValue * 10);
             bars = Math.Max(1, Math.Min(10, bars));
             return new string('█', bars) + new string('░', 10 - bars) + $" {value}";
         }
@@ -840,7 +839,7 @@ namespace DoAn_NT106
                             5000  // 5 giây timeout
                         ).ContinueWith(task =>
                         {
-                            this.BeginInvoke(new Action(() =>
+                            BeginInvoke(new Action(() =>
                             {
                                 try
                                 {
@@ -895,7 +894,7 @@ namespace DoAn_NT106
             try
             {
                 // ✅ KIỂM TRA: Có GameLobbyForm nào đang mở cho phòng này không?
-                PixelGameLobby.GameLobbyForm existingLobbyForm = null;
+                GameLobbyForm existingLobbyForm = null;
                 foreach (Form form in Application.OpenForms)
                 {
                     if (form.GetType().Name == "GameLobbyForm")
@@ -909,7 +908,7 @@ namespace DoAn_NT106
                             var formRoomCode = roomCodeField.GetValue(form) as string;
                             if (formRoomCode == roomCode)
                             {
-                                existingLobbyForm = form as PixelGameLobby.GameLobbyForm;
+                                existingLobbyForm = form as GameLobbyForm;
                                 break;
                             }
                         }
@@ -922,13 +921,13 @@ namespace DoAn_NT106
                     Console.WriteLine($"[CharacterSelectForm] Found existing GameLobbyForm for room {roomCode}, showing it");
                     existingLobbyForm.Show();
                     existingLobbyForm.BringToFront();
-                    this.Close();
+                    Close();
                     return;
                 }
 
                 // ✅ NẾU CHƯA CÓ: TẠO FORM LOBBY MỚI
                 Console.WriteLine($"[CharacterSelectForm] No existing GameLobbyForm found, creating new one for room {roomCode}");
-                var lobbyForm = new PixelGameLobby.GameLobbyForm(roomCode, username, token);
+                var lobbyForm = new GameLobbyForm(roomCode, username, token);
                 lobbyForm.FormClosed += (s, args) =>
                 {
                     // Nếu đóng lobby thì thoát hoàn toàn
@@ -936,15 +935,15 @@ namespace DoAn_NT106
                 };
 
                 lobbyForm.Show();
-                this.Close();
+                Close();
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[CharacterSelectForm] Error in ReturnToLobby: {ex.Message}");
                 // Fallback: luôn tạo form mới nếu có lỗi
-                var fallbackForm = new PixelGameLobby.GameLobbyForm(roomCode, username, token);
+                var fallbackForm = new GameLobbyForm(roomCode, username, token);
                 fallbackForm.Show();
-                this.Close();
+                Close();
             }
         }
         

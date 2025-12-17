@@ -48,8 +48,10 @@ namespace DoAn_NT106.Client
                     {
                         try
                         {
-                            var db = new DatabaseService();
-                            return db.GetPlayerXp(_result.PlayerUsername);
+                            //var db = new DatabaseService();
+                            //return db.GetPlayerXp(_result.PlayerUsername);
+
+                            return 0;
                         }
                         catch
                         {
@@ -79,12 +81,12 @@ namespace DoAn_NT106.Client
                     {
                         try
                         {
-                            var db = new DatabaseService();
-                            db.UpdatePlayerXp(_result.PlayerUsername, _xpAfter, _xpNeededForNextLevel);
-                            if (_levelAfter > _levelBefore)
-                            {
-                                db.UpdatePlayerLevel(_result.PlayerUsername, _levelAfter);
-                            }
+                            //var db = new DatabaseService();
+                            //db.UpdatePlayerXp(_result.PlayerUsername, _xpAfter, _xpNeededForNextLevel);
+                            //if (_levelAfter > _levelBefore)
+                            //{
+                            //    db.UpdatePlayerLevel(_result.PlayerUsername, _levelAfter);
+                            //}
                         }
                         catch (Exception ex)
                         {

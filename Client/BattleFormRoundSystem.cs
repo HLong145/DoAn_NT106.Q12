@@ -7,9 +7,9 @@ using System.Windows.Forms;
 using System.Threading.Tasks;
 using System.Reflection;
 using System.Drawing;
-using DoAn_NT106.Services;
+using DoAn_NT106.Client.Class;
 
-namespace DoAn_NT106
+namespace DoAn_NT106.Client
 {
     public partial class BattleForm
     {
@@ -41,14 +41,14 @@ namespace DoAn_NT106
         // Thời gian bắt đầu trận để tính tổng thời gian thi đấu
         private DateTime _matchStartTime = DateTime.UtcNow;
 
-        // ✅ THÊM: Lưu mana giữa các hiệp
+        //  Lưu mana giữa các hiệp
         private int _player1ManaCarryover = 0;
         private int _player2ManaCarryover = 0;
-        // ✅ THÊM: Cached audio bytes for round announcements to ensure repeatable playback
+        //  Cached audio bytes for round announcements to ensure repeatable playback
         private byte[] _round1AudioBytes;
         private byte[] _round2AudioBytes;
         private byte[] _round3AudioBytes;
-        // ✅ THÊM: Cooldown system để ngăn win count bị tăng quá lố (10 seconds = 10000ms)
+        //  Cooldown system để ngăn win count bị tăng quá lố (10 seconds = 10000ms)
         private int _winCooldownMs = 3000;
         private long _lastWinCountTimeMs = 0;
 
@@ -141,7 +141,7 @@ namespace DoAn_NT106
         /// </summary>
         private void InitializeRoundSystem()
         {
-            // ✅ RESET ROUND SYSTEM MỖI LẦN INITIALIZE
+            //  RESET ROUND SYSTEM MỖI LẦN INITIALIZE
             _roundNumber = 1;
             // ❌ KHÔNG RESET: _player1Wins và _player2Wins (giữ lại từ trận trước)
             // _player1Wins = 0;
@@ -152,7 +152,7 @@ namespace DoAn_NT106
             _roundInProgress = false;
             _player1ManaCarryover = 0;
             _player2ManaCarryover = 0;
-            _lastWinCountTimeMs = 0;  // ✅ THÊM: Reset win cooldown counter
+            _lastWinCountTimeMs = 0;  //  Reset win cooldown counter
 
             // Create center label if not already created
             if (_lblRoundCenter == null)
@@ -221,7 +221,7 @@ namespace DoAn_NT106
                 // Kiểm tra form đã sẵn sàng chưa
                 if (this.ClientSize.Width > 100 && this.ClientSize.Height > 100)
                 {
-                    // ✅ Cập nhật lại text và vị trí SAU KHI form đã load
+                    //  Cập nhật lại text và vị trí SAU KHI form đã load
                     Console.WriteLine($"[RoundSystem] Initializing with: {username} vs {opponent}");
                     UpdateRoundCenterText();
                     PositionRoundCenterLabel();
@@ -340,10 +340,10 @@ namespace DoAn_NT106
             // Use 2s visible ROUND animation by default (matches comment)
             _roundStartCountdownMs = 2000;
             _lblRoundStart.Text = $"ROUND {_roundNumber}";
-            // ✅ Play round announcement sound (Stop only sound effects, NOT music)
+            //  Play round announcement sound (Stop only sound effects, NOT music)
             try
             {
-                // ✅ IMPORTANT: Stop only sound effects, NOT background music!
+                //  IMPORTANT: Stop only sound effects, NOT background music!
                 // This allows round announcement to play over the current music
                 Console.WriteLine($"[RoundSystem] About to play Round {_roundNumber} sound");
                 
@@ -356,12 +356,12 @@ namespace DoAn_NT106
                 catch (Exception roundSoundEx)
                 {
                     Console.WriteLine($"[RoundSystem] Round sound failed, trying fallback ButtonClick: {roundSoundEx.Message}");
-                    try { DoAn_NT106.SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.ButtonClick); } catch { }
+                    try { SoundManager.PlaySound(SoundEffect.ButtonClick); } catch { }
                 }
             }
             catch (Exception ex) { Console.WriteLine($"[RoundSystem] Error playing round sound: {ex.Message}"); }
             
-            // ✅ Đo kích thước thực tế của label
+            //  Đo kích thước thực tế của label
             using (var g = _lblRoundStart.CreateGraphics())
             {
                 var size = g.MeasureString(_lblRoundStart.Text, _lblRoundStart.Font);
@@ -386,7 +386,7 @@ namespace DoAn_NT106
 
             _roundInProgress = false; // Lock gameplay during countdown
             
-            // ✅ Cập nhật lại center text với tên player
+            //  Cập nhật lại center text với tên player
             UpdateRoundCenterText();
             
             Console.WriteLine($"[RoundSystem] Displaying ROUND {_roundNumber} at center");
@@ -401,7 +401,7 @@ namespace DoAn_NT106
                 string enumName = round == 1 ? "Round1" : round == 2 ? "Round2" : "Round3";
 
                 // Ensure SoundManager initialized
-                try { DoAn_NT106.SoundManager.Initialize(); } catch { }
+                try { SoundManager.Initialize(); } catch { }
 
                 // Try to play embedded resource named round_1 / round_2 / round_3 first
                 try
@@ -489,12 +489,12 @@ namespace DoAn_NT106
                 // Fallback: try SoundManager mapping
                 try
                 {
-                    var seType = typeof(DoAn_NT106.Client.SoundEffect);
+                    var seType = typeof(SoundEffect);
                     if (Enum.IsDefined(seType, enumName))
                     {
-                        var val = (DoAn_NT106.Client.SoundEffect)Enum.Parse(seType, enumName);
+                        var val = (SoundEffect)Enum.Parse(seType, enumName);
                         Console.WriteLine($"[RoundSystem] Playing {enumName} via SoundManager");
-                        DoAn_NT106.SoundManager.PlaySound(val);
+                        SoundManager.PlaySound(val);
                         return;
                     }
                 }
@@ -565,18 +565,18 @@ namespace DoAn_NT106
                     _roundInProgress = false;
                     try { _roundTimer?.Stop(); } catch { }
 
-                    // ✅ THÊM: Lưu mana hiện tại trước khi qua hiệp
+                    //  Lưu mana hiện tại trước khi qua hiệp
                     _player1ManaCarryover = player1State.Mana;
                     _player2ManaCarryover = player2State.Mana;
 
                     // Determine winner by HP
                     if (player1State.Health < player2State.Health)
                     {
-                        // ✅ THÊM: Check cooldown before counting win
+                        //  Check cooldown before counting win
                         if (CanCountWin())
                         {
                             _player2Wins++;
-                            Console.WriteLine($"[RoundSystem] ✅ PLAYER 2 WINS BY TIMEOUT");
+                            Console.WriteLine($"[RoundSystem]  PLAYER 2 WINS BY TIMEOUT");
                         }
                         else
                         {
@@ -585,11 +585,11 @@ namespace DoAn_NT106
                     }
                     else if (player2State.Health < player1State.Health)
                     {
-                        // ✅ THÊM: Check cooldown before counting win
+                        //  Check cooldown before counting win
                         if (CanCountWin())
                         {
                             _player1Wins++;
-                            Console.WriteLine($"[RoundSystem] ✅ PLAYER 1 WINS BY TIMEOUT");
+                            Console.WriteLine($"[RoundSystem]  PLAYER 1 WINS BY TIMEOUT");
                         }
                         else
                         {
@@ -609,7 +609,7 @@ namespace DoAn_NT106
                     // Check if match ends (first to 2 wins). Require at least 2 rounds played
                     if ((_player1Wins >= 2 || _player2Wins >= 2) && _roundsPlayed >= 2)
                     {
-                        // ✅ SỬA: Sử dụng tên từ PlayerState thay vì username/opponent
+                        //  SỬA: Sử dụng tên từ PlayerState thay vì username/opponent
                         string winner = _player1Wins >= 2 
                             ? (player1State?.PlayerName ?? username) 
                             : (player2State?.PlayerName ?? opponent);
@@ -655,18 +655,18 @@ namespace DoAn_NT106
                     _roundInProgress = false;
                     try { _roundTimer?.Stop(); } catch { }
 
-                    // ✅ THÊM: Lưu mana hiện tại trước khi qua hiệp
+                    //  Lưu mana hiện tại trước khi qua hiệp
                     _player1ManaCarryover = player1State.Mana;
                     _player2ManaCarryover = player2State.Mana;
 
                     // Award win to survivor
                     if (player1State.IsDead && !player2State.IsDead)
                     {
-                        // ✅ THÊM: Check cooldown before counting win
+                        //  Check cooldown before counting win
                         if (CanCountWin())
                         {
                             _player2Wins++;
-                            Console.WriteLine($"[RoundSystem] ✅ PLAYER 2 WINS ROUND (Player 1 died)");
+                            Console.WriteLine($"[RoundSystem]  PLAYER 2 WINS ROUND (Player 1 died)");
                         }
                         else
                         {
@@ -675,11 +675,11 @@ namespace DoAn_NT106
                     }
                     else if (player2State.IsDead && !player1State.IsDead)
                     {
-                        // ✅ THÊM: Check cooldown before counting win
+                        //  Check cooldown before counting win
                         if (CanCountWin())
                         {
                             _player1Wins++;
-                            Console.WriteLine($"[RoundSystem] ✅ PLAYER 1 WINS ROUND (Player 2 died)");
+                            Console.WriteLine($"[RoundSystem]  PLAYER 1 WINS ROUND (Player 2 died)");
                         }
                         else
                         {
@@ -703,7 +703,7 @@ namespace DoAn_NT106
                     // Check if match ends (first to 2 wins). Require at least 2 rounds played
                     if ((_player1Wins >= 2 || _player2Wins >= 2) && _roundsPlayed >= 2)
                     {
-                        // ✅ SỬA: Sử dụng tên từ PlayerState thay vì username/opponent
+                        //  SỬA: Sử dụng tên từ PlayerState thay vì username/opponent
                         string winner = _player1Wins >= 2 
                             ? (player1State?.PlayerName ?? username) 
                             : (player2State?.PlayerName ?? opponent);
@@ -741,21 +741,21 @@ namespace DoAn_NT106
             _roundTimeRemainingMs = 3 * 60 * 1000;
             UpdateRoundCenterText();
 
-            // ✅ SỬA: Reset HP theo character type (không phải mặc định 100)
+            //  SỬA: Reset HP theo character type (không phải mặc định 100)
             int maxHP1 = GetMaxHealthForCharacter(player1State.CharacterType);
             int maxHP2 = GetMaxHealthForCharacter(player2State.CharacterType);
 
             player1State.Health = maxHP1;
             player1State.Stamina = 100;
-            // ✅ SỬA: Sử dụng mana từ hiệp trước (carryover)
+            //  SỬA: Sử dụng mana từ hiệp trước (carryover)
             player1State.Mana = _player1ManaCarryover;
 
             player2State.Health = maxHP2;
             player2State.Stamina = 100;
-            // ✅ SỬA: Sử dụng mana từ hiệp trước (carryover)
+            //  SỬA: Sử dụng mana từ hiệp trước (carryover)
             player2State.Mana = _player2ManaCarryover;
 
-            // ✅ THÊM: Update HealthBar Maximum values
+            //  Update HealthBar Maximum values
             resourceSystem.HealthBar1.Maximum = maxHP1;
             resourceSystem.HealthBar2.Maximum = maxHP2;
 
@@ -782,7 +782,7 @@ namespace DoAn_NT106
             player1State.ResetToIdle();
             player2State.ResetToIdle();
 
-            // Reset positions - ✅ SỬA: X = 150 và 900, force reset Y vị trí
+            // Reset positions -  SỬA: X = 150 và 900, force reset Y vị trí
             player1State.X = 150;
             player1State.Y = groundLevel - PLAYER_HEIGHT;
             
@@ -796,12 +796,12 @@ namespace DoAn_NT106
             try { effectManager?.Cleanup(); } catch { }
             try { projectileManager?.Cleanup(); } catch { }
 
-            // ✅ LOG: Verify all states before starting new round
+            //  LOG: Verify all states before starting new round
             Console.WriteLine($"[StartNextRound] Round {_roundNumber} setup complete:");
             Console.WriteLine($"  P1: HP={player1State.Health} IsDead={player1State.IsDead} Stamina={player1State.Stamina}");
             Console.WriteLine($"  P2: HP={player2State.Health} IsDead={player2State.IsDead} Stamina={player2State.Stamina}");
 
-            // ✅ THÊM: Send updated state via UDP immediately so opponent sees HP reset
+            //  Send updated state via UDP immediately so opponent sees HP reset
             if (isOnlineMode && udpClient != null && udpClient.IsConnected)
             {
                 try
@@ -810,7 +810,7 @@ namespace DoAn_NT106
                     udpClient.UpdateState(
                         me.X,
                         me.Y,
-                        me.Health,          // ✅ GỬI HP MỚI (đã reset)
+                        me.Health,          //  GỬI HP MỚI (đã reset)
                         me.Stamina,
                         me.Mana,
                         "ROUND_RESET",    // <-- send special action so receiver applies HP even during countdown
@@ -841,7 +841,7 @@ namespace DoAn_NT106
             this.Invalidate();
         }
 
-        // ✅ THÊM: Helper function to get max health for character
+        //  Helper function to get max health for character
         private int GetMaxHealthForCharacter(string characterType)
         {
             return characterType?.ToLower() switch
@@ -855,7 +855,7 @@ namespace DoAn_NT106
             };
         }
 
-        // ✅ THÊM: Helper function to check if can count win (cooldown protection)
+        // Helper function to check if can count win (cooldown protection)
         private bool CanCountWin()
         {
             long currentTimeMs = Environment.TickCount64; // Use 64-bit for larger time range
@@ -865,7 +865,7 @@ namespace DoAn_NT106
             {
                 // Cooldown expired, can count new win
                 _lastWinCountTimeMs = currentTimeMs;  // Update timestamp IMMEDIATELY
-                Console.WriteLine($"[RoundSystem] ✅ WIN COOLDOWN EXPIRED - Can count new win (waited {timeSinceLastWinMs}ms)");
+                Console.WriteLine($"[RoundSystem]  WIN COOLDOWN EXPIRED - Can count new win (waited {timeSinceLastWinMs}ms)");
                 return true;
             }
             else
@@ -1023,7 +1023,7 @@ namespace DoAn_NT106
                 try { this.Close(); } catch { }
             }
 
-            try { DoAn_NT106.SoundManager.PlayMusic(DoAn_NT106.Client.BackgroundMusic.ThemeMusic, loop: true); } catch { }
+            try { SoundManager.PlayMusic(BackgroundMusic.ThemeMusic, loop: true); } catch { }
         }
 
         /// <summary>Ends the match as a draw and shows dialog</summary>
@@ -1075,7 +1075,7 @@ namespace DoAn_NT106
             }
 
             try { this.Close(); } catch { }
-            try { DoAn_NT106.SoundManager.PlayMusic(DoAn_NT106.Client.BackgroundMusic.ThemeMusic, loop: true); } catch { }
+            try { SoundManager.PlayMusic(BackgroundMusic.ThemeMusic, loop: true); } catch { }
         }
 
         /// <summary>Handles player forfeit/quit - immediate win for opponent</summary>
@@ -1118,14 +1118,14 @@ namespace DoAn_NT106
                         // Player 1 quit -> Player 2 wins
                         _player2Wins = 2; // set to decisive score for display
                         winnerName = player2State?.PlayerName ?? opponent;
-                        Console.WriteLine($"[RoundSystem] ✅ PLAYER 2 WINS BY FORFEIT (Player 1 quit)");
+                        Console.WriteLine($"[RoundSystem]  PLAYER 2 WINS BY FORFEIT (Player 1 quit)");
                     }
                     else
                     {
                         // Player 2 quit -> Player 1 wins
                         _player1Wins = 2;
                         winnerName = player1State?.PlayerName ?? username;
-                        Console.WriteLine($"[RoundSystem] ✅ PLAYER 1 WINS BY FORFEIT (Player 2 quit)");
+                        Console.WriteLine($"[RoundSystem]  PLAYER 1 WINS BY FORFEIT (Player 2 quit)");
                     }
 
                     // Ensure roundsPlayed reflects match termination for history display

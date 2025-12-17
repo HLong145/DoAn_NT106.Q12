@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using NAudio.Wave;
 
-namespace DoAn_NT106.Client
+namespace DoAn_NT106.Client.Class
 {
     /// <summary>Enums for sound effects</summary>
     public enum SoundEffect
@@ -316,7 +316,7 @@ namespace DoAn_NT106.Client
                     var val = prop.GetValue(null);
                     // Common cases: byte[], UnmanagedMemoryStream, Stream
                     if (val is byte[] bytes) return bytes;
-                    if (val is System.IO.UnmanagedMemoryStream ums)
+                    if (val is UnmanagedMemoryStream ums)
                     {
                         using var ms = new MemoryStream();
                         ums.CopyTo(ms);
@@ -333,7 +333,7 @@ namespace DoAn_NT106.Client
                 // 2) Try ResourceManager (handles ResXFileRef entries)
                 var obj = Properties.Resources.ResourceManager.GetObject(key);
                 if (obj is byte[] rmBytes) return rmBytes;
-                if (obj is System.IO.UnmanagedMemoryStream rmUms)
+                if (obj is UnmanagedMemoryStream rmUms)
                 {
                     using var ms = new MemoryStream();
                     rmUms.CopyTo(ms);
@@ -362,7 +362,7 @@ namespace DoAn_NT106.Client
                             {
                                 var v = entry.Value;
                                 if (v is byte[] eBytes) return eBytes;
-                                if (v is System.IO.UnmanagedMemoryStream eUms)
+                                if (v is UnmanagedMemoryStream eUms)
                                 {
                                     using var ms = new MemoryStream();
                                     eUms.CopyTo(ms);

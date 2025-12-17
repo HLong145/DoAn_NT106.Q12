@@ -1,8 +1,9 @@
 ﻿using System;
 using System.Windows.Forms;
+using DoAn_NT106.Client.Class;
 using DoAn_NT106.Services;
 
-namespace DoAn_NT106
+namespace DoAn_NT106.Client
 {
     public partial class FormQuenPass : Form
     {

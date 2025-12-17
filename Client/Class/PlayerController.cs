@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
 
-namespace DoAn_NT106
+namespace DoAn_NT106.Client.Class
 {
     public enum PlayerAction
     {

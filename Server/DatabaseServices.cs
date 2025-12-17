@@ -5,9 +5,8 @@ using System.Text;
 using System.Linq;
 using Microsoft.Data.SqlClient;
 using System.Data;
-using DoAn_NT106.Server;
 
-namespace DoAn_NT106.Services
+namespace DoAn_NT106.Server
 {
     public class DatabaseService
     {
@@ -35,8 +34,8 @@ namespace DoAn_NT106.Services
                     using (var command = new SqlCommand(query, connection))
                     {
                         command.Parameters.AddWithValue("@Username", username);
-                        command.Parameters.AddWithValue("@Email", string.IsNullOrEmpty(email) ? DBNull.Value : (object)email);
-                        command.Parameters.AddWithValue("@Phone", string.IsNullOrEmpty(phone) ? DBNull.Value : (object)phone);
+                        command.Parameters.AddWithValue("@Email", string.IsNullOrEmpty(email) ? DBNull.Value : email);
+                        command.Parameters.AddWithValue("@Phone", string.IsNullOrEmpty(phone) ? DBNull.Value : phone);
 
                         int count = Convert.ToInt32(command.ExecuteScalar());
                         Console.WriteLine($"🔍 IsUserExists: {username} - Count: {count}");
@@ -73,8 +72,8 @@ namespace DoAn_NT106.Services
                             using (var command = new SqlCommand(query, connection, transaction))
                             {
                                 command.Parameters.AddWithValue("@Username", username);
-                                command.Parameters.AddWithValue("@Email", string.IsNullOrEmpty(email) ? DBNull.Value : (object)email);
-                                command.Parameters.AddWithValue("@Phone", string.IsNullOrEmpty(phone) ? DBNull.Value : (object)phone);
+                                command.Parameters.AddWithValue("@Email", string.IsNullOrEmpty(email) ? DBNull.Value : email);
+                                command.Parameters.AddWithValue("@Phone", string.IsNullOrEmpty(phone) ? DBNull.Value : phone);
                                 command.Parameters.AddWithValue("@Hash", hash);
                                 command.Parameters.AddWithValue("@Salt", salt);
 
@@ -562,7 +561,7 @@ namespace DoAn_NT106.Services
                         command.Parameters.AddWithValue("@RoomCode", roomCode);
                         command.Parameters.AddWithValue("@RoomName", roomName);
                         command.Parameters.AddWithValue("@RoomPassword",
-                            string.IsNullOrEmpty(password) ? DBNull.Value : (object)password);
+                            string.IsNullOrEmpty(password) ? DBNull.Value : password);
 
                         using (var reader = command.ExecuteReader())
                         {
@@ -572,7 +571,7 @@ namespace DoAn_NT106.Services
                                 string message = reader["Message"].ToString();
                                 int? roomId = reader["RoomId"] != DBNull.Value
                                     ? Convert.ToInt32(reader["RoomId"])
-                                    : (int?)null;
+                                    : null;
 
                                 Console.WriteLine($"✅ CreateRoomEmpty: {roomCode} - {message}");
                                 return (success, message, roomId);
@@ -694,7 +693,7 @@ namespace DoAn_NT106.Services
                         command.Parameters.AddWithValue("@RoomCode", roomCode);
                         command.Parameters.AddWithValue("@RoomName", roomName);
                         command.Parameters.AddWithValue("@RoomPassword",
-                            string.IsNullOrEmpty(password) ? DBNull.Value : (object)password);
+                            string.IsNullOrEmpty(password) ? DBNull.Value : password);
                         command.Parameters.AddWithValue("@Player1Username", player1Username);
 
                         using (var reader = command.ExecuteReader())
@@ -705,7 +704,7 @@ namespace DoAn_NT106.Services
                                 string message = reader["Message"].ToString();
                                 int? roomId = reader["RoomId"] != DBNull.Value
                                     ? Convert.ToInt32(reader["RoomId"])
-                                    : (int?)null;
+                                    : null;
 
                                 Console.WriteLine($"✅ CreateRoom: {roomCode} - {message}");
                                 return (success, message, roomId);
@@ -738,7 +737,7 @@ namespace DoAn_NT106.Services
                     {
                         command.Parameters.AddWithValue("@RoomCode", roomCode);
                         command.Parameters.AddWithValue("@Password",
-                            string.IsNullOrEmpty(password) ? DBNull.Value : (object)password);
+                            string.IsNullOrEmpty(password) ? DBNull.Value : password);
                         command.Parameters.AddWithValue("@Username", username);
 
                         using (var reader = command.ExecuteReader())

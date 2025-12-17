@@ -1,13 +1,11 @@
-﻿using DoAn_NT106.Services;
-using DoAn_NT106.Client; // ✅ THÊM CHO SOUNDMANAGER
-using PixelGameLobby;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Net.Sockets;
 using System.Windows.Forms;
+using DoAn_NT106.Client.Class;
 
-namespace DoAn_NT106
+namespace DoAn_NT106.Client
 {
     public partial class MainForm : Form
     {
@@ -457,7 +455,7 @@ namespace DoAn_NT106
 
         private void ButtonPlaySound_Click(object sender, EventArgs e)
         {
-            try { SoundManager.PlaySound(DoAn_NT106.Client.SoundEffect.ButtonClick); } catch { }
+            try { SoundManager.PlaySound(SoundEffect.ButtonClick); } catch { }
         }
 
         private void OnSwitchToDangNhap(object sender, EventArgs e)

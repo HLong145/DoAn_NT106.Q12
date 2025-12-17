@@ -1,8 +1,9 @@
-﻿using DoAn_NT106.Services;
+﻿using DoAn_NT106.Client.Class;
+using DoAn_NT106.Services;
 using System;
 using System.Windows.Forms;
 
-namespace DoAn_NT106
+namespace DoAn_NT106.Client
 {
     public partial class FormResetPass : Form
     {

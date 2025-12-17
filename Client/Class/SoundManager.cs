@@ -1,7 +1,6 @@
 using System;
-using DoAn_NT106.Client;
 
-namespace DoAn_NT106
+namespace DoAn_NT106.Client.Class
 {
     /// <summary>Static helper class for easy sound access throughout the game</summary>
     public static class SoundManager

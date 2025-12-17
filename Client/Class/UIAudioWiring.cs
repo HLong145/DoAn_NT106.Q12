@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Windows.Forms;
 
-namespace DoAn_NT106
+namespace DoAn_NT106.Client.Class
 {
     /// <summary>Globally attaches button click sound to all buttons on all open forms.</summary>
     public static class UIAudioWiring
@@ -72,7 +72,7 @@ namespace DoAn_NT106
 
         private static void ButtonPlaySound_Click(object sender, EventArgs e)
         {
-            try { SoundManager.PlaySound(Client.SoundEffect.ButtonClick); } catch { }
+            try { SoundManager.PlaySound(SoundEffect.ButtonClick); } catch { }
         }
     }
 }

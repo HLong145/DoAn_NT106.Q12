@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Windows.Forms;
 using DoAn_NT106.Client;
+using DoAn_NT106.Client.Class;
 
 namespace DoAn_NT106
 {

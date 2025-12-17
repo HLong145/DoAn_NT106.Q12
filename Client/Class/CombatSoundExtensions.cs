@@ -1,7 +1,6 @@
 using System;
-using DoAn_NT106.Client;
 
-namespace DoAn_NT106
+namespace DoAn_NT106.Client.Class
 {
     /// <summary>Extension methods for CombatSystem to play sounds</summary>
     public static class CombatSoundExtensions

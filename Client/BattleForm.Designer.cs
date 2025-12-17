@@ -2,7 +2,7 @@
 using System.Windows.Forms;
 using System.Drawing;
 
-namespace DoAn_NT106
+namespace DoAn_NT106.Client
 {
     partial class BattleForm
     {

@@ -8,7 +8,7 @@ using System.Security.Claims;
 using System.Text;
 using Microsoft.IdentityModel.Tokens;
 
-namespace DoAn_NT106.Services
+namespace DoAn_NT106.Server
 {
     public class TokenManager
     {

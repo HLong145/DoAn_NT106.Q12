@@ -5,11 +5,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using DoAn_NT106.Services;
 
-namespace DoAn_NT106.Client
+namespace DoAn_NT106.Client.Class
 {
     /// <summary>
     /// UDP Client gửi/nhận game state binary 30-50ms/lần
-    /// ✅ UPDATED Packet structure: [RoomCode(6)] [PlayerNum(1)] [X(2)] [Y(2)] [Health(1)] [Stamina(1)] [Mana(1)] 
+    ///  UPDATED Packet structure: [RoomCode(6)] [PlayerNum(1)] [X(2)] [Y(2)] [Health(1)] [Stamina(1)] [Mana(1)] 
     ///                     [Facing(1)] [IsAttacking(1)] [IsParrying(1)] [IsStunned(1)] [IsSkillActive(1)] [IsCharging(1)] [IsDashing(1)] [ActionLen(1)] [Action(var)]
     /// </summary>
     public class UDPGameClient : IDisposable
@@ -32,14 +32,14 @@ namespace DoAn_NT106.Client
         private int currentX, currentY;
         private int currentHealth, currentStamina, currentMana;
         private string currentAction = "stand";
-        private string currentFacing = "right";        // ✅ NEW
-        private bool currentIsAttacking = false;       // ✅ NEW
-        private bool currentIsParrying = false;        // ✅ NEW
-        private bool currentIsStunned = false;         // ✅ THÊM
-        private bool currentIsSkillActive = false;     // ✅ THÊM
-        private bool currentIsCharging = false;        // ✅ THÊM
-        private bool currentIsDashing = false;         // ✅ THÊM
-        private int currentLastDamagingAttackId = 0;   // ✅ THÊM: last damaging attack id
+        private string currentFacing = "right";       
+        private bool currentIsAttacking = false;       
+        private bool currentIsParrying = false;       
+        private bool currentIsStunned = false;       
+        private bool currentIsSkillActive = false;    
+        private bool currentIsCharging = false;        
+        private bool currentIsDashing = false;         
+        private int currentLastDamagingAttackId = 0;   //   last damaging attack id
         private readonly object stateLock = new object();
 
         // Events
@@ -178,7 +178,7 @@ namespace DoAn_NT106.Client
 
         /// <summary>
         /// Update current game state (called from BattleForm timer)
-        /// ✅ UPDATED: Include all combat state flags
+        ///  UPDATED: Include all combat state flags
         /// </summary>
         public void UpdateState(int x, int y, int health, int stamina, int mana, string action, 
             string facing = "right", bool isAttacking = false, bool isParrying = false,
@@ -195,10 +195,10 @@ namespace DoAn_NT106.Client
                 currentFacing = facing ?? "right";
                 currentIsAttacking = isAttacking;
                 currentIsParrying = isParrying;
-                currentIsStunned = isStunned;            // ✅ THÊM
-                currentIsSkillActive = isSkillActive;    // ✅ THÊM
-                currentIsCharging = isCharging;          // ✅ THÊM
-                currentIsDashing = isDashing;            // ✅ THÊM
+                currentIsStunned = isStunned;          
+                currentIsSkillActive = isSkillActive;   
+                currentIsCharging = isCharging;        
+                currentIsDashing = isDashing;           
                 currentLastDamagingAttackId = lastDamagingAttackId;
             }
         }
@@ -221,7 +221,7 @@ namespace DoAn_NT106.Client
                     {
                         await udpSocket.SendAsync(packet, packet.Length);
 
-                        // ✅ SPARSE LOG - mỗi 100 packets (roughly 4 seconds at 25 FPS)
+                        //  SPARSE LOG - mỗi 100 packets (roughly 4 seconds at 25 FPS)
                         if (DateTime.Now.Millisecond % 4000 < 100)
                         {
                             Console.WriteLine($"[UDP] P{playerNumber} sent packet: {packet.Length} bytes");
@@ -232,7 +232,7 @@ namespace DoAn_NT106.Client
                         Log($"⚠️ Send error: {ex.Message}");
                     }
 
-                    // ✅ SỬA: 50ms interval (20 lần/giây) - tần suất cao hơn để giảm giật
+                    //  SỬA: 50ms interval (20 lần/giây) - tần suất cao hơn để giảm giật
                     await Task.Delay(16, token);
                 }
             }
@@ -253,7 +253,7 @@ namespace DoAn_NT106.Client
         {
             lock (stateLock)
             {
-                // ✅ UPDATED PACKET STRUCTURE:
+                //  UPDATED PACKET STRUCTURE:
                 // [RoomCode(6)] [PlayerNum(1)] [X(2)] [Y(2)] [Health(1)] [Stamina(1)] [Mana(1)] 
                 // [Facing(1)] [IsAttacking(1)] [IsParrying(1)] [IsStunned(1)] [IsSkillActive(1)] [IsCharging(1)] [IsDashing(1)] [LastDamagingAttackId(1)] [ActionLen(1)] [Action(var)]
 
@@ -272,11 +272,11 @@ namespace DoAn_NT106.Client
 
                 // X (2 bytes, little-endian)
                 packet[7] = (byte)(currentX & 0xFF);
-                packet[8] = (byte)((currentX >> 8) & 0xFF);
+                packet[8] = (byte)(currentX >> 8 & 0xFF);
 
                 // Y (2 bytes)
                 packet[9] = (byte)(currentY & 0xFF);
-                packet[10] = (byte)((currentY >> 8) & 0xFF);
+                packet[10] = (byte)(currentY >> 8 & 0xFF);
 
                 // Health (1 byte)
                 packet[11] = (byte)Math.Clamp(currentHealth, 0, 255);
@@ -296,16 +296,16 @@ namespace DoAn_NT106.Client
                 // IsParrying (1 byte) - 1 = true, 0 = false
                 packet[16] = currentIsParrying ? (byte)1 : (byte)0;
 
-                // ✅ THÊM: IsStunned (1 byte)
+                //   IsStunned (1 byte)
                 packet[17] = currentIsStunned ? (byte)1 : (byte)0;
 
-                // ✅ THÊM: IsSkillActive (1 byte)
+                //   IsSkillActive (1 byte)
                 packet[18] = currentIsSkillActive ? (byte)1 : (byte)0;
 
-                // ✅ THÊM: IsCharging (1 byte)
+                //   IsCharging (1 byte)
                 packet[19] = currentIsCharging ? (byte)1 : (byte)0;
 
-                // ✅ THÊM: IsDashing (1 byte)
+                //   IsDashing (1 byte)
                 packet[20] = currentIsDashing ? (byte)1 : (byte)0;
 
                 // ActionLen (1 byte)
@@ -373,7 +373,7 @@ namespace DoAn_NT106.Client
         /// </summary>
         public void SetPlayerNumber(int playerNum)
         {
-            this.playerNumber = playerNum;
+            playerNumber = playerNum;
             Log($"? Player number set: {playerNum}");
         }
 

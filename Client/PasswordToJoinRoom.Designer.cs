@@ -1,16 +1,16 @@
 ﻿using System.Drawing;
 using System.Windows.Forms;
 
-namespace DoAn_NT106
+namespace DoAn_NT106.Client
 {
     partial class PasswordToJoinRoom
     {
-        private DoAn_NT106.Tb_Pixel tbPassword;
-        private DoAn_NT106.Btn_Pixel btnOK;
-        private DoAn_NT106.Btn_Pixel btnCancel;
+        private DoAn_NT106.Client.Tb_Pixel tbPassword;
+        private DoAn_NT106.Client.Btn_Pixel btnOK;
+        private DoAn_NT106.Client.Btn_Pixel btnCancel;
         private Label lblInfo;
         private Label lblPrompt;
-        private DoAn_NT106.Pnl_Pixel mainPanel;
+        private DoAn_NT106.Client.Pnl_Pixel mainPanel;
 
         private void InitializeComponent()
         {

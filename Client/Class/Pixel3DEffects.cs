@@ -2,7 +2,7 @@
 using System.Drawing;
 using System.Windows.Forms;
 
-namespace PixelGameLobby.UIEffects
+namespace DoAn_NT106.Client.Class
 {
     public static class Pixel3DEffects
     {
@@ -165,7 +165,7 @@ namespace PixelGameLobby.UIEffects
 
         public Pixel3DPanel()
         {
-            this.SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.DoubleBuffer, true);
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.DoubleBuffer, true);
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -186,9 +186,9 @@ namespace PixelGameLobby.UIEffects
 
         public Pixel3DButton()
         {
-            this.SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.DoubleBuffer, true);
-            this.FlatStyle = FlatStyle.Flat;
-            this.FlatAppearance.BorderSize = 0;
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.DoubleBuffer, true);
+            FlatStyle = FlatStyle.Flat;
+            FlatAppearance.BorderSize = 0;
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -199,9 +199,9 @@ namespace PixelGameLobby.UIEffects
         protected override void OnMouseEnter(EventArgs e)
         {
             isMouseOver = true;
-            this.BackColor = Pixel3DEffects.GetHoverColor(this.BackColor);
+            BackColor = Pixel3DEffects.GetHoverColor(BackColor);
             base.OnMouseEnter(e);
-            this.Invalidate();
+            Invalidate();
         }
 
         protected override void OnMouseLeave(EventArgs e)
@@ -209,25 +209,25 @@ namespace PixelGameLobby.UIEffects
             isMouseOver = false;
             // Reset màu (cần lưu màu gốc trong thực tế)
             base.OnMouseLeave(e);
-            this.Invalidate();
+            Invalidate();
         }
 
         protected override void OnMouseDown(MouseEventArgs e)
         {
             isMouseDown = true;
-            this.BackColor = Pixel3DEffects.GetPressedColor(this.BackColor);
+            BackColor = Pixel3DEffects.GetPressedColor(BackColor);
             base.OnMouseDown(e);
-            this.Invalidate();
+            Invalidate();
         }
 
         protected override void OnMouseUp(MouseEventArgs e)
         {
             isMouseDown = false;
-            this.BackColor = isMouseOver ?
-                Pixel3DEffects.GetHoverColor(this.BackColor) :
-                this.BackColor; // Màu gốc
+            BackColor = isMouseOver ?
+                Pixel3DEffects.GetHoverColor(BackColor) :
+                BackColor; // Màu gốc
             base.OnMouseUp(e);
-            this.Invalidate();
+            Invalidate();
         }
     }
 
@@ -235,8 +235,8 @@ namespace PixelGameLobby.UIEffects
     {
         public Pixel3DTextBox()
         {
-            this.SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.DoubleBuffer, true);
-            this.BorderStyle = BorderStyle.None;
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.DoubleBuffer, true);
+            BorderStyle = BorderStyle.None;
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -252,7 +252,7 @@ namespace PixelGameLobby.UIEffects
 
         public Pixel3DLabel()
         {
-            this.SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.DoubleBuffer, true);
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.DoubleBuffer, true);
         }
 
         protected override void OnPaint(PaintEventArgs e)
