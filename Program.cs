@@ -48,7 +48,7 @@ namespace DoAn_NT106
 
                 // CHẠY THẲNG LOGIN FORM
                 Console.WriteLine("🚀 Starting Login Form...");
-                Application.Run(new FormDangNhap());
+                Application.Run(new Dashboard());
             }
             catch (Exception ex)
             {

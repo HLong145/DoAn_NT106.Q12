@@ -106,28 +106,8 @@ namespace DoAn_NT106.Client
         {
             try
             {
-                Console.WriteLine("Starting NEW Client Login process...");
-
-                //  TRACK PROCESS
-                clientProcess = Process.Start(new ProcessStartInfo
-                {
-                    FileName = Application.ExecutablePath,   // exe hiện tại
-                    Arguments = "--login",                  // báo cho Program.cs biết là chạy login
-                    UseShellExecute = true
-                });
-
-                Console.WriteLine($" Client process started (PID: {clientProcess?.Id})");
-
-                //  MONITOR PROCESS
-                if (clientProcess != null)
-                {
-                    clientProcess.EnableRaisingEvents = true;
-                    clientProcess.Exited += (s, e) =>
-                    {
-                        Console.WriteLine("ℹ️ Client process exited");
-                        clientProcess = null;
-                    };
-                }
+                DoAn_NT106.Client.FormDangNhap loginForm = new DoAn_NT106.Client.FormDangNhap();
+                loginForm.Show();
             }
             catch (Exception ex)
             {
