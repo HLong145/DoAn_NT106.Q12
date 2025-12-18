@@ -12,6 +12,8 @@ namespace DoAn_NT106.Client
         private readonly PersistentTcpClient tcpClient;      
         private readonly ValidationService validationService;
 
+        private bool isProcessing = false;
+
         #endregion
 
         #region Constructor
@@ -42,43 +44,48 @@ namespace DoAn_NT106.Client
 
         private async void btn_continue_Click(object sender, EventArgs e)
         {
-            lblContactError.Text = "";
-
-            string input = tb_contact.Text.Trim();
-
-            if (string.IsNullOrEmpty(input))
-            {
-                MessageBox.Show(
-                    "⚠ Please enter your Email or Phone number.",
-                    "Validation error",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning
-                );
-                tb_contact.Focus();
+            if (isProcessing)
                 return;
-            }
 
-            else if (!IsValidEmail(input) && !IsValidPhone(input))
-            {
-                MessageBox.Show(
-                    "Please enter a valid email or phone number format!",
-                    "Validation error",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning
-                );
-                tb_contact.Focus();
-                return;
-            }
-
-            bool isEmail = IsValidEmail(input);
-            bool isPhone = IsValidPhone(input);
+            isProcessing = true;
+            btn_continue.Enabled = false;
 
             try
             {
-                // Disable nút trong lúc chờ phản hồi từ server
-                btn_continue.Enabled = false;
+                lblContactError.Text = "";
 
-                string username = null;
+                string input = tb_contact.Text.Trim();
+
+                if (string.IsNullOrEmpty(input))
+                {
+                    MessageBox.Show(
+                        "⚠ Please enter your Email or Phone number.",
+                        "Validation error",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning
+                    );
+                    tb_contact.Focus();
+                    return;
+                }
+
+                else if (!IsValidEmail(input) && !IsValidPhone(input))
+                {
+                    MessageBox.Show(
+                        "Please enter a valid email or phone number format!",
+                        "Validation error",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning
+                    );
+                    tb_contact.Focus();
+                    return;
+                }
+
+                bool isEmail = IsValidEmail(input);
+                bool isPhone = IsValidPhone(input);
+
+                // Disable nút trong lúc chờ phản hồi từ server
+
+                string username = string.Empty;
 
                 // Gửi request tìm user
                 var getUserResponse = await tcpClient.GetUserByContactAsync(input, isEmail);
@@ -128,6 +135,7 @@ namespace DoAn_NT106.Client
             finally
             {
                 btn_continue.Enabled = true;
+                isProcessing = false;
             }
         }
 

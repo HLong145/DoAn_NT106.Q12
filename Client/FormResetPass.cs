@@ -13,6 +13,8 @@ namespace DoAn_NT106.Client
         private readonly PersistentTcpClient tcpClient;     
         private readonly ValidationService _validationService; 
 
+        private bool isProcessing = false;
+
         #endregion
 
         #region Constructors
@@ -39,93 +41,100 @@ namespace DoAn_NT106.Client
         // RESET PASSWORD
         private async void btn_complete_Click(object sender, EventArgs e)
         {
-            // Xóa lỗi cũ trước khi validate lại
-            lblNewPasswordError.Text = string.Empty;
-            lblConfirmPasswordError.Text = string.Empty;
 
-            string newPass = tbPassword.Text.Trim();
-            string confirmPass = tbconfirmPassword.Text.Trim();
-
-
-            if (string.IsNullOrEmpty(newPass))
-            {
-                lblNewPasswordError.Text = "Please enter both password fields!";
-                lblConfirmPasswordError.Text = string.Empty;
-
-                MessageBox.Show(
-                    "Please enter both password fields!",
-                    "Validation error",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning
-                );
-
-                tbPassword.Focus();
+            if (isProcessing)
                 return;
-            }
 
-            if (string.IsNullOrEmpty(confirmPass))
-            {
-                lblNewPasswordError.Text = "Please enter both password fields!";
-                lblConfirmPasswordError.Text = "Please enter both password fields!";
+            isProcessing = true;
 
-                MessageBox.Show(
-                    "Please enter both password fields!",
-                    "Validation error",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning
-                );
-
-                tbconfirmPassword.Focus();
-                return;
-            }
-
-            // Kiểm tra mật khẩu theo rule 
-            if (!_validationService.IsValidPassword(newPass))
-            {
-                //clear cả 2 text box
-                tbPassword.Text = string.Empty;
-                tbconfirmPassword.Text = string.Empty;
-
-                lblConfirmPasswordError.Text = string.Empty;
-                lblNewPasswordError.Text =
-                    "Password must be at least 8 characters long, including uppercase, lowercase, number and a special character!";
-
-                MessageBox.Show(
-                    "Password must be at least 8 characters long, including uppercase, lowercase, number and a special character!",
-                    "Invalid Password",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning
-                );
-
-                tbPassword.Focus();
-                return;
-            }
-
-            // Nếu pass và confirm không khớp
-            if (newPass != confirmPass)
-            {
-                lblNewPasswordError.Text = string.Empty;
-                lblConfirmPasswordError.Text = "Password confirmation does not match!";
-
-                MessageBox.Show(
-                    "Password confirmation does not match!",
-                    "Validation error",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning
-                );
-
-                tbconfirmPassword.Focus();
-                return;
-            }
+            btn_complete.Enabled = false;
 
             bool success = false;
             string message = "";
 
-            btn_complete.Enabled = false; 
-
-
             try
             {
+
+                // Xóa lỗi cũ trước khi validate lại
+                lblNewPasswordError.Text = string.Empty;
+                lblConfirmPasswordError.Text = string.Empty;
+
+                string newPass = tbPassword.Text.Trim();
+                string confirmPass = tbconfirmPassword.Text.Trim();
+
+
+                if (string.IsNullOrEmpty(newPass))
+                {
+                    lblNewPasswordError.Text = "Please enter both password fields!";
+                    lblConfirmPasswordError.Text = string.Empty;
+
+                    MessageBox.Show(
+                        "Please enter both password fields!",
+                        "Validation error",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning
+                    );
+
+                    tbPassword.Focus();
+                    return;
+                }
+
+                if (string.IsNullOrEmpty(confirmPass))
+                {
+                    lblNewPasswordError.Text = "Please enter both password fields!";
+                    lblConfirmPasswordError.Text = "Please enter both password fields!";
+
+                    MessageBox.Show(
+                        "Please enter both password fields!",
+                        "Validation error",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning
+                    );
+
+                    tbconfirmPassword.Focus();
+                    return;
+                }
+
+                // Kiểm tra mật khẩu theo rule 
+                if (!_validationService.IsValidPassword(newPass))
+                {
+                    //clear cả 2 text box
+                    tbPassword.Text = string.Empty;
+                    tbconfirmPassword.Text = string.Empty;
+
+                    lblConfirmPasswordError.Text = string.Empty;
+                    lblNewPasswordError.Text =
+                        "Password must be at least 8 characters long, including uppercase, lowercase, number and a special character!";
+
+                    MessageBox.Show(
+                        "Password must be at least 8 characters long, including uppercase, lowercase, number and a special character!",
+                        "Invalid Password",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning
+                    );
+
+                    tbPassword.Focus();
+                    return;
+                }
+
+                // Nếu pass và confirm không khớp
+                if (newPass != confirmPass)
+                {
+                    lblNewPasswordError.Text = string.Empty;
+                    lblConfirmPasswordError.Text = "Password confirmation does not match!";
+
+                    MessageBox.Show(
+                        "Password confirmation does not match!",
+                        "Validation error",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning
+                    );
+
+                    tbconfirmPassword.Focus();
+                    return;
+                }
+
+
                 // Gửi request reset password lên server
                 var response = await tcpClient.ResetPasswordAsync(_username, newPass);
                 success = response.Success;
@@ -150,7 +159,7 @@ namespace DoAn_NT106.Client
                     MessageBoxIcon.Information
                 );
 
-            
+
                 this.Hide();
                 FormDangNhap formLogin = new FormDangNhap();
                 formLogin.Show();
@@ -166,6 +175,7 @@ namespace DoAn_NT106.Client
                 );
             }
         }
+        
 
         #endregion
 

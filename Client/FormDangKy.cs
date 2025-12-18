@@ -24,6 +24,8 @@ namespace DoAn_NT106.Client
         private bool isPasswordVisible = false;
         private bool isConfirmPasswordVisible = false;
 
+        private bool isProcessing = false;
+
         #endregion
 
         #region Constructor and Basic Setup
@@ -193,134 +195,162 @@ namespace DoAn_NT106.Client
 
         private async void btn_register_Click(object sender, EventArgs e)
         {
-            // Clear error cũ
-            lblUsernameError.Text = string.Empty;
-            lblContactError.Text = string.Empty;
-            lblPasswordError.Text = string.Empty;
-            lblConfirmPasswordError.Text = string.Empty;
-            lblRobotError.Text = string.Empty;
 
-            string username = tb_username.Text.Trim();
-            string contact = tb_contact.Text.Trim();
-            string password = tb_password.Text;
-            string confirm = tb_confirmPassword.Text;
-
-            tb_password.Text = string.Empty;
-            tb_confirmPassword.Text = string.Empty;
-
-            // 1. Input Validation
-            if (string.IsNullOrEmpty(username) || username == "ENTER USERNAME")
+            if (isProcessing)
             {
-                lblUsernameError.Text = "⚠ Please enter your username";
-                tb_username.Focus();
-                MessageBox.Show(
-                    "⚠ Please enter your username.",
-                    "Validation error",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
+                Console.WriteLine("⚠ Registration already in process, ignoring duplicate click.");
                 return;
             }
 
-            if (string.IsNullOrEmpty(contact) || contact == "EMAIL OR PHONE")
+            isProcessing = true;
+            btn_register.Enabled = false;
+
+            try
             {
-                lblContactError.Text = "⚠ Please enter your username.";
-                tb_contact.Focus();
-                MessageBox.Show(
-                    "⚠ Please enter your username.",
-                    "Validation error",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
-                return;
+                // Clear error cũ
+                lblUsernameError.Text = string.Empty;
+                lblContactError.Text = string.Empty;
+                lblPasswordError.Text = string.Empty;
+                lblConfirmPasswordError.Text = string.Empty;
+                lblRobotError.Text = string.Empty;
+
+                string username = tb_username.Text.Trim();
+                string contact = tb_contact.Text.Trim();
+                string password = tb_password.Text;
+                string confirm = tb_confirmPassword.Text;
+
+                tb_password.Text = string.Empty;
+                tb_confirmPassword.Text = string.Empty;
+
+                // 1. Input Validation
+                if (string.IsNullOrEmpty(username) || username == "ENTER USERNAME")
+                {
+                    lblUsernameError.Text = "⚠ Please enter your username";
+                    tb_username.Focus();
+                    MessageBox.Show(
+                        "⚠ Please enter your username.",
+                        "Validation error",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    return;
+                }
+
+                if (string.IsNullOrEmpty(contact) || contact == "EMAIL OR PHONE")
+                {
+                    lblContactError.Text = "⚠ Please enter your username.";
+                    tb_contact.Focus();
+                    MessageBox.Show(
+                        "⚠ Please enter your username.",
+                        "Validation error",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    return;
+                }
+
+                if (!chkNotRobot.Checked)
+                {
+                    lblRobotError.Text = "⚠ Please verify the captcha.";
+                    MessageBox.Show(
+                        "⚠ Please verify the captcha.",
+                        "Validation error",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    chkNotRobot.Focus();
+                    return;
+                }
+                chkNotRobot.Checked = false;
+
+                bool isEmail = IsValidEmail(contact);
+                bool isPhone = IsValidPhone(contact);
+
+                if (!isEmail && !isPhone)
+                {
+                    lblContactError.Text = "⚠ Please enter a valid Email or Phone number.";
+                    tb_contact.Focus();
+                    MessageBox.Show(
+                        "⚠ Please enter a valid Email or Phone number.",
+                        "Validation error",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    return;
+                }
+
+                if (!IsValidPassword(password))
+                {
+                    lblPasswordError.Text = "⚠ Weak password. Must contain ≥8 chars, upper/lowercase, number, symbol.";
+                    tb_password.Focus();
+                    MessageBox.Show(
+                        "⚠ Weak password. Must contain ≥8 chars, upper/lowercase, number, symbol.",
+                        "Validation error",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    return;
+                }
+
+                if (password != confirm)
+                {
+                    lblConfirmPasswordError.Text = "⚠ Password confirmation does not match.";
+                    tb_password.Focus();
+                    MessageBox.Show(
+                        "⚠ Password confirmation does not match.",
+                        "Validation error",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    return;
+                }
+
+                // Xử lý đăng ký
+                bool success = false;
+                string message = "";
+
+                var response = await tcpClient.RegisterAsync(
+                    username,
+                    isEmail ? contact : null,
+                    isPhone ? contact : null,
+                    password
+                );
+
+                success = response.Success;
+                message = response.Message;
+
+                if (success)
+                {
+                    MessageBox.Show(
+                        "🎉 Registration Successful!\n\nWelcome, " + username + "!",
+                        "✓ Success",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+
+                    // Stop animations before switching
+                    StopAnimations();
+
+                    var loginForm = new FormDangNhap();
+                    loginForm.FormClosed += (s, args) => this.Close();
+                    loginForm.Show();
+                    this.Hide();
+                }
+                else
+                {
+                    MessageBox.Show(
+                        message,
+                        "❌ Registration Failed",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error);
+                }
             }
-
-            if (!chkNotRobot.Checked)
+            catch (Exception ex)
             {
-                lblRobotError.Text = "⚠ Please verify the captcha.";
+                Console.WriteLine("❌ Registration error: " + ex.Message);
                 MessageBox.Show(
-                    "⚠ Please verify the captcha.",
-                    "Validation error",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
-                chkNotRobot.Focus();
-                return;
-            }
-
-            bool isEmail = IsValidEmail(contact);
-            bool isPhone = IsValidPhone(contact);
-
-            if (!isEmail && !isPhone)
-            {
-                lblContactError.Text = "⚠ Please enter a valid Email or Phone number.";
-                tb_contact.Focus();
-                MessageBox.Show(
-                    "⚠ Please enter a valid Email or Phone number.",
-                    "Validation error",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
-                return;
-            }
-
-            if (!IsValidPassword(password))
-            {
-                lblPasswordError.Text = "⚠ Weak password. Must contain ≥8 chars, upper/lowercase, number, symbol.";
-                tb_password.Focus();
-                MessageBox.Show(
-                    "⚠ Weak password. Must contain ≥8 chars, upper/lowercase, number, symbol.",
-                    "Validation error",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
-                return;
-            }
-
-            if (password != confirm)
-            {
-                lblConfirmPasswordError.Text = "⚠ Password confirmation does not match.";
-                tb_password.Focus();
-                MessageBox.Show(
-                    "⚠ Password confirmation does not match.",
-                    "Validation error",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
-                return;
-            }
-
-            // Xử lý đăng ký
-            bool success = false;
-            string message = "";
-
-            var response = await tcpClient.RegisterAsync(
-                username,
-                isEmail ? contact : null,
-                isPhone ? contact : null,
-                password
-            );
-
-            success = response.Success;
-            message = response.Message;
-
-            if (success)
-            {
-                MessageBox.Show(
-                    "🎉 Registration Successful!\n\nWelcome, " + username + "!",
-                    "✓ Success",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
-
-                // Stop animations before switching
-                StopAnimations();
-
-                var loginForm = new FormDangNhap();
-                loginForm.FormClosed += (s, args) => this.Close();
-                loginForm.Show();
-                this.Hide();
-            }
-            else
-            {
-                MessageBox.Show(
-                    message,
-                    "❌ Registration Failed",
+                    "❌ An error occurred during registration. Please try again later.",
+                    "Error",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error);
+            }
+            finally
+            {
+                isProcessing = false;
+                btn_register.Enabled = true;
             }
         }
 
@@ -329,19 +359,43 @@ namespace DoAn_NT106.Client
         #region Switch Back to Login
         private void btn_alreadyHaveAccount_Click(object sender, EventArgs e)
         {
-            Console.WriteLine("🎯 Already have account button CLICKED in FormDangKy!");
 
-            StopAnimations();
-
-            // Xử lý chuyển về form đăng nhập
-            if (SwitchToLogin != null)
+            if (isProcessing)
             {
-                Console.WriteLine("✅ SwitchToLogin event is connected, invoking...");
-                SwitchToLogin?.Invoke(this, EventArgs.Empty);
+                Console.WriteLine("⚠ Cannot switch to login while registration is in process.");
+                return;
             }
-            else
+
+            isProcessing = true;
+            btn_alreadyHaveAccount.Enabled = false;
+
+
+            try
             {
-                Console.WriteLine("❌ ERROR: SwitchToLogin event is NULL!");
+                Console.WriteLine("🎯 Already have account button CLICKED in FormDangKy!");
+
+
+                StopAnimations();
+
+                // Xử lý chuyển về form đăng nhập
+                if (SwitchToLogin != null)
+                {
+                    Console.WriteLine("✅ SwitchToLogin event is connected, invoking...");
+                    SwitchToLogin?.Invoke(this, EventArgs.Empty);
+                }
+                else
+                {
+                    Console.WriteLine("❌ ERROR: SwitchToLogin event is NULL!");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("❌ Error switching to login: " + ex.Message);
+            }
+            finally
+            {
+                isProcessing = false;
+                btn_alreadyHaveAccount.Enabled = true;
             }
         }
 

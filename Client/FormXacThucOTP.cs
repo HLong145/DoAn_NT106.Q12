@@ -15,7 +15,9 @@ namespace DoAn_NT106.Client
         private readonly PersistentTcpClient tcpClient;
 
         private System.Windows.Forms.Timer otpTimer;        
-        private int remainingSeconds = 300;                 
+        private int remainingSeconds = 300;      
+        
+        private bool isProcessing = false;
         #endregion
 
         #region Constructor
@@ -123,47 +125,71 @@ namespace DoAn_NT106.Client
 
         private async void btn_verify_Click(object sender, EventArgs e)
         {
-            lblOTPError.Text = "";
-
-            // Ghép 6 ô OTP thành 1 chuỗi
-            string otp = string.Concat(
-                tb_otp1.Text.Trim(),
-                tb_otp2.Text.Trim(),
-                tb_otp3.Text.Trim(),
-                tb_otp4.Text.Trim(),
-                tb_otp5.Text.Trim(),
-                tb_otp6.Text.Trim()
-            );
-
-            // Validate basic: phải đủ 6 chữ số
-            if (otp.Length != 6 || !otp.All(char.IsDigit))
-            {
-                lblOTPError.Text = "Please enter all 6 digits of the OTP!";
+            if (isProcessing)
                 return;
-            }
 
-            bool isValid = false;
-            string message = "";
+            isProcessing = true;
+            btn_verify.Enabled = false;
 
-
-            // Gửi OTP lên server để xác thực
-            var response = await tcpClient.VerifyOtpAsync(_username, otp);
-            isValid = response.Success;
-            message = response.Message;
-
-            if (isValid)
+            try
             {
-                // Nếu OTP đúng => thông báo + mở form đổi mật khẩu
-                MessageBox.Show(message, "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
-                FormResetPass formReset = new FormResetPass(_username);
-                formReset.Show();
+                lblOTPError.Text = "";
 
-                this.Close();
+                // Ghép 6 ô OTP thành 1 chuỗi
+                string otp = string.Concat(
+                    tb_otp1.Text.Trim(),
+                    tb_otp2.Text.Trim(),
+                    tb_otp3.Text.Trim(),
+                    tb_otp4.Text.Trim(),
+                    tb_otp5.Text.Trim(),
+                    tb_otp6.Text.Trim()
+                );
+
+                // Validate basic: phải đủ 6 chữ số
+                if (otp.Length != 6 || !otp.All(char.IsDigit))
+                {
+                    lblOTPError.Text = "Please enter all 6 digits of the OTP!";
+                    return;
+                }
+
+                bool isValid = false;
+                string message = "";
+
+
+                // Gửi OTP lên server để xác thực
+                var response = await tcpClient.VerifyOtpAsync(_username, otp);
+                isValid = response.Success;
+                message = response.Message;
+
+                if (isValid)
+                {
+                    // Nếu OTP đúng => thông báo + mở form đổi mật khẩu
+                    MessageBox.Show(message, "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                    FormResetPass formReset = new FormResetPass(_username);
+                    formReset.Show();
+
+                    this.Close();
+                }
+                else
+                {
+                    MessageBox.Show(message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
             }
-            else
+            catch (Exception ex)
             {
-                MessageBox.Show(message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(
+                    "An error occurred while verifying the OTP: " + ex.Message,
+                    "System Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
+            }
+            finally
+            {
+                isProcessing = false;
+                btn_verify.Enabled = true;
             }
         }
 
@@ -174,31 +200,55 @@ namespace DoAn_NT106.Client
         // RESEND OTP
         private async void btn_resend_Click(object sender, EventArgs e)
         {
-            var response = await tcpClient.GenerateOtpAsync(_username);
 
-            if (!response.Success)
+            if (isProcessing)
+                return;
+            isProcessing = true;
+            btn_resend.Enabled = false;
+
+            try
+            {
+
+                var response = await tcpClient.GenerateOtpAsync(_username);
+
+                if (!response.Success)
+                {
+                    MessageBox.Show(
+                        "Unable to generate new OTP. Please try again!",
+                        "Error",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error);
+                    return;
+                }
+
+                ResetOtpTextBoxes();
+
+                MessageBox.Show(
+                    "A new OTP has been sent to your email.",
+                    "New OTP",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+
+                // Đặt lại bộ đếm thời gian
+                remainingSeconds = 300;
+                lbl_timer.ForeColor = Color.White;
+                btn_verify.Enabled = true;
+                otpTimer.Start();
+            }
+            catch (Exception ex)
             {
                 MessageBox.Show(
-                    "Unable to generate new OTP. Please try again!",
-                    "Error",
+                    "An error occurred while resending the OTP: " + ex.Message,
+                    "System Error",
                     MessageBoxButtons.OK,
-                    MessageBoxIcon.Error);
-                return;
+                    MessageBoxIcon.Error
+                );
             }
-
-            ResetOtpTextBoxes();
-
-            MessageBox.Show(
-                "A new OTP has been sent to your email.",
-                "New OTP",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information);
-
-            // Đặt lại bộ đếm thời gian
-            remainingSeconds = 300;
-            lbl_timer.ForeColor = Color.White;
-            btn_verify.Enabled = true;
-            otpTimer.Start();
+            finally
+            {
+                isProcessing = false;
+                btn_resend.Enabled = true;
+            }
         }
 
         #endregion

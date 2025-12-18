@@ -30,6 +30,8 @@ namespace DoAn_NT106.Client
 
         public event EventHandler SwitchToRegister;
 
+        private bool isProcessing = false;
+
         #endregion
 
         #region Constructor
@@ -212,41 +214,46 @@ namespace DoAn_NT106.Client
         //Button Login
         private async void btn_Login_Click(object sender, EventArgs e)
         {
-            string contact = tb_Username.Text.Trim();
-            string password = tb_Password.Text;
 
-            // Clear password field
-            tb_Password.Text = string.Empty;
+            if (isProcessing)
+                return; // Tránh việc nhấn nhiều lần
 
-            // Kiểm tra thông tin login
-            if (string.IsNullOrEmpty(contact) || string.IsNullOrEmpty(password))
-            {
-                MessageBox.Show(
-                    "Please fill in all required login information!",
-                    "⚠ Missing Information",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
-                return;
-            }
-
-            // Kiểm tra captcha
-            if (!chk_Captcha.Checked)
-            {
-                MessageBox.Show(
-                    "Please confirm that you are not a robot!",
-                    "⚠ Warning",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
-                return;
-            }
-
-            string username = contact;
-            bool isEmail = IsValidEmail(contact);
-            bool isPhone = IsValidPhone(contact);
+            isProcessing = true;
+            btn_Login.Enabled = false;
 
             try
             {
-                btn_Login.Enabled = false;
+                string contact = tb_Username.Text.Trim();
+                string password = tb_Password.Text;
+
+                // Clear password field
+                tb_Password.Text = string.Empty;
+
+                // Kiểm tra thông tin login
+                if (string.IsNullOrEmpty(contact) || string.IsNullOrEmpty(password))
+                {
+                    MessageBox.Show(
+                        "Please fill in all required login information!",
+                        "⚠ Missing Information",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    return;
+                }
+
+                // Kiểm tra captcha
+                if (!chk_Captcha.Checked)
+                {
+                    MessageBox.Show(
+                        "Please confirm that you are not a robot!",
+                        "⚠ Warning",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    return;
+                }
+
+                string username = contact;
+                bool isEmail = IsValidEmail(contact);
+                bool isPhone = IsValidPhone(contact);
 
                 // Gửi request login lên server
                 var response = await tcpClient.LoginAsync(username, password);
@@ -315,6 +322,7 @@ namespace DoAn_NT106.Client
             finally
             {
                 btn_Login.Enabled = true;
+                isProcessing = false;
             }
         }
 
@@ -325,39 +333,79 @@ namespace DoAn_NT106.Client
         // Register button
         private void btn_Register_Click(object sender, EventArgs e)
         {
-            Console.WriteLine("🎯 Register button CLICKED in FormDangNhap!");
+            if (isProcessing)
+                return; // Tránh việc nhấn nhiều lần
 
-            // tra sự kiện
-            if (SwitchToRegister == null)
+            isProcessing = true;
+            btn_Register.Enabled = false;
+            try
             {
-                Console.WriteLine("❌ ERROR: SwitchToRegister event is NULL! Using fallback...");
+                Console.WriteLine("🎯 Register button CLICKED in FormDangNhap!");
 
-                this.Hide();
-                var registerForm = new FormDangKy();
-
-                // Khi FormDangKy đưa SwitchToLogin thì đóng form đăng ký, show lại form login
-                registerForm.SwitchToLogin += (s2, e2) =>
+                // tra sự kiện
+                if (SwitchToRegister == null)
                 {
-                    registerForm.Close();
-                    this.Show();
-                };
+                    Console.WriteLine("❌ ERROR: SwitchToRegister event is NULL! Using fallback...");
 
-                registerForm.Show();
+                    this.Hide();
+                    var registerForm = new FormDangKy();
+
+                    // Khi FormDangKy đưa SwitchToLogin thì đóng form đăng ký, show lại form login
+                    registerForm.SwitchToLogin += (s2, e2) =>
+                    {
+                        registerForm.Close();
+                        this.Show();
+                    };
+
+                    registerForm.Show();
+                }
+                else
+                {
+                    Console.WriteLine("✅ SwitchToRegister event is connected, invoking...");
+                    SwitchToRegister?.Invoke(this, EventArgs.Empty);
+                }
             }
-            else
+            catch (Exception ex)
             {
-                Console.WriteLine("✅ SwitchToRegister event is connected, invoking...");
-                SwitchToRegister?.Invoke(this, EventArgs.Empty);
+                MessageBox.Show(
+                    "Error while opening registration form:\n" + ex.Message,
+                    "⚠ Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+            finally
+            {
+                btn_Register.Enabled = true;
+                isProcessing = false;
             }
         }
 
         private void btn_Forgot_Click(object sender, EventArgs e)
         {
-            // Mở form quên mật khẩu, ẩn form hiện tại
-            this.Hide();
-            FormQuenPass formQuenPass = new FormQuenPass();
-            formQuenPass.FormClosed += (s, args) => this.Show();
-            formQuenPass.Show();
+            if (isProcessing) return;
+            isProcessing = true;
+            btn_Forgot.Enabled = false;
+            try
+            {
+                // Mở form quên mật khẩu, ẩn form hiện tại
+                this.Hide();
+                FormQuenPass formQuenPass = new FormQuenPass();
+                formQuenPass.FormClosed += (s, args) => this.Show();
+                formQuenPass.Show();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    "Error while opening forgot password form:\n" + ex.Message,
+                    "⚠ Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+            finally
+            {
+                btn_Forgot.Enabled = true;
+                isProcessing = false;
+            }   
         }
 
         #endregion
