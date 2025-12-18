@@ -34,31 +34,30 @@ namespace DoAn_NT106.Client
 
         private async Task LoadAndDisplayXpAsync()
         {
-            // Simple XP rule: win = 100 XP, lose = 40 XP
             _calculatedXp = _result.PlayerIsWinner ? 100 : 40;
-
             const int xpPerLevel = 1000;
 
-            // Get current XP from local database (run on thread pool)
+            // 1. Lấy XP hiện tại từ server
             _xpBefore = 0;
             try
             {
-                if (!string.IsNullOrEmpty(_result.PlayerUsername))
+                if (!string.IsNullOrEmpty(_result.PlayerUsername) &&
+                    !string.IsNullOrEmpty(_result.Token))
                 {
-                    _xpBefore = await Task.Run(() =>
-                    {
-                        try
+                    var getXpResponse = await PersistentTcpClient.Instance.SendRequestAsync(
+                        "GET_PLAYER_XP",
+                        new System.Collections.Generic.Dictionary<string, object>
                         {
-                            //var db = new DatabaseService();
-                            //return db.GetPlayerXp(_result.PlayerUsername);
+                            { "username", _result.PlayerUsername },
+                            { "token", _result.Token }
+                        });
 
-                            return 0;
-                        }
-                        catch
-                        {
-                            return 0;
-                        }
-                    }).ConfigureAwait(false);
+                    if (getXpResponse.Success && getXpResponse.Data != null &&
+                        getXpResponse.Data.TryGetValue("xp", out var xpObj) &&
+                        int.TryParse(xpObj?.ToString(), out var xpValue))
+                    {
+                        _xpBefore = xpValue;
+                    }
                 }
             }
             catch
@@ -67,62 +66,49 @@ namespace DoAn_NT106.Client
             }
 
             _xpAfter = _xpBefore + _calculatedXp;
-
             _levelBefore = Math.Max(1, (_xpBefore / xpPerLevel) + 1);
             _levelAfter = Math.Max(1, (_xpAfter / xpPerLevel) + 1);
-
             _xpNeededForNextLevel = _levelAfter * xpPerLevel;
 
-            // Play level up sound if player leveled up
             if (_levelAfter > _levelBefore)
             {
-                try
-                {
-                    PlayLevelUpSound();
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[TinhXP] Error playing level up sound: {ex.Message}");
-                }
+                try { PlayLevelUpSound(); } catch (Exception ex)
+                { Console.WriteLine($"[TinhXP] Error playing level up sound: {ex.Message}"); }
             }
 
-            // Persist new XP and level into database (best-effort)
+            // 2. Gửi XP mới lên server để server ghi DB
             try
             {
-                if (!string.IsNullOrEmpty(_result.PlayerUsername))
+                if (!string.IsNullOrEmpty(_result.PlayerUsername) &&
+                    !string.IsNullOrEmpty(_result.Token))
                 {
-                    await Task.Run(() =>
-                    {
-                        try
+                    var updateResponse = await PersistentTcpClient.Instance.SendRequestAsync(
+                        "UPDATE_PLAYER_XP",
+                        new System.Collections.Generic.Dictionary<string, object>
                         {
-                            //var db = new DatabaseService();
-                            //db.UpdatePlayerXp(_result.PlayerUsername, _xpAfter, _xpNeededForNextLevel);
-                            //if (_levelAfter > _levelBefore)
-                            //{
-                            //    db.UpdatePlayerLevel(_result.PlayerUsername, _levelAfter);
-                            //}
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"[TinhXP] DB update failed: {ex.Message}");
-                        }
-                    }).ConfigureAwait(false);
+                            { "username", _result.PlayerUsername },
+                            { "token", _result.Token },
+                            { "xpAfter", _xpAfter },
+                            { "levelAfter", _levelAfter },
+                            { "xpNeededForNextLevel", _xpNeededForNextLevel },
+                            { "isWin", _result.PlayerIsWinner },
+                            { "parryCount", _result.ParryCount },
+                            { "attackCount", _result.AttackCount },
+                            { "skillCount", _result.SkillCount }
+                        });
+
+                    Console.WriteLine($"[TinhXP] UPDATE_PLAYER_XP result: {updateResponse.Success} - {updateResponse.Message}");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[TinhXP] Update DB error: {ex.Message}");
+                Console.WriteLine($"[TinhXP] Server XP update error: {ex.Message}");
             }
 
-            // Update UI on UI thread
             if (InvokeRequired)
-            {
                 Invoke(new Action(UpdateUi));
-            }
             else
-            {
                 UpdateUi();
-            }
         }
 
         private void UpdateUi()

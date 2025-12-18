@@ -594,6 +594,11 @@ namespace DoAn_NT106.Server
                     case "ROOM_LIST_UNSUBSCRIBE":
                         return HandleRoomListUnsubscribe(request);
 
+                    case "GET_PLAYER_XP":
+                        return HandleGetPlayerXp(request);
+
+                    case "UPDATE_PLAYER_XP":
+                        return HandleUpdatePlayerXp(request);
 
                     default:
                         return CreateResponse(false, "Unknown action");
@@ -1896,6 +1901,92 @@ catch (Exception ex)
                 return CreateResponse(false, $"Unsubscribe error: {ex.Message}");
             }
         }
+
+        // Server\TCPServer.cs  (bên trong ClientHandler, thêm 2 handler dưới các handler khác)
+
+        private string HandleGetPlayerXp(Request request)
+        {
+            try
+            {
+                var username = request.Data?["username"]?.ToString();
+                var token = request.Data?["token"]?.ToString();
+
+                if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(token))
+                    return CreateResponse(false, "Username and token are required");
+
+                // Xác thực token khớp username
+                if (!tokenManager.ValidateToken(token) ||
+                    !string.Equals(tokenManager.GetUsernameFromToken(token),
+                                   username,
+                                   StringComparison.OrdinalIgnoreCase))
+                {
+                    return CreateResponse(false, "Invalid token");
+                }
+
+                int xp = dbService.GetPlayerXp(username);
+                return CreateResponse(true, "OK", new Dictionary<string, object>
+        {
+            { "xp", xp }
+        });
+            }
+            catch (Exception ex)
+            {
+                server.Log($"❌ HandleGetPlayerXp error: {ex.Message}");
+                return CreateResponse(false, $"Error: {ex.Message}");
+            }
+        }
+
+        private string HandleUpdatePlayerXp(Request request)
+        {
+            try
+            {
+                var username = request.Data?["username"]?.ToString();
+                var token = request.Data?["token"]?.ToString();
+
+                if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(token))
+                    return CreateResponse(false, "Username and token are required");
+
+                // Xác thực token khớp username
+                if (!tokenManager.ValidateToken(token) ||
+                    !string.Equals(tokenManager.GetUsernameFromToken(token),
+                                   username,
+                                   StringComparison.OrdinalIgnoreCase))
+                {
+                    return CreateResponse(false, "Invalid token");
+                }
+
+                int xpAfter = Convert.ToInt32(request.Data?["xpAfter"] ?? 0);
+                int levelAfter = Convert.ToInt32(request.Data?["levelAfter"] ?? 1);
+                int xpNeeded = Convert.ToInt32(request.Data?["xpNeededForNextLevel"] ?? 0);
+
+                bool isWin = request.Data?.ContainsKey("isWin") == true &&
+                             Convert.ToBoolean(request.Data["isWin"]);
+                int parry = request.Data?.ContainsKey("parryCount") == true
+                    ? Convert.ToInt32(request.Data["parryCount"])
+                    : 0;
+                int attack = request.Data?.ContainsKey("attackCount") == true
+                    ? Convert.ToInt32(request.Data["attackCount"])
+                    : 0;
+                int skill = request.Data?.ContainsKey("skillCount") == true
+                    ? Convert.ToInt32(request.Data["skillCount"])
+                    : 0;
+
+                // Các method này phải tồn tại trong DatabaseService
+                dbService.UpdatePlayerXp(username, xpAfter, xpNeeded);
+                dbService.UpdatePlayerLevel(username, levelAfter);
+
+                // Nếu bạn có lưu thống kê trận thì mới gọi, nếu chưa có method này thì bỏ dòng dưới
+                // dbService.SaveMatchStats(username, isWin, parry, attack, skill);
+
+                return CreateResponse(true, "XP updated");
+            }
+            catch (Exception ex)
+            {
+                server.Log($"❌ HandleUpdatePlayerXp error: {ex.Message}");
+                return CreateResponse(false, $"Error: {ex.Message}");
+            }
+        }
+
         #endregion
 
 
