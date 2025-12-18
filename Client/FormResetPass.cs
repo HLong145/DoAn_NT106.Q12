@@ -1,6 +1,7 @@
 ﻿using DoAn_NT106.Client.Class;
 using DoAn_NT106.Services;
 using System;
+using System.Security.AccessControl;
 using System.Windows.Forms;
 
 namespace DoAn_NT106.Client
@@ -45,9 +46,7 @@ namespace DoAn_NT106.Client
             if (isProcessing)
                 return;
 
-            isProcessing = true;
-
-            btn_complete.Enabled = false;
+            SetAllControl(false);
 
             bool success = false;
             string message = "";
@@ -147,7 +146,7 @@ namespace DoAn_NT106.Client
             }
             finally
             {
-                btn_complete.Enabled = true;
+                SetAllControl(true);
             }
 
             if (success)
@@ -175,7 +174,7 @@ namespace DoAn_NT106.Client
                 );
             }
         }
-        
+
 
         #endregion
 
@@ -183,9 +182,21 @@ namespace DoAn_NT106.Client
 
         private void btn_backToLogin_Click(object sender, EventArgs e)
         {
-            this.Close();
-            FormDangNhap formLogin = new FormDangNhap();
-            formLogin.Show();
+            if (isProcessing) return;
+
+            SetAllControl(false);
+            try
+            {
+                this.Close();
+                FormDangNhap formLogin = new FormDangNhap();
+                formLogin.Show();
+            }
+            catch { }
+            finally
+            {
+                SetAllControl(true);
+            }
+
         }
 
         #endregion
@@ -269,6 +280,15 @@ namespace DoAn_NT106.Client
             }
         }
 
+        #endregion
+
+        #region Helper
+        private void SetAllControl (bool set)
+        {
+            isProcessing = !set;
+            btn_backToLogin.Enabled = set;
+            btn_complete.Enabled = set;
+        }
         #endregion
     }
 }

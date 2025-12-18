@@ -6,6 +6,8 @@ namespace DoAn_NT106.Client
 {
     public partial class CreateRoomForm : Form
     {
+        private bool isProcessing = false;
+
         #region Properties
 
         public string RoomName { get; private set; }      
@@ -66,64 +68,95 @@ namespace DoAn_NT106.Client
 
         private void BtnCreate_Click(object sender, EventArgs e)
         {
-            // Validate room name
-            string roomName = txtRoomName.Text.Trim();
-
-            if (string.IsNullOrEmpty(roomName))
-            {
-                ShowError("Please enter a room name!");
-                txtRoomName.Focus();
+            if (isProcessing) {
                 return;
             }
-
-            if (roomName.Length < 3)
+                SetAllControlDisable();
+            try
             {
-                ShowError("Room name must be at least 3 characters!");
-                txtRoomName.Focus();
-                return;
-            }
+                // Validate room name
+                string roomName = txtRoomName.Text.Trim();
 
-            if (roomName.Length > 50)
-            {
-                ShowError("Room name must be less than 50 characters!");
-                txtRoomName.Focus();
-                return;
-            }
-
-            // Validate password if checked
-            string password = null;
-            if (chkHasPassword.Checked)
-            {
-                password = txtPassword.Text;
-
-                if (string.IsNullOrEmpty(password))
+                if (string.IsNullOrEmpty(roomName))
                 {
-                    ShowError("Please enter a password or uncheck the password option!");
-                    txtPassword.Focus();
+                    ShowError("Please enter a room name!");
+                    txtRoomName.Focus();
                     return;
                 }
 
-                if (password.Length < 4)
+                if (roomName.Length < 3)
                 {
-                    ShowError("Password must be at least 4 characters!");
-                    txtPassword.Focus();
+                    ShowError("Room name must be at least 3 characters!");
+                    txtRoomName.Focus();
                     return;
                 }
+
+                if (roomName.Length > 50)
+                {
+                    ShowError("Room name must be less than 50 characters!");
+                    txtRoomName.Focus();
+                    return;
+                }
+
+                // Validate password if checked
+                string password = null;
+                if (chkHasPassword.Checked)
+                {
+                    password = txtPassword.Text;
+
+                    if (string.IsNullOrEmpty(password))
+                    {
+                        ShowError("Please enter a password or uncheck the password option!");
+                        txtPassword.Focus();
+                        return;
+                    }
+
+                    if (password.Length < 4)
+                    {
+                        ShowError("Password must be at least 4 characters!");
+                        txtPassword.Focus();
+                        return;
+                    }
+                }
+
+                // Set properties và close dialog
+                RoomName = roomName;
+                RoomPassword = password;
+
+                this.DialogResult = DialogResult.OK;
+                this.Close();
             }
-
-            // Set properties và close dialog
-            RoomName = roomName;
-            RoomPassword = password;
-
-            this.DialogResult = DialogResult.OK;
-            this.Close();
+            catch (Exception ex)
+            {
+            }
+            finally
+            {
+                SetAllControlDisable();
+            }
         }
 
         private void BtnCancel_Click(object sender, EventArgs e)
         {
-            // User hủy tạo phòng
-            this.DialogResult = DialogResult.Cancel;
-            this.Close();
+            if (isProcessing)
+            {
+                return;
+            }
+            SetAllControlDisable();
+
+            try
+            {
+                // User hủy tạo phòng
+                this.DialogResult = DialogResult.Cancel;
+                this.Close();
+            }
+            catch (Exception ex)
+            {
+            }
+
+            finally
+            {
+                SetAllControlDisable();
+            }
         }
 
         #endregion
@@ -182,6 +215,21 @@ namespace DoAn_NT106.Client
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning
             );
+        }
+
+        private void SetAllControlDisable()
+        {
+            isProcessing = true;
+            btnCancel.Enabled = false;
+            btnCreate.Enabled = false;
+            
+        }
+
+        private void SetAllControlEnable()
+        {
+            isProcessing = false;
+            btnCancel.Enabled = true;
+            btnCreate.Enabled = true;
         }
 
         #endregion

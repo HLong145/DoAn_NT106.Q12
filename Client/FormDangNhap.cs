@@ -218,8 +218,7 @@ namespace DoAn_NT106.Client
             if (isProcessing)
                 return; // Tránh việc nhấn nhiều lần
 
-            isProcessing = true;
-            btn_Login.Enabled = false;
+            SetAllControl(false);
 
             try
             {
@@ -321,8 +320,7 @@ namespace DoAn_NT106.Client
             }
             finally
             {
-                btn_Login.Enabled = true;
-                isProcessing = false;
+                SetAllControl(true);
             }
         }
 
@@ -336,8 +334,8 @@ namespace DoAn_NT106.Client
             if (isProcessing)
                 return; // Tránh việc nhấn nhiều lần
 
-            isProcessing = true;
-            btn_Register.Enabled = false;
+            SetAllControl(false);
+
             try
             {
                 Console.WriteLine("🎯 Register button CLICKED in FormDangNhap!");
@@ -375,16 +373,15 @@ namespace DoAn_NT106.Client
             }
             finally
             {
-                btn_Register.Enabled = true;
-                isProcessing = false;
+                SetAllControl(true);
             }
         }
 
         private void btn_Forgot_Click(object sender, EventArgs e)
         {
             if (isProcessing) return;
-            isProcessing = true;
-            btn_Forgot.Enabled = false;
+            SetAllControl(false);
+
             try
             {
                 // Mở form quên mật khẩu, ẩn form hiện tại
@@ -403,8 +400,7 @@ namespace DoAn_NT106.Client
             }
             finally
             {
-                btn_Forgot.Enabled = true;
-                isProcessing = false;
+                SetAllControl(true);
             }   
         }
 
@@ -428,6 +424,13 @@ namespace DoAn_NT106.Client
             tb_Password.UseSystemPasswordChar = !chk_ShowPassword.Checked;
         }
 
+        private void SetAllControl (bool set)
+        {
+            isProcessing = !set;
+            btn_Forgot.Enabled = set;
+            btn_Login.Enabled = set;
+            btn_Register.Enabled = set;
+        }
         #endregion
 
         #region Floating Background Animation

@@ -173,7 +173,7 @@ namespace DoAn_NT106.Client
 
         #endregion
 
-        #region Validation Helpers
+        #region Helpers
         private bool IsValidEmail(string email)
         {
             return validationService.IsValidEmail(email);
@@ -189,6 +189,13 @@ namespace DoAn_NT106.Client
             return validationService.IsValidPassword(password);
         }
 
+        private void SetAllControl(bool set)
+        {
+            isProcessing = !set;
+            btn_alreadyHaveAccount.Enabled = set;
+            btn_register.Enabled = set;
+        }
+
         #endregion
 
         #region Register Button Logic
@@ -202,8 +209,7 @@ namespace DoAn_NT106.Client
                 return;
             }
 
-            isProcessing = true;
-            btn_register.Enabled = false;
+            SetAllControl(false);
 
             try
             {
@@ -349,8 +355,7 @@ namespace DoAn_NT106.Client
             }
             finally
             {
-                isProcessing = false;
-                btn_register.Enabled = true;
+                SetAllControl(true);
             }
         }
 
@@ -366,9 +371,7 @@ namespace DoAn_NT106.Client
                 return;
             }
 
-            isProcessing = true;
-            btn_alreadyHaveAccount.Enabled = false;
-
+            SetAllControl(false);
 
             try
             {
@@ -394,8 +397,7 @@ namespace DoAn_NT106.Client
             }
             finally
             {
-                isProcessing = false;
-                btn_alreadyHaveAccount.Enabled = true;
+                SetAllControl(true);
             }
         }
 

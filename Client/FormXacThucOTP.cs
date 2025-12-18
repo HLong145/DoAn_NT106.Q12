@@ -128,8 +128,7 @@ namespace DoAn_NT106.Client
             if (isProcessing)
                 return;
 
-            isProcessing = true;
-            btn_verify.Enabled = false;
+            SetAllControl(false);
 
             try
             {
@@ -188,8 +187,7 @@ namespace DoAn_NT106.Client
             }
             finally
             {
-                isProcessing = false;
-                btn_verify.Enabled = true;
+                SetAllControl(true);
             }
         }
 
@@ -203,8 +201,7 @@ namespace DoAn_NT106.Client
 
             if (isProcessing)
                 return;
-            isProcessing = true;
-            btn_resend.Enabled = false;
+            SetAllControl(false);
 
             try
             {
@@ -246,8 +243,7 @@ namespace DoAn_NT106.Client
             }
             finally
             {
-                isProcessing = false;
-                btn_resend.Enabled = true;
+                SetAllControl(true);
             }
         }
 
@@ -285,6 +281,17 @@ namespace DoAn_NT106.Client
             base.OnFormClosing(e);
         }
 
+        #endregion
+
+        #region Helpers
+        private void SetAllControl(bool enabled)
+        {
+            isProcessing = !enabled;
+            foreach (Control control in this.Controls)
+            {
+                control.Enabled = enabled;
+            }
+        }
         #endregion
     }
 }

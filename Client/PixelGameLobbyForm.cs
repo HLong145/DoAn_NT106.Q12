@@ -2,6 +2,7 @@ using DoAn_NT106;
 using DoAn_NT106.Client.Class;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.Eventing.Reader;
 using System.Drawing;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -42,6 +43,7 @@ namespace DoAn_NT106.Client
         private Color readyColor = Color.FromArgb(100, 200, 100);
         private Color notReadyColor = Color.FromArgb(255, 100, 100);
 
+        private bool isProcessing = false;
         #endregion
 
         #region Constructors
@@ -753,9 +755,13 @@ namespace DoAn_NT106.Client
 
         private async void notReadyButton_Click(object sender, EventArgs e)
         {
+            if (isProcessing)
+                return;
+
+            SetAllControl(false);
+
             try
             {
-                notReadyButton.Enabled = false;
                 bool newReadyState = !isReady;
 
                 var response = await TcpClient.LobbySetReadyAsync(roomCode, username, newReadyState);
@@ -790,30 +796,36 @@ namespace DoAn_NT106.Client
             }
             finally
             {
-                notReadyButton.Enabled = true;
                 notReadyButton.Focus();
+                SetAllControl(true);
             }
         }
 
         private async void startGameButton_Click(object sender, EventArgs e)
         {
-            // Kiểm tra điều kiện có phải host hay không
-            if (!isHost)
-            {
-                MessageBox.Show("Only the host can start the game!", "Info",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+            if (isProcessing)
                 return;
-            }
 
-            if (!bothPlayersReady)
-            {
-                MessageBox.Show("Both players must be ready to start!", "Info",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
+            SetAllControl(false);
 
             try
             {
+                // Kiểm tra điều kiện có phải host hay không
+                if (!isHost)
+                {
+                    MessageBox.Show("Only the host can start the game!", "Info",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                if (!bothPlayersReady)
+                {
+                    MessageBox.Show("Both players must be ready to start!", "Info",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+
                 startGameButton.Enabled = false;
                 startGameButton.Text = "STARTING...";
 
@@ -836,55 +848,76 @@ namespace DoAn_NT106.Client
                 startGameButton.Enabled = true;
                 startGameButton.Text = "START GAME";
             }
+
+            finally
+            {
+                SetAllControl(true);
+            }
         }
 
         private async void leaveRoomButton_Click(object sender, EventArgs e)
         {
-            if (hasLeft) return;
+            if (isProcessing)
+                return;
 
-            var result = MessageBox.Show(
-                "Are you sure you want to leave?",
-                "Confirm",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Question);
-
-            if (result == DialogResult.Yes)
+            SetAllControl(false);
+            try
             {
-                leaveRoomButton.Enabled = false;
-                leaveRoomButton.Text = "LEAVING...";
+                if (hasLeft) return;
 
-                await LeaveRoomSafelyAsync();
-                isLeaving = true;
+                var result = MessageBox.Show(
+                    "Are you sure you want to leave?",
+                    "Confirm",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question);
 
-                // Mở Joinroom mới trước khi đóng
-                OpenNewJoinRoomForm();
+                if (result == DialogResult.Yes)
+                {
+                    leaveRoomButton.Enabled = false;
+                    leaveRoomButton.Text = "LEAVING...";
 
-                this.Close();
+                    await LeaveRoomSafelyAsync();
+                    isLeaving = true;
+
+                    // Mở Joinroom mới trước khi đóng
+                    OpenNewJoinRoomForm();
+
+                    this.Close();
+                }
+            }
+            catch { }
+            finally
+            {
+                SetAllControl(true);
             }
         }
 
 
         private async void chooseMapButton_Click(object sender, EventArgs e)
         {
-            // ✅ ONLY HOST CAN CHOOSE MAP
-            if (!isHost)
-            {
-                MessageBox.Show("Only the room host can choose the battleground!", "Info",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
+            if (isProcessing) return;
+            SetAllControl(false);
 
             try
             {
+                // ONLY HOST CAN CHOOSE MAP
+                if (!isHost)
+                {
+                    MessageBox.Show("Only the room host can choose the battleground!", "Info",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+
                 using (var f = new MapSelectForm())
                 {
                     var res = f.ShowDialog(this);
                     if (res == DialogResult.OK)
                     {
-                        // ✅ MapSelectForm ALREADY returns "battleground2" format
+                        // MapSelectForm ALREADY returns "battleground2" format
                         // NO NEED TO CONVERT AGAIN!
                         selectedMap = f.SelectedMap ?? "battleground1";  // e.g., "battleground2"
-                        
+
                         // Get display name for UI (e.g., "Battlefield 2" from "battleground2")
                         string displayName = "Battlefield 1";
                         if (selectedMap.StartsWith("battleground") && int.TryParse(selectedMap.Replace("battleground", ""), out int mapNum))
@@ -894,7 +927,7 @@ namespace DoAn_NT106.Client
 
                         mapLabel.Text = "Map: " + displayName;
                         AddSystemMessage($"🗺️ Host selected map: {displayName}");
-                        
+
                         Console.WriteLine($"[GameLobby.chooseMapButton_Click] MapSelectForm returned: '{f.SelectedMap}'");
                         Console.WriteLine($"[GameLobby.chooseMapButton_Click] selectedMap now = '{selectedMap}'");
 
@@ -911,6 +944,10 @@ namespace DoAn_NT106.Client
             catch (Exception ex)
             {
                 Console.WriteLine("Choose map error: " + ex.Message);
+            }
+            finally
+            {
+                SetAllControl(true);
             }
         }
 
@@ -991,6 +1028,16 @@ namespace DoAn_NT106.Client
                 if (prop.ValueKind == JsonValueKind.False) return false;
             }
             return false;
+        }
+
+        private void SetAllControl (bool enable)
+        {
+            isProcessing = !enable;
+            copyCodeButton.Enabled = enable;
+            notReadyButton.Enabled = enable;
+            startGameButton.Enabled = enable && isHost && bothPlayersReady;
+            chooseMapButton.Enabled = enable && isHost;
+            sendButton.Enabled = enable;
         }
 
         #endregion

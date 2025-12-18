@@ -34,8 +34,20 @@ namespace DoAn_NT106.Client
 
         private void btn_backToLogin_Click(object sender, EventArgs e)
         {
-            // Đóng form quên mật khẩu và quay về form login
-            this.Close();
+            if (isProcessing)
+                return;
+
+            SetAllControl(false);
+            try
+            {
+                // Đóng form quên mật khẩu và quay về form login
+                this.Close();
+            }
+            catch { }
+            finally
+            {
+                SetAllControl(true);
+            }
         }
 
         #endregion
@@ -47,8 +59,7 @@ namespace DoAn_NT106.Client
             if (isProcessing)
                 return;
 
-            isProcessing = true;
-            btn_continue.Enabled = false;
+            SetAllControl(false);
 
             try
             {
@@ -134,14 +145,13 @@ namespace DoAn_NT106.Client
             }
             finally
             {
-                btn_continue.Enabled = true;
-                isProcessing = false;
+                SetAllControl(true);
             }
         }
 
         #endregion
 
-        #region Validation Helpers
+        #region  Helpers
 
         private bool IsValidEmail(string email)
         {
@@ -153,6 +163,12 @@ namespace DoAn_NT106.Client
             return validationService.IsValidPhone(phone);
         }
 
+        private void SetAllControl(bool set)
+        {
+            isProcessing = !set;
+            btn_backToLogin.Enabled = set;
+            btn_continue.Enabled = set;
+        }
         #endregion
 
         #region Live Validation and Keyboard

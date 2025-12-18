@@ -32,6 +32,8 @@ namespace DoAn_NT106.Client
         private Color goldColor = Color.FromArgb(255, 215, 0);
         private Color lightGold = Color.FromArgb(255, 228, 125);
 
+        private bool isProcessing = false;
+
         public AvatarSelectorForm(Image[] gameAvatars)
         {
             // Always use the four specific avatar resources
@@ -389,21 +391,61 @@ namespace DoAn_NT106.Client
 
         private void BtnConfirm_Click(object sender, EventArgs e)
         {
-            if (currentSelection < 0)
-            {
-                MessageBox.Show("Please select an avatar.", "Select Avatar", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            if (isProcessing)
                 return;
-            }
+            SetAllControlDisable();
 
-            SelectedIndex = currentSelection;
-            this.DialogResult = DialogResult.OK;
-            this.Close();
+            try
+            {
+                if (currentSelection < 0)
+                {
+                    MessageBox.Show("Please select an avatar.", "Select Avatar", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                SelectedIndex = currentSelection;
+                this.DialogResult = DialogResult.OK;
+                this.Close();
+            }
+            catch (Exception ex) { }
+
+            finally
+            {
+                SetAllControlEnable();
+            }
         }
 
         private void BtnCancel_Click(object sender, EventArgs e)
         {
-            this.DialogResult = DialogResult.Cancel;
-            this.Close();
+            if (isProcessing)
+                return;
+            SetAllControlDisable();
+
+            try
+            {
+                this.DialogResult = DialogResult.Cancel;
+                this.Close();
+            }
+            catch { }
+            finally
+            {
+                SetAllControlEnable();
+            }
+            
+        }
+
+        private void SetAllControlDisable ()
+        {
+            isProcessing = true;
+            btnCancel.Enabled = false;
+            btnConfirm.Enabled = false;
+        }
+
+        private void SetAllControlEnable()
+        {
+            isProcessing = false;
+            btnCancel.Enabled = true;
+            btnConfirm.Enabled = true;
         }
     }
 }

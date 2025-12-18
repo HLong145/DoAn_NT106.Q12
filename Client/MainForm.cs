@@ -23,6 +23,7 @@ namespace DoAn_NT106.Client
         private Random rand = new Random();
         // Avatar hint label (declared in Designer)
         private ToolTip avatarToolTip;
+        private bool isProcessing = false;
 
         public class Particle
         {
@@ -36,6 +37,11 @@ namespace DoAn_NT106.Client
 
         private void BtnLeaderboard_Click(object sender, EventArgs e)
         {
+            if (isProcessing)
+                return;
+
+            SetAllControl(false);
+
             try
             {
                 var lb = new LeaderBoardForm();
@@ -45,10 +51,15 @@ namespace DoAn_NT106.Client
             {
                 Console.WriteLine("Error opening LeaderBoard: " + ex.Message);
             }
+            finally
+            {
+                SetAllControl(true);
+            }
         }
 
         private void BtnMusic_Click(object sender, EventArgs e)
         {
+
             try
             {
                 bool newState = !SoundManager.MusicEnabled;
@@ -125,11 +136,11 @@ namespace DoAn_NT106.Client
             pbAvatar.MouseLeave += (s, e) => { lblAvatarHint.Visible = false; pbAvatar.BorderStyle = BorderStyle.None; };
             this.FormClosing += MainForm_FormClosing;
 
-            // ✅ Initialize Sound Manager khi MainForm khởi tạo
+            // Initialize Sound Manager khi MainForm khởi tạo
             SoundManager.Initialize();
-            Console.WriteLine("✅ SoundManager initialized in MainForm");
+            Console.WriteLine("SoundManager initialized in MainForm");
 
-            // ✅ Start global UI button sound wiring
+            // Start global UI button sound wiring
             UIAudioWiring.Start();
 
             // Audio system initialized
@@ -158,7 +169,7 @@ namespace DoAn_NT106.Client
             {
                 InitializeRainEffect();
                 
-                // ✅ Play theme music khi MainForm load (logged in)
+                // Play theme music khi MainForm load (logged in)
                 if (SoundManager.MusicEnabled)
                 {
                     SoundManager.PlayMusic(BackgroundMusic.ThemeMusic, loop: true);
@@ -169,7 +180,7 @@ namespace DoAn_NT106.Client
             LoadUserAvatar();
         }
 
-        // ✅ KHỞI TẠO HIỆU ỨNG HẠT RƠI - ĐÃ SỬA
+        // KHỞI TẠO HIỆU ỨNG HẠT RƠI - ĐÃ SỬA
         private void InitializeRainEffect()
         {
             // Dừng timer cũ nếu có
@@ -183,7 +194,7 @@ namespace DoAn_NT106.Client
             rainTimer.Interval = 30;
             rainTimer.Tick += RainTimer_Tick;
 
-            // ✅ THÊM SỰ KIỆN PAINT CHO PANEL MAIN CONTENT
+            // THÊM SỰ KIỆN PAINT CHO PANEL MAIN CONTENT
             panelMainContent.Paint += PanelMainContent_Paint;
 
             // Xóa particles cũ
@@ -198,13 +209,13 @@ namespace DoAn_NT106.Client
             rainTimer.Start();
         }
 
-        // ✅ SỰ KIỆN VẼ CHO PANEL - QUAN TRỌNG
+        // SỰ KIỆN VẼ CHO PANEL - QUAN TRỌNG
         private void PanelMainContent_Paint(object sender, PaintEventArgs e)
         {
             DrawParticles(e.Graphics);
         }
 
-        // ✅ TẠO HẠT MỚI - ĐÃ SỬA
+        // TẠO HẠT MỚI - ĐÃ SỬA
         private void CreateNewParticle()
         {
             particles.Add(new Particle
@@ -218,7 +229,7 @@ namespace DoAn_NT106.Client
             });
         }
 
-        // ✅ MÀU NGẪU NHIÊN CHO HẠT
+        // MÀU NGẪU NHIÊN CHO HẠT
         private Color GetRandomParticleColor()
         {
             Color[] colors = {
@@ -230,7 +241,7 @@ namespace DoAn_NT106.Client
             return colors[rand.Next(colors.Length)];
         }
 
-        // ✅ DI CHUYỂN HẠT - ĐÃ SỬA
+        // DI CHUYỂN HẠT - ĐÃ SỬA
         private void MoveParticles()
         {
             for (int i = particles.Count - 1; i >= 0; i--)
@@ -256,14 +267,14 @@ namespace DoAn_NT106.Client
             }
         }
 
-        // ✅ VẼ HẠT RƠI
+        // VẼ HẠT RƠI
         private void RainTimer_Tick(object sender, EventArgs e)
         {
             MoveParticles();
             panelMainContent.Invalidate(); // QUAN TRỌNG: Kích hoạt vẽ lại
         }
 
-        // ✅ VẼ HẠT LÊN PANEL - ĐÃ SỬA
+        // VẼ HẠT LÊN PANEL - ĐÃ SỬA
         private void DrawParticles(Graphics g)
         {
             foreach (var p in particles)
@@ -299,7 +310,7 @@ namespace DoAn_NT106.Client
             }
         }
 
-        // ✅ TẠO HÌNH NGÔI SAO NHỎ - ĐÃ SỬA
+        // TẠO HÌNH NGÔI SAO NHỎ - ĐÃ SỬA
         private Point[] CreateStarPoints(int x, int y, int size)
         {
             var points = new Point[10];
@@ -317,7 +328,7 @@ namespace DoAn_NT106.Client
             return points;
         }
 
-        // ✅ XỬ LÝ KHI THAY ĐỔI KÍCH THƯỚC - THÊM MỚI
+        // XỬ LÝ KHI THAY ĐỔI KÍCH THƯỚC - THÊM MỚI
         protected override void OnResize(EventArgs e)
         {
             base.OnResize(e);
@@ -328,7 +339,7 @@ namespace DoAn_NT106.Client
             }
         }
 
-        // ✅ DỪNG ANIMATION KHI ĐÓNG FORM - THÊM MỚI
+        // DỪNG ANIMATION KHI ĐÓNG FORM - THÊM MỚI
         private void StopRainEffect()
         {
             if (rainTimer != null)
@@ -343,20 +354,20 @@ namespace DoAn_NT106.Client
             panelMainContent.Paint -= PanelMainContent_Paint;
         }
 
-        // ✅ SỬA LẠI FORM CLOSING
+        // SỬA LẠI FORM CLOSING
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
             StopRainEffect(); // Dừng animation
             frm_DangNhap?.Close();
             frm_DangKy?.Close();
             
-            // ✅ STOP MUSIC when closing app
+            // STOP MUSIC when closing app
             SoundManager.StopMusic();
             SoundManager.Cleanup();
             Console.WriteLine("🛑 Sound system cleaned up");
         }
 
-        // ✅ PHƯƠNG THỨC CẬP NHẬT USERNAME
+        // PHƯƠNG THỨC CẬP NHẬT USERNAME
         public void UpdateUsernameDisplay(string newUsername)
         {
             username = newUsername;
@@ -415,7 +426,7 @@ namespace DoAn_NT106.Client
                 FormBorderStyle = FormBorderStyle.None
             };
             frm_DangNhap.SwitchToRegister += OnSwitchToDangKy;
-            // ✅ Button sound for login form buttons
+            // Button sound for login form buttons
             frm_DangNhap.Load += (s, e) =>
             {
                 WireButtonClickSounds(frm_DangNhap);
@@ -428,7 +439,7 @@ namespace DoAn_NT106.Client
                 FormBorderStyle = FormBorderStyle.None
             };
             frm_DangKy.SwitchToLogin += OnSwitchToDangNhap;
-            // ✅ Button sound for register form buttons
+            // Button sound for register form buttons
             frm_DangKy.Load += (s, e) =>
             {
                 WireButtonClickSounds(frm_DangKy);
@@ -489,6 +500,11 @@ namespace DoAn_NT106.Client
 
         private async void btnLogout_Click(object sender, EventArgs e)
         {
+            if (isProcessing)
+                return;
+
+            SetAllControl(false);
+
             try
             {
                 Console.WriteLine($"🚪 Logging out user: {username}");
@@ -532,13 +548,30 @@ namespace DoAn_NT106.Client
             {
                 MessageBox.Show($"Logout error: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+            finally
+            {
+                SetAllControl(true);
+            }
         }
 
         private void btn_play_Click(object sender, EventArgs e)
         {
-            JoinRoomForm joinForm = new JoinRoomForm(username, token);
-            joinForm.Show();
-            this.Hide();  // ĐÓNG hoàn toàn MainForm
+            if (isProcessing)
+            {
+                return;
+            }
+            SetAllControl(false);
+            try
+            {
+                JoinRoomForm joinForm = new JoinRoomForm(username, token);
+                joinForm.Show();
+                this.Hide();  // ĐÓNG hoàn toàn MainForm
+            }
+            catch { }
+            finally
+            {
+                SetAllControl(true);
+            }
         }
 
         //  Avatar available in game (use avt_* resources)
@@ -552,9 +585,14 @@ namespace DoAn_NT106.Client
 
         private int currentAvatarIndex = 0;
 
-        // ✅ CLICK: chỉ đổi avatar trong game
+        // CLICK: chỉ đổi avatar trong game
         private void PbAvatar_Click(object sender, EventArgs e)
         {
+            if (isProcessing)
+                return;
+
+            SetAllControl(false);
+
             try
             {
                 if (gameAvatars == null || gameAvatars.Length == 0)
@@ -582,6 +620,10 @@ namespace DoAn_NT106.Client
             {
                 Console.WriteLine("❌ PbAvatar_Click error: " + ex.Message);
             }
+            finally
+            {
+                SetAllControl(true);
+            }
         }
 
         private void SaveAvatarForUser(string username, int avatarIndex)
@@ -595,7 +637,7 @@ namespace DoAn_NT106.Client
                 string saveFile = System.IO.Path.Combine(folder, $"{username}.txt");
                 System.IO.File.WriteAllText(saveFile, avatarIndex.ToString());
 
-                Console.WriteLine($"✅ Saved avatar index for {username}: {avatarIndex}");
+                Console.WriteLine($"Saved avatar index for {username}: {avatarIndex}");
             }
             catch (Exception ex)
             {
@@ -611,7 +653,7 @@ namespace DoAn_NT106.Client
 
                 using (var ms = new System.IO.MemoryStream())
                 {
-                    // ✅ LẤY ĐÚNG AVATAR
+                    // LẤY ĐÚNG AVATAR
                     gameAvatars[avatarIndex].Save(ms, System.Drawing.Imaging.ImageFormat.Png);
                     byte[] imgBytes = ms.ToArray();
                     string base64Image = Convert.ToBase64String(imgBytes);
@@ -651,7 +693,7 @@ namespace DoAn_NT106.Client
                     await stream.WriteAsync(data, 0, data.Length);
                     await stream.FlushAsync();
 
-                    Console.WriteLine("✅ Avatar sent to server");
+                    Console.WriteLine("Avatar sent to server");
                 }
             }
             catch (Exception ex)
@@ -735,6 +777,15 @@ namespace DoAn_NT106.Client
         {
             get { return username; }
             set { UpdateUsernameDisplay(value); }
+        }
+
+        private void SetAllControl (bool enable)
+        {
+            isProcessing = !enable;
+            foreach (Control control in this.Controls)
+            { 
+                control.Enabled = enable;
+            }
         }
     }
 }
