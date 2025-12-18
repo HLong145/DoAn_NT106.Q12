@@ -1,4 +1,5 @@
-﻿using System;
+﻿using DoAn_NT106.Services;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net.Sockets;
@@ -7,7 +8,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace DoAn_NT106.Services
+namespace DoAn_NT106.Client.Class
 {
     #region Server response model
 
@@ -99,7 +100,7 @@ namespace DoAn_NT106.Services
 
         public PersistentTcpClient(string address = null, int port = 0)
         {
-            // ✅ Use AppConfig as default
+            // Use AppConfig as default
             serverAddress = string.IsNullOrEmpty(address) ? AppConfig.SERVER_IP : address;
             serverPort = port <= 0 ? AppConfig.TCP_PORT : port;
         }
@@ -203,7 +204,7 @@ namespace DoAn_NT106.Services
         #region Send broadcast
 
         /// <summary>
-        /// ✅ THÊM: Send broadcast to server
+        /// ✅  Send broadcast to server
         /// </summary>
         public void SendBroadcast(string action, string jsonData)
         {
@@ -540,7 +541,7 @@ namespace DoAn_NT106.Services
                 { "username", username }
             });
         
-        // ✅ THÊM: Send game damage event
+        //   Send game damage event
         public Task<ServerResponse> SendGameDamageAsync(string roomCode, string username, int targetPlayerNum, int damage, bool isParried)
             => SendRequestAsync("GAME_DAMAGE", new Dictionary<string, object>
             {

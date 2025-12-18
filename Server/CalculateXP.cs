@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace DoAn_NT106
+namespace DoAn_NT106.Server
 {
     internal class CalculateXP
     {    
@@ -33,10 +33,10 @@ namespace DoAn_NT106
 
             // 3. Tính tổng điểm chiến đấu
             int score =
-                (parryCount * 10) +
-                (comboHitCount * 5) +
-                (blockCount * 3) +
-                (skillCount * 20);
+                parryCount * 10 +
+                comboHitCount * 5 +
+                blockCount * 3 +
+                skillCount * 20;
 
             // 4. XP từ điểm (chia 5)
             totalXP += score / 5;

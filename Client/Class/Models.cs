@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace GameLobbyForm
+namespace DoAn_NT106.Client.Class
 {
     public class ChatMessage
     {

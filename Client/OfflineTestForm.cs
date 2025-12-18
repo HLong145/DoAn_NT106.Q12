@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
 
-namespace PixelGameLobby
+namespace DoAn_NT106.Client 
 {
     /// <summary>
     /// Form for selecting characters for offline testing (both players)

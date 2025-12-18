@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading.Tasks;
 
-namespace DoAn_NT106.Services
+namespace DoAn_NT106.Client.Class
 {
     #region Global chat client
 

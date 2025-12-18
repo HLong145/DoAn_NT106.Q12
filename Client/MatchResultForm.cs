@@ -1,9 +1,10 @@
-﻿using DoAn_NT106.Services;
+﻿using DoAn_NT106.Client.Class;
+using DoAn_NT106.Services;
 using System;
 using System.Drawing;
 using System.Windows.Forms;
 
-namespace DoAn_NT106
+namespace DoAn_NT106.Client
 {
     /// <summary>
     /// Enum for match end reasons
@@ -267,7 +268,7 @@ namespace DoAn_NT106
             {
                 _soundPlayed = true;
                 // Play game_end sound effect
-                SoundManager.PlaySound(Client.SoundEffect.GameEnd);
+                SoundManager.PlaySound(SoundEffect.GameEnd);
                 Console.WriteLine("🔊 Game end sound played");
             }
             catch (Exception ex)

@@ -4,11 +4,9 @@ using System.Linq;
 using System.Drawing;
 using System.Windows.Forms;
 using DoAn_NT106.Client.BattleSystems;
-using DoAn_NT106.Client;
-using PixelGameLobby;
-using DoAn_NT106.Services;
+using DoAn_NT106.Client.Class;
 
-namespace DoAn_NT106
+namespace DoAn_NT106.Client
 {
     public partial class BattleForm : Form
     {
@@ -19,19 +17,19 @@ namespace DoAn_NT106
         private string opponent;
         private string roomCode = "000000";
 
-        // ✅ THÊM: Public properties for room code and player info
+        //   Public properties for room code and player info
         public string RoomCode => roomCode;
         public int MyPlayerNumber => myPlayerNumber;
 
-        // ✅ THÊM: UDP Game Client
+        //   UDP Game Client
         private UDPGameClient udpClient;
-        // ✅ THÊM: TCP GameClient for reliable broadcast of damage events
-        private DoAn_NT106.Services.GameClient tcpGameClient;
+        //   TCP GameClient for reliable broadcast of damage events
+        private GameClient tcpGameClient;
         private bool isOnlineMode = false; // Track nếu đang chơi online
         private int myPlayerNumber = 0; // 1 or 2 assigned by server
-        private bool isCreator = false; // ✅ THÊM: Track if this is Player 1
+        private bool isCreator = false; //   Track if this is Player 1
 
-        // ===== ✅ NEW SYSTEMS (ADDED) =====
+        // =====  NEW SYSTEMS (ADDED) =====
         private PlayerState player1State;
         private PlayerState player2State;
         private ResourceSystem resourceSystem;
@@ -54,7 +52,7 @@ namespace DoAn_NT106
         private int playerSpeed = 14;
 
         // Kích thước background và viewport
-        private int backgroundWidth = 2400; // ✅ TĂNG từ 2000 → 2400 để cover camera khi soft-overshoot
+        private int backgroundWidth = 2400; //  TĂNG từ 2000 → 2400 để cover camera khi soft-overshoot
         private int viewportX = 0;
         private int groundLevel = 520;            // cập nhật động theo kích thước form
         private int groundOffset = 150;           // khoảng cách từ đáy cửa sổ tới "mặt đất" (tùy chỉnh theo background)
@@ -100,7 +98,7 @@ namespace DoAn_NT106
         private bool player2AttackHitProcessed = false;
         private int player1AttackFrameCounter = 0;
         private int player2AttackFrameCounter = 0;
-        // ✅ THÊM: Theo dõi hit nào đã xử lý (cho đòn đánh nhiều lần như Warrior attack1)
+        //   Theo dõi hit nào đã xử lý (cho đòn đánh nhiều lần như Warrior attack1)
         private HashSet<int> player1ProcessedHitFrames = new HashSet<int>();
         private HashSet<int> player2ProcessedHitFrames = new HashSet<int>();
         // Progress bars (assume GameProgressBar exists in project)
@@ -158,7 +156,7 @@ namespace DoAn_NT106
         private int dashEffect2X, dashEffect2Y;
         private string dashEffect1Facing, dashEffect2Facing;
 
-        // ✅ THÊM: Dash effect GIF cho Bringer of Death và Goatman
+        //   Dash effect GIF cho Bringer of Death và Goatman
         private Image dashEffectGif = null;
         private bool player1DashEffectActive = false;
         private bool player2DashEffectActive = false;
@@ -239,7 +237,7 @@ namespace DoAn_NT106
         // Hitbox configuration - nhỏ hơn và hướng theo facing
         private int HITBOX_WIDTH_RATIO = 2; // Hitbox = PLAYER_WIDTH / 2
         private int HITBOX_HEIGHT_RATIO = 2; // Hitbox = PLAYER_HEIGHT / 2
-                                             // ✅ THÊM: Class cấu hình vùng tấn công
+                                             //   Class cấu hình vùng tấn công
 
         public class HitEffectInstance
         {
@@ -450,24 +448,24 @@ namespace DoAn_NT106
             {
                 ["punch"] = new AttackHitboxConfig
                 {
-                    WidthPercent = 0.6f,      // ✅ Tăng từ 0.5f lên 0.6f
-                    HeightPercent = 0.5f,     // ✅ Tăng từ 0.4f lên 0.5f
-                    RangePercent = 0.47f,     // ✅ Tăng từ 0.35f lên 0.55f (tầm xa hơn)
-                    OffsetYPercent = 0.30f    // ✅ Giảm từ 0.35f xuống 0.30f (cao hơn)
+                    WidthPercent = 0.6f,      //  Tăng từ 0.5f lên 0.6f
+                    HeightPercent = 0.5f,     //  Tăng từ 0.4f lên 0.5f
+                    RangePercent = 0.47f,     //  Tăng từ 0.35f lên 0.55f (tầm xa hơn)
+                    OffsetYPercent = 0.30f    //  Giảm từ 0.35f xuống 0.30f (cao hơn)
                 },
                 ["kick"] = new AttackHitboxConfig
                 {
-                    WidthPercent = 0.7f,      // ✅ Tăng từ 0.6f lên 0. 7f
-                    HeightPercent = 0.45f,    // ✅ Tăng từ 0.35f lên 0.45f
-                    RangePercent = 0.7f,      // ✅ Tăng từ 0.5f lên 0. 7f
-                    OffsetYPercent = 0.50f    // ✅ Giảm từ 0. 55f xuống 0.50f
+                    WidthPercent = 0.7f,      //  Tăng từ 0.6f lên 0. 7f
+                    HeightPercent = 0.45f,    //  Tăng từ 0.35f lên 0.45f
+                    RangePercent = 0.7f,      //  Tăng từ 0.5f lên 0. 7f
+                    OffsetYPercent = 0.50f    //  Giảm từ 0. 55f xuống 0.50f
                 }, 
                 ["skill"] = new AttackHitboxConfig
                 {
-                    WidthPercent = 1f,      // ✅ Tăng từ 1.2f lên 1. 5f
-                    HeightPercent = 1f,     // ✅ Tăng từ 0.8f lên 1.0f
-                    RangePercent = 0.5f,      // ✅ Tăng từ 0.8f lên 1.2f (skill vùng gần)
-                    OffsetYPercent = 0.10f    // ✅ Giảm từ 0.15f xuống 0.10f
+                    WidthPercent = 1f,      //  Tăng từ 1.2f lên 1. 5f
+                    HeightPercent = 1f,     //  Tăng từ 0.8f lên 1.0f
+                    RangePercent = 0.5f,      //  Tăng từ 0.8f lên 1.2f (skill vùng gần)
+                    OffsetYPercent = 0.10f    //  Giảm từ 0.15f xuống 0.10f
                 }
             },
             ["bringerofdeath"] = new Dictionary<string, AttackHitboxConfig>
@@ -476,7 +474,7 @@ namespace DoAn_NT106
                 {
                     WidthPercent = 0.6f,
                     HeightPercent = 0.4f,
-                    RangePercent = 0.33f,      // ✅ GIẢM từ 0. 6f xuống 0.4f
+                    RangePercent = 0.33f,      //  GIẢM từ 0. 6f xuống 0.4f
                     OffsetYPercent = 0.30f
                 },
                 ["kick"] = new AttackHitboxConfig
@@ -490,7 +488,7 @@ namespace DoAn_NT106
                 {
                     WidthPercent = 1f,
                     HeightPercent = 1f,
-                    RangePercent = 0.5f,      // ✅ GIẢM từ 2.6f xuống 1.8f (spell xa hơn)
+                    RangePercent = 0.5f,      //  GIẢM từ 2.6f xuống 1.8f (spell xa hơn)
                     OffsetYPercent = 0.10f
                 }
             },
@@ -500,45 +498,45 @@ namespace DoAn_NT106
                 {
                     WidthPercent = 0.7f,
                     HeightPercent = 0.5f,
-                    RangePercent = 0.7f,      // ✅ TĂNG từ 0. 4f lên 0.8f
-                    OffsetYPercent = 0.30f    // ✅ GIẢM từ 0.35f xuống 0.30f (cao hơn)
+                    RangePercent = 0.7f,      //  TĂNG từ 0. 4f lên 0.8f
+                    OffsetYPercent = 0.30f    //  GIẢM từ 0.35f xuống 0.30f (cao hơn)
                 },
                 ["kick"] = new AttackHitboxConfig
                 {
                     WidthPercent = 0.8f,
-                    HeightPercent = 0.5f,     // ✅ TĂNG từ 0.4f lên 0.5f
-                    RangePercent = 0.7f,      // ✅ TĂNG từ 0.6f lên 0. 9f
-                    OffsetYPercent = 0.40f    // ✅ GIẢM từ 0.45f xuống 0.40f
+                    HeightPercent = 0.5f,     //  TĂNG từ 0.4f lên 0.5f
+                    RangePercent = 0.7f,      //  TĂNG từ 0.6f lên 0. 9f
+                    OffsetYPercent = 0.40f    //  GIẢM từ 0.45f xuống 0.40f
                 },
                 ["skill"] = new AttackHitboxConfig
                 {
-                    WidthPercent = 1.2f,      // ✅ TĂNG từ 1.0f lên 1. 2f
-                    HeightPercent = 0.8f,     // ✅ TĂNG từ 0.7f lên 0.8f
-                    RangePercent = 1f,      // ✅ TĂNG từ 1.0f lên 1.4f
-                    OffsetYPercent = 0.15f    // ✅ GIẢM từ 0. 18f xuống 0.15f
+                    WidthPercent = 1.2f,      //  TĂNG từ 1.0f lên 1. 2f
+                    HeightPercent = 0.8f,     //  TĂNG từ 0.7f lên 0.8f
+                    RangePercent = 1f,      //  TĂNG từ 1.0f lên 1.4f
+                    OffsetYPercent = 0.15f    //  GIẢM từ 0. 18f xuống 0.15f
                 }
             },
             ["warrior"] = new Dictionary<string, AttackHitboxConfig>
             {
                 ["punch"] = new AttackHitboxConfig
                 {
-                    WidthPercent = 0.8f,      // ✅ TĂNG từ 0.7f lên 0.8f
-                    HeightPercent = 0.5f,     // ✅ TĂNG từ 0.4f lên 0.5f
-                    RangePercent = 0.5f,      // ✅ TĂNG từ 0.35f lên 0.5f
+                    WidthPercent = 0.8f,      //  TĂNG từ 0.7f lên 0.8f
+                    HeightPercent = 0.5f,     //  TĂNG từ 0.4f lên 0.5f
+                    RangePercent = 0.5f,      //  TĂNG từ 0.35f lên 0.5f
                     OffsetYPercent = 0.35f
                 },
                 ["kick"] = new AttackHitboxConfig
                 {
                     WidthPercent = 0.7f,
                     HeightPercent = 0.35f,
-                    RangePercent = 0.5f,      // ✅ GIẢM từ 0. 7f xuống 0.5f
+                    RangePercent = 0.5f,      //  GIẢM từ 0. 7f xuống 0.5f
                     OffsetYPercent = 0.50f
                 },
                 ["skill"] = new AttackHitboxConfig
                 {
-                    WidthPercent = 1.2f,      // ✅ Giảm từ 1.8f
+                    WidthPercent = 1.2f,      //  Giảm từ 1.8f
                     HeightPercent = 0.6f,
-                    RangePercent = 2.0f,      // ✅ GIẢM từ 2.8f xuống 2.0f (projectile nên xa hơn)
+                    RangePercent = 2.0f,      //  GIẢM từ 2.8f xuống 2.0f (projectile nên xa hơn)
                     OffsetYPercent = 0.25f
                 }
             }
@@ -612,26 +610,26 @@ namespace DoAn_NT106
         {
             InitializeComponent();
 
-            this.player1Name = player1NameParam;     // ✅ SỬAR: Player 1 name từ server
-            this.player2Name = player2NameParam;     // ✅ SỬAR: Player 2 name từ server
-            this.username = myPlayerNumber == 1 ? player1NameParam : player2NameParam;  // ✅ Local player name
-            this.opponent = myPlayerNumber == 1 ? player2NameParam : player1NameParam;  // ✅ Opponent name
+            this.player1Name = player1NameParam;     //  SỬAR: Player 1 name từ server
+            this.player2Name = player2NameParam;     //  SỬAR: Player 2 name từ server
+            this.username = myPlayerNumber == 1 ? player1NameParam : player2NameParam;  //  Local player name
+            this.opponent = myPlayerNumber == 1 ? player2NameParam : player1NameParam;  //  Opponent name
             this.token = token;
             this.roomCode = roomCode;
             this.player1CharacterType = player1Character;
             this.player2CharacterType = player2Character;
-            this.myPlayerNumber = myPlayerNumber; // ✅ set role from server
-            this.isCreator = isCreator; // ✅ THÊM: Track if I'm the creator
+            this.myPlayerNumber = myPlayerNumber; //  set role from server
+            this.isCreator = isCreator; //   Track if I'm the creator
 
-            // ✅ THÊM: Kiểm tra online mode
+            //   Kiểm tra online mode
             isOnlineMode = !string.IsNullOrEmpty(roomCode) && roomCode != "000000";
 
-            // ✅ If online mode, prepare UDP client (using AppConfig IP)
+            //  If online mode, prepare UDP client (using AppConfig IP)
             if (isOnlineMode)
             {
                 try
                 {
-                    // ✅ USE AppConfig for IP/Port
+                    //  USE AppConfig for IP/Port
                     udpClient = new UDPGameClient(AppConfig.SERVER_IP, AppConfig.UDP_PORT, roomCode, username);
                     udpClient.SetPlayerNumber(myPlayerNumber);
                     udpClient.OnLog += msg => Console.WriteLine(msg);
@@ -640,7 +638,7 @@ namespace DoAn_NT106
                     // Also prepare TCP GameClient for reliable messages
                     try
                     {
-                        tcpGameClient = new DoAn_NT106.Services.GameClient();
+                        tcpGameClient = new DoAn_NT106.Client.Class.GameClient();
                         var _ = tcpGameClient.ConnectAsync();
                         tcpGameClient.OnError += (err) => Console.WriteLine($"[BattleForm][TCP] {err}");
 
@@ -715,7 +713,7 @@ namespace DoAn_NT106
                 }
             }
 
-            // ✅ Normalize selectedMap and set map background
+            //  Normalize selectedMap and set map background
             selectedMap = (selectedMap ?? "battleground1").Trim().ToLowerInvariant();
             int mapIndex = -1;
             if (!string.IsNullOrEmpty(selectedMap))
@@ -737,10 +735,10 @@ namespace DoAn_NT106
             player2Y = 0;
             this.Load += BattleForm_Load;
 
-            // ✅ Initialize Sound Manager
+            //  Initialize Sound Manager
             SoundManager.Initialize();
 
-            // ✅ Initialize once here
+            //  Initialize once here
             SetupGame();
             SetupEventHandlers();
 
@@ -781,7 +779,7 @@ namespace DoAn_NT106
                 physicsSystem.ResetToGround(player2State);
             }
 
-            // ✅ ENABLE: Play battle music when form loads
+            //  ENABLE: Play battle music when form loads
             SoundManager.PlayMusic(BackgroundMusic.BattleMusic, loop: true);
             Console.WriteLine("🎵 Battle music started");
 
@@ -790,20 +788,20 @@ namespace DoAn_NT106
         }
 
         /// <summary>
-        /// ✅ THÊM: Method for Player 2 to join existing BattleForm
+        ///   Method for Player 2 to join existing BattleForm
         /// </summary>
         public void JoinAsPlayer2(string player2Name, string token, string player1Character, string player2Character, int playerNumber)
         {
             Console.WriteLine($"[BattleForm] JoinAsPlayer2 called: {player2Name} as P{playerNumber}");
             // player1Name already set when Player 1 created the form
-            this.player2Name = player2Name;  // ✅ Set Player 2 name
-            this.username = player2Name;     // ✅ Local player is now Player 2
+            this.player2Name = player2Name;  //  Set Player 2 name
+            this.username = player2Name;     //  Local player is now Player 2
             this.token = token;
             this.player1CharacterType = player1Character;
             this.player2CharacterType = player2Character;
             this.myPlayerNumber = playerNumber;
 
-            // ✅ Reinitialize animations and game systems if needed
+            //  Reinitialize animations and game systems if needed
             if (player1AnimationManager == null || player2AnimationManager == null)
             {
                 player1AnimationManager = new CharacterAnimationManager(player1CharacterType, OnFrameChanged);
@@ -813,7 +811,7 @@ namespace DoAn_NT106
                 player2AnimationManager.LoadAnimations();
             }
 
-            // ✅ Bring form to front
+            //  Bring form to front
             this.BringToFront();
             this.Show();
 
@@ -874,28 +872,28 @@ namespace DoAn_NT106
                 player2AnimationManager = new CharacterAnimationManager(player2CharacterType, OnFrameChanged);
                 player2AnimationManager.LoadAnimations();
 
-                // ===== ✅ INITIALIZE NEW SYSTEMS =====
+                // =====  INITIALIZE NEW SYSTEMS =====
                 // 1. Initialize PlayerState instances - SỬA Y position
                 player1State = new PlayerState(player1Name, player1CharacterType, 1)
                 {
-                    X = 150, // ✅ SỬA: từ 300 → 150
+                    X = 150, //  SỬA: từ 300 → 150
                     Y = groundLevel - PLAYER_HEIGHT,
                     Facing = "right",
                     CurrentAnimation = "stand"
                 };
                 
-                // ✅ SỬA: Set HP theo character type
+                //  SỬA: Set HP theo character type
                 SetPlayerHealth(player1State, player1CharacterType);
 
                 player2State = new PlayerState(player2Name, player2CharacterType, 2)
                 {
-                    X = 700, // ✅ SỬA: từ 600 → 900
+                    X = 700, //  SỬA: từ 600 → 900
                     Y = groundLevel - PLAYER_HEIGHT,
                     Facing = "left",
                     CurrentAnimation = "stand"
                 };
                 
-                // ✅ SỬA: Set HP theo character type
+                //  SỬA: Set HP theo character type
                 SetPlayerHealth(player2State, player2CharacterType);
 
                 // 2. Initialize ResourceSystem (only once)
@@ -971,7 +969,7 @@ namespace DoAn_NT106
                 };
                 // =====================================
 
-                // ✅ THÊM DÒNG NÀY - SAU KHI ĐÃ CÓ physicsSystem!
+                //  THÊM DÒNG NÀY - SAU KHI ĐÃ CÓ physicsSystem!
                 UpdateCharacterSize();
 
                 // Khởi tạo walk animation timer
@@ -994,7 +992,7 @@ namespace DoAn_NT106
                 Console.WriteLine($"Setup error: {ex.Message}");
             }
 
-            // ===== ✅ SETUP UI WITH NEW SYSTEMS =====
+            // =====  SETUP UI WITH NEW SYSTEMS =====
             // Add bars to form controls once
             if (resourceSystem != null)
             {
@@ -1005,7 +1003,7 @@ namespace DoAn_NT106
                 if (!this.Controls.Contains(resourceSystem.StaminaBar2)) this.Controls.Add(resourceSystem.StaminaBar2);
                 if (!this.Controls.Contains(resourceSystem.ManaBar2)) this.Controls.Add(resourceSystem.ManaBar2);
                 
-                // ✅ Add portraits
+                //  Add portraits
                 if (!this.Controls.Contains(resourceSystem.Portrait1)) this.Controls.Add(resourceSystem.Portrait1);
                 if (!this.Controls.Contains(resourceSystem.Portrait2)) this.Controls.Add(resourceSystem.Portrait2);
             }
@@ -1021,7 +1019,7 @@ namespace DoAn_NT106
             {
                 lblPlayer1Name = new Label
                 {
-                    Text = player1Name,  // ✅ SỬAR: Sử dụng player1Name thay vì username
+                    Text = player1Name,  //  SỬAR: Sử dụng player1Name thay vì username
                     Location = new Point(20, startY + 3 * (barHeight + spacing) + 90),
                     Size = new Size(barWidth, 25),
                     ForeColor = Color.Cyan,
@@ -1035,7 +1033,7 @@ namespace DoAn_NT106
             {
                 lblPlayer2Name = new Label
                 {
-                    Text = player2Name,  // ✅ SỬAR: Sử dụng player2Name thay vì opponent
+                    Text = player2Name,  //  SỬAR: Sử dụng player2Name thay vì opponent
                     Location = new Point(screenWidth - barWidth - 20, startY + 3 * (barHeight + spacing) + 90),
                     Size = new Size(barWidth, 25),
                     ForeColor = Color.Orange,
@@ -1048,7 +1046,7 @@ namespace DoAn_NT106
 
 
 
-            // ✅ THÊM: Load background map
+            //   Load background map
             string backgroundName = $"battleground{currentBackground + 1}";
             SetBackground(backgroundName);
             Console.WriteLine($"[SetupGame] Background loaded: {backgroundName}");
@@ -1115,8 +1113,8 @@ namespace DoAn_NT106
             player1State.IsWalking = false;
             player2State.IsWalking = false;
 
-            // ✅ ONLINE MODE: Only the local player can be moved by local input
-            // ✅ OFFLINE MODE: Player 1 uses A/D, Player 2 uses Left/Right
+            //  ONLINE MODE: Only the local player can be moved by local input
+            //  OFFLINE MODE: Player 1 uses A/D, Player 2 uses Left/Right
             
             if (isOnlineMode)
             {
@@ -1162,7 +1160,7 @@ namespace DoAn_NT106
                 }
             }
 
-            // ✅ THÊM: Check if walk animation should be converted to stand (every 16ms)
+            //   Check if walk animation should be converted to stand (every 16ms)
             // Nếu đang ở animation walk nhưng vị trí không thay đổi → quay về stand
             physicsSystem.CheckWalkAnimation(player1State);
             physicsSystem.CheckWalkAnimation(player2State);
@@ -1212,7 +1210,7 @@ namespace DoAn_NT106
             player2Mana = player2State.Mana;
 
             // ===== ONLINE SYNC: gửi state local cho server qua UDP =====
-            // ✅ SỬA: Gửi position cập nhật ngay lập tức mỗi frame, không buffer
+            //  SỬA: Gửi position cập nhật ngay lập tức mỗi frame, không buffer
             if (isOnlineMode && udpClient != null && udpClient.IsConnected)
             {
                 try
@@ -1273,13 +1271,13 @@ namespace DoAn_NT106
                         me.Stamina,
                         me.Mana,
                         me.CurrentAnimation ?? "stand",
-                        me.Facing ?? "right",           // ✅ NEW: Facing
-                        me.IsAttacking,                 // ✅ NEW: IsAttacking
-                        me.IsParrying,                  // ✅ NEW: IsParrying
-                        me.IsStunned,                   // ✅ THÊM: IsStunned
-                        me.IsSkillActive,               // ✅ THÊM: IsSkillActive
-                        me.IsCharging,                  // ✅ THÊM: IsCharging
-                        me.IsDashing);                  // ✅ THÊM: IsDashing
+                        me.Facing ?? "right",           //  NEW: Facing
+                        me.IsAttacking,                 //  NEW: IsAttacking
+                        me.IsParrying,                  //  NEW: IsParrying
+                        me.IsStunned,                   //   IsStunned
+                        me.IsSkillActive,               //   IsSkillActive
+                        me.IsCharging,                  //   IsCharging
+                        me.IsDashing);                  //   IsDashing
                 }
                 catch (Exception ex)
                 {
@@ -1381,7 +1379,7 @@ namespace DoAn_NT106
             }
 
             // ===== WORLD BOUNDARIES: Handled by PhysicsSystem.MovePlayer via hurtbox =====
-            // ✅ REMOVED: ApplyWorldBoundaries - hurtbox-based clamping in MovePlayer is sufficient
+            //  REMOVED: ApplyWorldBoundaries - hurtbox-based clamping in MovePlayer is sufficient
 
             // ===== UPDATE CAMERA =====
             if (isOnlineMode)
@@ -1410,8 +1408,8 @@ namespace DoAn_NT106
             this.Invalidate();
         }
 
-        // ✅ THÊM: Xử lý state nhận từ UDP (đối thủ)
-        // ✅ NEW: Network interpolation fields for smooth remote player movement
+        //   Xử lý state nhận từ UDP (đối thủ)
+        //  NEW: Network interpolation fields for smooth remote player movement
         private Queue<(int x, int y, long timestamp)> opponentPositionQueue = new Queue<(int, int, long)>();
         private long lastOpponentUpdateTime = 0;
         private int lastRemoteX = 0;
@@ -1422,7 +1420,7 @@ namespace DoAn_NT106
             {
                 if (data == null || data.Length < 22) return;
 
-                // ✅ EXPANDED PACKET STRUCTURE:
+                //  EXPANDED PACKET STRUCTURE:
                 // [RoomCode(6)] [PlayerNum(1)] [X(2)] [Y(2)] [Health(1)] [Stamina(1)] [Mana(1)]
                 // [Facing(1)] [IsAttacking(1)] [IsParrying(1)] [IsStunned(1)] [IsSkillActive(1)] [IsCharging(1)] [IsDashing(1)] [ActionLen(1)] [Action(var)]
 
@@ -1445,7 +1443,7 @@ namespace DoAn_NT106
                 int stamina = data[12];
                 int mana = data[13];
 
-                // ✅ NEW: Queue position for interpolation
+                //  NEW: Queue position for interpolation
                 long timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 lock (opponentPositionQueue)
                 {
@@ -1459,14 +1457,14 @@ namespace DoAn_NT106
                 }
                 lastOpponentUpdateTime = timestamp;
 
-                // ✅ EXPANDED: Parse all combat flags (bytes 14-20)
+                //  EXPANDED: Parse all combat flags (bytes 14-20)
                 string facing = data[14] == 'L' ? "left" : "right";
                 bool isAttacking = data[15] != 0;
                 bool isParrying = data[16] != 0;
-                bool isStunned = data[17] != 0;           // ✅ THÊM
-                bool isSkillActive = data[18] != 0;       // ✅ THÊM
-                bool isCharging = data[19] != 0;          // ✅ THÊM
-                bool isDashing = data[20] != 0;           // ✅ THÊM
+                bool isStunned = data[17] != 0;           //  THÊM
+                bool isSkillActive = data[18] != 0;       //  THÊM
+                bool isCharging = data[19] != 0;          //  THÊM
+                bool isDashing = data[20] != 0;           //  THÊM
 
                 int actionLen = data[21];
                 string action = "stand";
@@ -1502,7 +1500,7 @@ namespace DoAn_NT106
                                     {
                                         try
                                         {
-                                            // ✅ SỬA: Gọi ApplyDamage() từ CombatSystem để xử lý animation hurt, stun, hit effect
+                                            //  SỬA: Gọi ApplyDamage() từ CombatSystem để xử lý animation hurt, stun, hit effect
                                             // Điều này đảm bảo animation hurt được reset và hiệu ứng hit được hiển thị
                                             combatSystem.IsNetworked = true;
                                             combatSystem.LocalPlayerNumber = myPlayerNumber;
@@ -1549,7 +1547,7 @@ namespace DoAn_NT106
                     var oppAnimMgr = opponentNum == 1 ? player1AnimationManager : player2AnimationManager;
                     var prevAnim = opponentNum == 1 ? _prevAnimPlayer1 : _prevAnimPlayer2;
                     
-                    // ✅ CRITICAL: ALWAYS UPDATE POSITION FIRST!
+                    //  CRITICAL: ALWAYS UPDATE POSITION FIRST!
                     // Position update is independent from animation update
                     opp.X = x;
                     opp.Y = y;
@@ -1580,7 +1578,7 @@ namespace DoAn_NT106
                         Console.WriteLine($"[UDP DEBUG] Bound debug error: {ex.Message}");
                     }
                     
-                    // ✅ UPDATED: Only update health/stamina/mana if round is in progress
+                    //  UPDATED: Only update health/stamina/mana if round is in progress
                     // During round countdown, ignore these updates to prevent premature HP reset
                     if (action == "ROUND_RESET")
                     {
@@ -1617,7 +1615,7 @@ namespace DoAn_NT106
                     opp.IsCharging = isCharging;
                     opp.IsDashing = isDashing;
 
-                    // ✅ ANIMATION UPDATE (only update when needed, separate from position)
+                    //  ANIMATION UPDATE (only update when needed, separate from position)
                     // NẾU ĐÃ ATTACK: KHÔNG CẬP NHẬT - ĐỢI ANIMATION CHẠY XONG
                     if (opp.IsAttacking && (opp.CurrentAnimation == "punch" || opp.CurrentAnimation == "kick" || opp.CurrentAnimation == "fireball"))
                     {
@@ -1630,7 +1628,7 @@ namespace DoAn_NT106
                         bool currentIsWalkOrJump = opp.CurrentAnimation == "walk" || opp.CurrentAnimation == "jump";
                         bool animationChanged = opp.CurrentAnimation != action;
                         
-                        // ✅ IGNORE: stand → stand (không cập nhật idle state từ opponent)
+                        //  IGNORE: stand → stand (không cập nhật idle state từ opponent)
                         if (action == "stand" && opp.CurrentAnimation == "stand")
                         {
                             // Bỏ qua - không làm gì
@@ -1639,7 +1637,7 @@ namespace DoAn_NT106
                         // Nếu animation thay đổi (và không phải stand → stand)
                         else if (animationChanged)
                         {
-                            // ✅ NEW: Phát hiện skill để spawn opponent projectile
+                            //  NEW: Phát hiện skill để spawn opponent projectile
                             if (action == "fireball")
                             {
                                 Console.WriteLine($"[UDP] 🎯 Opponent {opponentNum} used skill (fireball)!");
@@ -1652,7 +1650,7 @@ namespace DoAn_NT106
                                     // Chỉ Warrior và Bringer of Death có projectile/spell
                                     if (oppCharType == "warrior")
                                     {
-                                        // ✅ Warrior projectile: tính toán spawn từ hit frame (frame 3)
+                                        //  Warrior projectile: tính toán spawn từ hit frame (frame 3)
                                         // Frame timing: 7fps, mỗi frame = 1000/7 ≈ 143ms
                                         // Hit frame 3 = 3 * 143 = 429ms
                                         int delayBeforeSpawn = 429; // ms
@@ -1695,7 +1693,7 @@ namespace DoAn_NT106
                                     }
                                     else if (oppCharType == "bringerofdeath")
                                     {
-                                        // ✅ Bringer of Death spell: spawn từ hit frame (frame 6)
+                                        //  Bringer of Death spell: spawn từ hit frame (frame 6)
                                         // Frame timing: 8fps, mỗi frame = 1000/8 = 125ms
                                         // Hit frame 6 = 6 * 125 = 750ms
                                         int delayBeforeSpawn = 750; // ms
@@ -1708,7 +1706,7 @@ namespace DoAn_NT106
                                             
                                             try
                                             {
-                                                // ✅ Spell xuất hiện tại vị trí của MÌNH (canh theo hitbox của mình)
+                                                //  Spell xuất hiện tại vị trí của MÌNH (canh theo hitbox của mình)
                                                 // Vì spell bringer là ổn định tại một vị trí, không di chuyển
                                                 var meState = myPlayerNumber == 1 ? player1State : player2State;
                                                 var meHurtbox = GetPlayerHitbox(meState);
@@ -1749,7 +1747,7 @@ namespace DoAn_NT106
                                 {
                                     oppAnimMgr.ResetAnimationToFirstFrame(action);
                                     opp.CurrentAnimation = action;
-                                    Console.WriteLine($"[UDP] ✅ Changed to walk/jump: {prevAnim} → {action}");
+                                    Console.WriteLine($"[UDP]  Changed to walk/jump: {prevAnim} → {action}");
                                 }
                                 catch (Exception ex)
                                 {
@@ -1763,7 +1761,7 @@ namespace DoAn_NT106
                                 {
                                     oppAnimMgr.ResetAnimationToFirstFrame(action);
                                     opp.CurrentAnimation = action;
-                                    Console.WriteLine($"[UDP] ✅ Changed animation: {prevAnim} → {action}");
+                                    Console.WriteLine($"[UDP]  Changed animation: {prevAnim} → {action}");
                                 }
                                 catch (Exception ex)
                                 {
@@ -1778,7 +1776,7 @@ namespace DoAn_NT106
                             }
                         }
                         
-                        // ✅ CẬP NHẬT animation trước đó cho lần tiếp theo
+                        //  CẬP NHẬT animation trước đó cho lần tiếp theo
                         if (opponentNum == 1)
                             _prevAnimPlayer1 = action;
                         else
@@ -1794,7 +1792,7 @@ namespace DoAn_NT106
 
         private void BattleForm_KeyDown(object sender, KeyEventArgs e)
         {
-            // ✅ OFFLINE MODE: Accept inputs for both players locally
+            //  OFFLINE MODE: Accept inputs for both players locally
             if (!isOnlineMode)
             {
                 // Player1 controls (left side) - WASD + JKLUÍ
@@ -1868,7 +1866,7 @@ namespace DoAn_NT106
                 e.Handled = true;
                 // Don't return - allow Escape handling below
             }
-            // ✅ ONLINE MODE: Each client controls ONLY their own player
+            //  ONLINE MODE: Each client controls ONLY their own player
             else if (myPlayerNumber == 1)
             {
                 switch (e.KeyCode)
@@ -1903,7 +1901,7 @@ namespace DoAn_NT106
             }
             else if (myPlayerNumber == 2)
             {
-                // ✅ ONLINE MODE: Player 2 (use WASD like Player 1)
+                //  ONLINE MODE: Player 2 (use WASD like Player 1)
                 switch (e.KeyCode)
                 {
                     case Keys.A:
@@ -1955,14 +1953,14 @@ namespace DoAn_NT106
                             bool isOffline = string.IsNullOrEmpty(roomCode) || roomCode == "000000";
                             if (isOffline)
                             {
-                                if (this.Owner is PixelGameLobby.JoinRoomForm ownerJoin)
+                                if (this.Owner is DoAn_NT106.Client.JoinRoomForm ownerJoin)
                                 {
                                     try { ownerJoin.Show(); ownerJoin.BringToFront(); }
                                     catch { Console.WriteLine("[BattleForm] Failed to show owner JoinRoomForm"); }
                                 }
                                 else
                                 {
-                                    var existingJoin = Application.OpenForms.OfType<PixelGameLobby.JoinRoomForm>().FirstOrDefault();
+                                    var existingJoin = Application.OpenForms.OfType<DoAn_NT106.Client.JoinRoomForm>().FirstOrDefault();
                                     if (existingJoin != null) { existingJoin.Show(); existingJoin.BringToFront(); }
                                     else { Console.WriteLine("[BattleForm] No existing JoinRoomForm found for offline mode; skipping creation."); }
                                 }
@@ -1971,17 +1969,17 @@ namespace DoAn_NT106
                             {
                                 try
                                 {
-                                    var tcp = DoAn_NT106.Services.PersistentTcpClient.Instance;
+                                    var tcp = PersistentTcpClient.Instance;
                                     _ = System.Threading.Tasks.Task.Run(async () =>
                                     {
                                         try { var r = await tcp.LeaveRoomAsync(roomCode, username); Console.WriteLine($"[BattleForm] LeaveRoomAsync: {r.Success} - {r.Message}"); }
                                         catch (Exception ex) { Console.WriteLine($"[BattleForm] LeaveRoomAsync error: {ex.Message}"); }
                                     });
 
-                                    PixelGameLobby.GameLobbyForm lobbyForm = null;
+                                    DoAn_NT106.Client.GameLobbyForm lobbyForm = null;
                                     foreach (Form f in Application.OpenForms)
                                     {
-                                        if (f is PixelGameLobby.GameLobbyForm gf)
+                                        if (f is DoAn_NT106.Client.GameLobbyForm gf)
                                         {
                                             try
                                             {
@@ -2000,9 +1998,9 @@ namespace DoAn_NT106
                                     if (lobbyForm != null) { try { if (lobbyForm.WindowState == FormWindowState.Minimized) lobbyForm.WindowState = FormWindowState.Normal; lobbyForm.Show(); lobbyForm.BringToFront(); } catch (Exception ex) { Console.WriteLine($"[BattleForm] Error showing GameLobbyForm: {ex.Message}"); } }
                                     else
                                     {
-                                        var existingJoin = Application.OpenForms.OfType<PixelGameLobby.JoinRoomForm>().FirstOrDefault();
+                                        var existingJoin = Application.OpenForms.OfType<DoAn_NT106.Client.JoinRoomForm>().FirstOrDefault();
                                         if (existingJoin != null) { if (existingJoin.WindowState == FormWindowState.Minimized) existingJoin.WindowState = FormWindowState.Normal; existingJoin.Show(); existingJoin.BringToFront(); }
-                                        else { try { var newLobby = new PixelGameLobby.GameLobbyForm(roomCode, username, token); newLobby.Show(); } catch (Exception ex) { Console.WriteLine($"[BattleForm] Error showing fallback lobby: {ex.Message}"); } }
+                                        else { try { var newLobby = new DoAn_NT106.Client.GameLobbyForm(roomCode, username, token); newLobby.Show(); } catch (Exception ex) { Console.WriteLine($"[BattleForm] Error showing fallback lobby: {ex.Message}"); } }
                                     }
                                 }
                                 catch (Exception ex)
@@ -2032,7 +2030,7 @@ namespace DoAn_NT106
 
         private void BattleForm_KeyUp(object sender, KeyEventArgs e)
         {
-            // ✅ FIX: Handle offline mode where myPlayerNumber might be 0
+            //  FIX: Handle offline mode where myPlayerNumber might be 0
             // In offline mode, handle all player controls
             // In online mode, only handle your own controls
             
@@ -2047,7 +2045,7 @@ namespace DoAn_NT106
                         if (player1State != null)
                         {
                             player1State.LeftKeyPressed = false;
-                            // ✅ THÊM: Gọi ngay StopMovement để dừng liền
+                            //   Gọi ngay StopMovement để dừng liền
                             if (player1State.CanMove && !player1State.IsJumping && 
                                 !player1State.IsAttacking && !player1State.IsParrying && !player1State.IsSkillActive)
                             {
@@ -2060,7 +2058,7 @@ namespace DoAn_NT106
                         if (player1State != null)
                         {
                             player1State.RightKeyPressed = false;
-                            // ✅ THÊM: Gọi ngay StopMovement để dừng liền
+                            //   Gọi ngay StopMovement để dừng liền
                             if (player1State.CanMove && !player1State.IsJumping && 
                                 !player1State.IsAttacking && !player1State.IsParrying && !player1State.IsSkillActive)
                             {
@@ -2075,7 +2073,7 @@ namespace DoAn_NT106
                         if (player2State != null)
                         {
                             player2State.LeftKeyPressed = false;
-                            // ✅ THÊM: Gọi ngay StopMovement để dừng liền
+                            //   Gọi ngay StopMovement để dừng liền
                             if (player2State.CanMove && !player2State.IsJumping && 
                                 !player2State.IsAttacking && !player2State.IsParrying && !player2State.IsSkillActive)
                             {
@@ -2088,7 +2086,7 @@ namespace DoAn_NT106
                         if (player2State != null)
                         {
                             player2State.RightKeyPressed = false;
-                            // ✅ THÊM: Gọi ngay StopMovement để dừng liền
+                            //   Gọi ngay StopMovement để dừng liền
                             if (player2State.CanMove && !player2State.IsJumping && 
                                 !player2State.IsAttacking && !player2State.IsParrying && !player2State.IsSkillActive)
                             {
@@ -2108,7 +2106,7 @@ namespace DoAn_NT106
                         if (player1State != null)
                         {
                             player1State.LeftKeyPressed = false;
-                            // ✅ THÊM: Gọi ngay StopMovement để dừng liền
+                            //   Gọi ngay StopMovement để dừng liền
                             if (player1State.CanMove && !player1State.IsJumping && 
                                 !player1State.IsAttacking && !player1State.IsParrying && !player1State.IsSkillActive)
                             {
@@ -2121,7 +2119,7 @@ namespace DoAn_NT106
                         if (player1State != null)
                         {
                             player1State.RightKeyPressed = false;
-                            // ✅ THÊM: Gọi ngay StopMovement để dừng liền
+                            //   Gọi ngay StopMovement để dừng liền
                             if (player1State.CanMove && !player1State.IsJumping && 
                                 !player1State.IsAttacking && !player1State.IsParrying && !player1State.IsSkillActive)
                             {
@@ -2141,7 +2139,7 @@ namespace DoAn_NT106
                         if (player2State != null)
                         {
                             player2State.LeftKeyPressed = false;
-                            // ✅ THÊM: Gọi ngay StopMovement để dừng liền
+                            //   Gọi ngay StopMovement để dừng liền
                             if (player2State.CanMove && !player2State.IsJumping && 
                                 !player2State.IsAttacking && !player2State.IsParrying && !player2State.IsSkillActive)
                             {
@@ -2154,7 +2152,7 @@ namespace DoAn_NT106
                         if (player2State != null)
                         {
                             player2State.RightKeyPressed = false;
-                            // ✅ THÊM: Gọi ngay StopMovement để dừng liền
+                            //   Gọi ngay StopMovement để dừng liền
                             if (player2State.CanMove && !player2State.IsJumping && 
                                 !player2State.IsAttacking && !player2State.IsParrying && !player2State.IsSkillActive)
                             {
@@ -2203,7 +2201,7 @@ namespace DoAn_NT106
         {
             base.OnPaint(e);
 
-            // ✅ FIX: Fill background đầu tiên để không có lỗ đen
+            //  FIX: Fill background đầu tiên để không có lỗ đen
             e.Graphics.Clear(Color.Black);
 
             // Draw background
@@ -2216,11 +2214,11 @@ namespace DoAn_NT106
             }
             else
             {
-                // ✅ Fallback: Fill color nếu không có background
+                //  Fallback: Fill color nếu không có background
                 e.Graphics.Clear(Color.DarkGreen);
             }
 
-            // ===== ✅ MIGRATED: Draw effects (behind characters) =====
+            // =====  MIGRATED: Draw effects (behind characters) =====
             effectManager.DrawEffects(e.Graphics, viewportX, PLAYER_WIDTH, PLAYER_HEIGHT);
 
             // Draw dash effects - OLD CODE (kept for compatibility)
@@ -2242,11 +2240,11 @@ namespace DoAn_NT106
                 }
             }
 
-            // ===== ✅ MIGRATED: Draw characters using PlayerState =====
+            // =====  MIGRATED: Draw characters using PlayerState =====
             DrawCharacter(e.Graphics, player1State.X, player1State.Y, player1State.CurrentAnimation, player1State.Facing, player1AnimationManager);
             DrawCharacter(e.Graphics, player2State.X, player2State.Y, player2State.CurrentAnimation, player2State.Facing, player2AnimationManager);
 
-            // ===== ✅ MIGRATED: Draw hit effects (on top of characters) =====
+            // =====  MIGRATED: Draw hit effects (on top of characters) =====
             effectManager.DrawHitEffects(e.Graphics, viewportX, PLAYER_WIDTH, PLAYER_HEIGHT);
 
             // Draw hit effects - OLD CODE (kept for compatibility)
@@ -2262,7 +2260,7 @@ namespace DoAn_NT106
                 }
             }
 
-            // ===== ✅ MIGRATED: Draw projectiles =====
+            // =====  MIGRATED: Draw projectiles =====
             projectileManager.DrawProjectiles(e.Graphics, viewportX);
 
             // Draw spell effect - OLD CODE (kept for compatibility)
@@ -2324,10 +2322,10 @@ namespace DoAn_NT106
                 }
             }
 
-            // ===== ✅ MIGRATED: Draw impact effects =====
+            // =====  MIGRATED: Draw impact effects =====
             effectManager.DrawImpactEffects(e.Graphics, viewportX);
 
-            // ===== ✅ MIGRATED: Draw parry indicators using PlayerState =====
+            // =====  MIGRATED: Draw parry indicators using PlayerState =====
             if (player1State.IsParrying)
             {
                 int sx = player1State.X - viewportX + PLAYER_WIDTH / 2 - 12;
@@ -2339,7 +2337,7 @@ namespace DoAn_NT106
                 e.Graphics.FillEllipse(new SolidBrush(Color.FromArgb(180, Color.Cyan)), sx, player2State.Y - 28, 24, 24);
             }
 
-            // ===== ✅ MIGRATED: Draw stun indicators using PlayerState =====
+            // =====  MIGRATED: Draw stun indicators using PlayerState =====
             if (player1State.IsStunned)
             {
                 int sx = player1State.X - viewportX + PLAYER_WIDTH / 2 - 15;
@@ -2363,7 +2361,7 @@ namespace DoAn_NT106
     
 
         /// <summary>
-        /// ✅ LOCAL-FIRST CAMERA: Focus on local player, then keep edge player visible
+        ///  LOCAL-FIRST CAMERA: Focus on local player, then keep edge player visible
         /// Priority: 1) Center local player  2) Ensure edge player (left) visible  3) Both on screen
         /// </summary>
         private void UpdateCameraNetworkSync()
@@ -2377,7 +2375,7 @@ namespace DoAn_NT106
             Rectangle p1Hb = GetPlayerHitbox(player1State);
             Rectangle p2Hb = GetPlayerHitbox(player2State);
             
-            //  ✅ PRIMARY: Identify local and remote player
+            //   PRIMARY: Identify local and remote player
             PlayerState localPlayer = myPlayerNumber == 1 ? player1State : player2State;
             PlayerState remotePlayer = localPlayer == player1State ? player2State : player1State;
             Rectangle localHb = myPlayerNumber == 1 ? p1Hb : p2Hb;
@@ -2509,7 +2507,7 @@ namespace DoAn_NT106
 
 
         /// <summary>
-        /// ✅ FIX: Camera with hurtbox-based boundaries like offline mode
+        ///  FIX: Camera with hurtbox-based boundaries like offline mode
         /// - Uses GetPlayerHitbox for accurate collision detection
         /// - Synchronizes with PhysicsSystem boundary checking
         /// - Prevents players from disappearing at edges
@@ -2595,16 +2593,16 @@ namespace DoAn_NT106
 
         private void BattleForm_Resize(object sender, EventArgs e)
         {
-            if (resourceSystem != null && resourceSystem.HealthBar1 != null) // ✅ CHECK NEW SYSTEM
+            if (resourceSystem != null && resourceSystem.HealthBar1 != null) //  CHECK NEW SYSTEM
             {
                 int screenWidth = this.ClientSize.Width;
 
-                // ===== ✅ MIGRATED: Resize bars using ResourceSystem =====
+                // =====  MIGRATED: Resize bars using ResourceSystem =====
                 resourceSystem.ResizeBars(screenWidth);
 
                 // Update player name labels
                 int barWidth = screenWidth / 4;
-                int nameY = 10 + 3 * (20 + 5) + 90;  // ✅ Cùng vị trí với lblPlayer1Name (dưới portrait)
+                int nameY = 10 + 3 * (20 + 5) + 90;  //  Cùng vị trí với lblPlayer1Name (dưới portrait)
                 if (lblPlayer1Name != null)
                 {
                     lblPlayer1Name.Location = new Point(20, nameY);
@@ -2612,16 +2610,16 @@ namespace DoAn_NT106
                 }
                 if (lblPlayer2Name != null)
                 {
-                    lblPlayer2Name.Location = new Point(screenWidth - barWidth - 20, nameY);  // ✅ Cùng Y như Player 1
+                    lblPlayer2Name.Location = new Point(screenWidth - barWidth - 20, nameY);  //  Cùng Y như Player 1
                     lblPlayer2Name.Size = new Size(barWidth, 25);
                 }
 
-                // ===== ✅ MIGRATED: Update ground level in PhysicsSystem =====
+                // =====  MIGRATED: Update ground level in PhysicsSystem =====
                 groundLevel = Math.Max(0, this.ClientSize.Height - groundOffset);
                 physicsSystem.UpdateGroundLevel(groundLevel);
                 UpdateCharacterSize();
 
-                // ===== ✅ MIGRATED: Reset player positions to ground =====
+                // =====  MIGRATED: Reset player positions to ground =====
                 physicsSystem.ResetToGround(player1State);
                 physicsSystem.ResetToGround(player2State);
 
@@ -2639,7 +2637,7 @@ namespace DoAn_NT106
         {
             float sizeScale = 1.0f;
             int yOffset = 0;
-            int groundAdjustment = 0; // ✅ THÊM: Điều chỉnh vị trí so với mặt đất
+            int groundAdjustment = 0; //   Điều chỉnh vị trí so với mặt đất
 
             if (characterType == "girlknight")
             {
@@ -2684,7 +2682,7 @@ namespace DoAn_NT106
         }
         private void UpdateCharacterSize()
         {
-            // ✅ SỬA: Áp dụng hệ số nhân toàn cục
+            //  SỬA: Áp dụng hệ số nhân toàn cục
             int baseHeight = Math.Max(24, (int)(this.ClientSize.Height * characterHeightRatio));
             int newHeight = (int)(baseHeight * globalCharacterScale); // Nhân với hệ số toàn cục
             int spriteOrigW = 64;
@@ -2700,19 +2698,19 @@ namespace DoAn_NT106
             PLAYER_HEIGHT = newHeight;
             PLAYER_WIDTH = Math.Max(16, (int)(PLAYER_HEIGHT * (float)spriteOrigW / spriteOrigH));
 
-            // ===== ✅ UPDATE: Update PhysicsSystem with new player size =====
+            // =====  UPDATE: Update PhysicsSystem with new player size =====
             physicsSystem.UpdatePlayerSize(PLAYER_WIDTH, PLAYER_HEIGHT);
 
             groundLevel = Math.Max(0, this.ClientSize.Height - groundOffset);
 
-            // ===== ✅ MIGRATED: Reset positions using PhysicsSystem =====
+            // =====  MIGRATED: Reset positions using PhysicsSystem =====
             if (!player1State.IsJumping) physicsSystem.ResetToGround(player1State);
             if (!player2State.IsJumping) physicsSystem.ResetToGround(player2State);
         }
 
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
-            // ✅ THÊM: Disconnect UDP khi đóng form
+            //   Disconnect UDP khi đóng form
             try
             {
                 if (udpClient != null)
@@ -2751,8 +2749,8 @@ namespace DoAn_NT106
             }
             activeHitEffects.Clear();
 
-            // ===== ✅ MIGRATED: Cleanup new systems =====
-            // ✅ THÊM: Cleanup PlayerState timers
+            // =====  MIGRATED: Cleanup new systems =====
+            //   Cleanup PlayerState timers
             try { player1State?.Cleanup(); } catch { }
             try { player2State?.Cleanup(); } catch { }
             try { combatSystem?.Cleanup(); } catch { }
@@ -2760,8 +2758,8 @@ namespace DoAn_NT106
             try { projectileManager?.Cleanup(); } catch { }
             // =========================================
 
-            // ✅ RESUME: Theme music when returning to MainForm
-            try { SoundManager.PlayMusic(DoAn_NT106.Client.BackgroundMusic.ThemeMusic, loop: true); } catch { }
+            //  RESUME: Theme music when returning to MainForm
+            try { SoundManager.PlayMusic(BackgroundMusic.ThemeMusic, loop: true); } catch { }
             Console.WriteLine("🎵 Theme music resumed");
 
             // Dispose animation managers
@@ -2778,10 +2776,10 @@ namespace DoAn_NT106
         }
 
         // ===========================
-        // ✅ HELPER METHODS (KEPT FROM ORIGINAL)
+        //  HELPER METHODS (KEPT FROM ORIGINAL)
         // ===========================
-        // ✅ THÊM: Xử lý tấn công với attack hitbox mới
-        // ✅ SỬA LẦN 2: Xử lý tấn công với frame counter
+        //   Xử lý tấn công với attack hitbox mới
+        //  SỬA LẦN 2: Xử lý tấn công với frame counter
         // In BattleForm. cs - THAY THẾ HÀM ExecuteAttackWithHitbox()
 
         private void ExecuteAttackWithHitbox(int playerNum, string attackType, int damage, int staminaCost)
@@ -2904,7 +2902,7 @@ namespace DoAn_NT106
                     destY -= 110;
                 }
 
-                // ✅ NEW: Fix right-facing warrior kick horizontal offset by 30px (shift left)
+                //  NEW: Fix right-facing warrior kick horizontal offset by 30px (shift left)
                 if (charType == "warrior" &&
                     string.Equals(animation, "kick", StringComparison.OrdinalIgnoreCase) &&
                     string.Equals(facing, "right", StringComparison.OrdinalIgnoreCase))
@@ -3175,11 +3173,11 @@ namespace DoAn_NT106
             int hitboxWidth = (int)(actualWidth * config.WidthPercent);
             int hitboxHeight = (int)(actualHeight * config.HeightPercent);
 
-            // ✅ CĂN GIỮA HOÀN HẢO
+            //  CĂN GIỮA HOÀN HẢO
             int offsetX = (actualWidth - hitboxWidth) / 2;
             int offsetY = (int)(actualHeight * config.OffsetYPercent);
 
-            // ✅ CHỈ GOATMAN MỚI CÓ HARD FIX
+            //  CHỈ GOATMAN MỚI CÓ HARD FIX
             if (player.CharacterType == "goatman")
             {
                 offsetX += 65; // Sprite padding fix
@@ -3196,10 +3194,10 @@ namespace DoAn_NT106
             );
         }
 
-        // ✅ THÊM: Phương thức tính vùng tấn công của nhân vật
+        //   Phương thức tính vùng tấn công của nhân vật
         private Rectangle GetAttackHitbox(PlayerState attacker, string attackType)
         {
-            // ✅ LẤY actualSize NGAY ĐẦU ĐỂ TRÁNH LỖI
+            //  LẤY actualSize NGAY ĐẦU ĐỂ TRÁNH LỖI
             var actualSize = GetActualCharacterSize(attacker.CharacterType);
             int actualWidth = actualSize.actualWidth;
             int actualHeight = actualSize.actualHeight;
@@ -3237,7 +3235,7 @@ namespace DoAn_NT106
 
             int finalAttackX, finalAttackY;
 
-            // ✅ SPECIAL CASE: Girl Knight skill should hit forward AND backward (extend range to opposite direction)
+            //  SPECIAL CASE: Girl Knight skill should hit forward AND backward (extend range to opposite direction)
             if (attacker.CharacterType == "girlknight" && attackType == "skill")
             {
                 // Bidirectional area: cover forward + backward
@@ -3322,10 +3320,10 @@ namespace DoAn_NT106
         // Apply hurt properly - KEEP OLD IMPLEMENTATION FOR NOW (COMPATIBILITY)
         private void ApplyHurtToPlayer(int player, int damage, bool knockback = true)
         {
-            // ✅ GỌI COMBATSYSTEM TRỰC TIẾP - ĐÃ XỬ LÝ ĐẦY ĐỦ
+            //  GỌI COMBATSYSTEM TRỰC TIẾP - ĐÃ XỬ LÝ ĐẦY ĐỦ
             combatSystem.ApplyDamage(player, damage, knockback);
 
-            // ✅ SYNC LẠI BIẾN CŨ (để UI hoạt động)
+            //  SYNC LẠI BIẾN CŨ (để UI hoạt động)
             player1Health = player1State.Health;
             player2Health = player2State.Health;
             player1Stunned = player1State.IsStunned;

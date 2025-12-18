@@ -1,13 +1,13 @@
 ﻿using DoAn_NT106;
-using DoAn_NT106.Services;
 using DoAn_NT106.Client;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using DoAn_NT106.Client.Class;
 
-namespace PixelGameLobby
+namespace DoAn_NT106.Client
 {
     public partial class JoinRoomForm : Form
     {

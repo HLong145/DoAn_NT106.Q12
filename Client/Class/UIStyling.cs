@@ -2,7 +2,7 @@ using System;
 using System.Linq;
 using System.Windows.Forms;
 
-namespace DoAn_NT106.Client
+namespace DoAn_NT106.Client.Class
 {
     // Runtime helper: enforce no window border and no control box for all opened forms.
     // This is a non-invasive approach that scans Application.OpenForms periodically

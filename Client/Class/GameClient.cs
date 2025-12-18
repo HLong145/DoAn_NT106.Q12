@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Text.Json;
 
-namespace DoAn_NT106.Services
+namespace DoAn_NT106.Client.Class
 {
     /// <summary>
     /// Game Client - Sử dụng PersistentTcpClient singleton
@@ -19,9 +19,9 @@ namespace DoAn_NT106.Services
         public event Action<PlayerJoinedData> OnPlayerJoined;
         public event Action<PlayerLeftData> OnPlayerLeft;
         public event Action<StartGameData> OnStartGame;
-        // ✅ THÊM: Event when server signals game end (winner or draw)
+        //   Event when server signals game end (winner or draw)
         public event Action<GameEndData> OnGameEnded;
-        // ✅ THÊM: Event khi có damage
+        //   Event khi có damage
         public event Action<DamageEventData> OnDamageEvent;
         public event Action<string> OnError;
 
@@ -44,7 +44,7 @@ namespace DoAn_NT106.Services
         // ===========================
         // CONNECT (cho backward compatible)
         // ===========================
-        public async System.Threading.Tasks.Task<bool> ConnectAsync()
+        public async Task<bool> ConnectAsync()
         {
             // Đảm bảo PersistentTcpClient đã connect
             if (!TcpClient.IsConnected)
@@ -85,7 +85,7 @@ namespace DoAn_NT106.Services
                         HandleGameEnd(data);
                         break;
                     
-                    // ✅ THÊM: Handle damage event (server may use GAME_DAMAGE or DAMAGE_EVENT)
+                    //   Handle damage event (server may use GAME_DAMAGE or DAMAGE_EVENT)
                     case "DAMAGE_EVENT":
                     case "GAME_DAMAGE":
                     case "GAME_DAMAGE_EVENT":
@@ -211,7 +211,7 @@ namespace DoAn_NT106.Services
             }
         }
 
-        // ✅ THÊM: Handle damage event
+        //   Handle damage event
         private void HandleDamageEvent(JsonElement data)
         {
             try
@@ -234,14 +234,14 @@ namespace DoAn_NT106.Services
         // ===========================
         // SEND ACTION (cho backward compatible)
         // ===========================
-        public async System.Threading.Tasks.Task<bool> SendActionAsync(string json)
+        public async Task<bool> SendActionAsync(string json)
         {
             Console.WriteLine($"[GameClient] SendActionAsync called - consider using TcpClient.SendRequestAsync instead");
             return TcpClient.IsConnected;
         }
 
-        // ✅ THÊM: Broadcast damage event to server (reliable)
-        public async System.Threading.Tasks.Task BroadcastDamageEvent(string roomCode, string username, int targetPlayerNum, int damage, bool isParried)
+        //   Broadcast damage event to server (reliable)
+        public async Task BroadcastDamageEvent(string roomCode, string username, int targetPlayerNum, int damage, bool isParried)
         {
             try
             {
@@ -347,12 +347,12 @@ namespace DoAn_NT106.Services
         public string Player1 { get; set; }
         public string Player2 { get; set; }
 
-        // ✅ NEW: character mapping for each player
+        //  NEW: character mapping for each player
         public string Player1Character { get; set; }
         public string Player2Character { get; set; }
     }
 
-    // ✅ THÊM: Damage event data
+    //   Damage event data
     public class DamageEventData
     {
         public int TargetPlayerNum { get; set; }

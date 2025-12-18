@@ -30,7 +30,7 @@ namespace DoAn_NT106.Server
         LobbyManager lobbyManager;
         private RoomListBroadcaster roomListBroadcaster;
 
-        // ✅ THÊM: UDP Game Server
+        //  UDP Game Server
         private UDPGameServer udpGameServer;
         private const int UDP_PORT = 5000;
 
@@ -66,7 +66,7 @@ namespace DoAn_NT106.Server
             lobbyManager = new LobbyManager(dbService);
             lobbyManager.OnLog += LogMessage;
 
-            // ✅ THÊM: Khởi tạo UDP Game Server
+            //  Khởi tạo UDP Game Server
             udpGameServer = new UDPGameServer(UDP_PORT);
             udpGameServer.OnLog += LogMessage;
 
@@ -96,7 +96,7 @@ namespace DoAn_NT106.Server
                 listener.Start();
                 isRunning = true;
 
-                // ✅ THÊM: Start UDP Server
+                //  Start UDP Server
                 udpGameServer.Start();
 
                 // Ensure lobbyManager/roomManager references are linked after UDP server starts
@@ -129,7 +129,7 @@ namespace DoAn_NT106.Server
                 cts.Cancel();
                 listener?.Stop();
 
-                // ✅ THÊM: Stop UDP Server
+                //  Stop UDP Server
                 udpGameServer?.Stop();
 
                 foreach (var client in connectedClients.ToArray())
@@ -189,7 +189,7 @@ namespace DoAn_NT106.Server
                         globalChatManager,
                         lobbyManager,
                         roomListBroadcaster,
-                        udpGameServer);  // ✅ THÊM: Pass UDP server to client handler
+                        udpGameServer);  //  Pass UDP server to client handler
 
                     lock (connectedClients)
                     {
@@ -263,7 +263,7 @@ namespace DoAn_NT106.Server
 
         private bool isNormalLogout = false;
 
-        // ✅ THÊM: UDP Game Server reference
+        //  UDP Game Server reference
         private UDPGameServer udpGameServer;
 
         #endregion
@@ -562,15 +562,15 @@ namespace DoAn_NT106.Server
                     case "LOBBY_START_GAME":
                         return HandleLobbyStartGame(request);
 
-                // ✅ NEW: character selection in lobby
+                //  character selection in lobby
                     case "SELECT_CHARACTER":
                         return HandleSelectCharacter(request);
 
-                    // ✅ THÊM: character select back - tất cả 2 người quay lại lobby
+                    //  character select back - tất cả 2 người quay lại lobby
                     case "CHARACTER_SELECT_BACK":
                         return HandleCharacterSelectBack(request);
 
-                    // ✅ THÊM: Gửi player number khi client hỏi (sau START_GAME broadcast)
+                    //  Gửi player number khi client hỏi (sau START_GAME broadcast)
                     case "GET_MY_PLAYER_NUMBER":
                         return HandleGetMyPlayerNumber(request);
 
@@ -579,11 +579,11 @@ namespace DoAn_NT106.Server
                     case "GAME_ACTION":
                         return HandleGameAction(request);
                     
-                    // ✅ THÊM: Handle game end
+                    //  Handle game end
                     case "GAME_END":
                         return HandleGameEnd(request);
 
-                    // ✅ THÊM: Handle game damage event
+                    //  Handle game damage event
                     case "GAME_DAMAGE":
                         return HandleGameDamage(request);
 
@@ -608,7 +608,7 @@ namespace DoAn_NT106.Server
 
         // ... existing handlers ...
 
-        // NEW: route SELECT_CHARACTER to LobbyManager
+        //  route SELECT_CHARACTER to LobbyManager
         private string HandleSelectCharacter(Request request)
         {
             try
@@ -635,7 +635,7 @@ namespace DoAn_NT106.Server
             }
         }
 
-        // ✅ THÊM: Handle character select back - broadcast RETURN_TO_LOBBY cho cả 2 người
+        //  Handle character select back - broadcast RETURN_TO_LOBBY cho cả 2 người
         private string HandleCharacterSelectBack(Request request)
         {
             try
@@ -1534,7 +1534,7 @@ catch (Exception ex)
 
                 if (result.Success)
                 {
-                // ✅ THÊM: Lấy thông tin từ LobbyManager (đáng tin cậy hơn ngay trước START_GAME)
+                //  Lấy thông tin từ LobbyManager (đáng tin cậy hơn ngay trước START_GAME)
                     var lobby = lobbyManager?.GetLobby(roomCode);
                     if (lobby != null)
                     {
@@ -1651,7 +1651,7 @@ catch (Exception ex)
             }
         }
 
-        // ✅ THÊM: Handle game end - đóng UDP match và trả client về lobby
+        //  Handle game end - đóng UDP match và trả client về lobby
         private string HandleGameEnd(Request request)
         {
             try
@@ -1704,7 +1704,7 @@ catch (Exception ex)
             }
         }
 
-        // ✅ THÊM: Handle game damage event
+        //  Handle game damage event
         private string HandleGameDamage(Request request)
         {
             try
@@ -1778,7 +1778,7 @@ catch (Exception ex)
             }
         }
 
-        // ✅ THÊM: Get my player number (client hỏi sau START_GAME)
+        //  Get my player number (client hỏi sau START_GAME)
         private string HandleGetMyPlayerNumber(Request request)
         {
             try

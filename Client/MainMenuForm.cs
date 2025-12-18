@@ -1,7 +1,7 @@
 using System;
 using System.Windows.Forms;
 
-namespace DoAn_NT106
+namespace DoAn_NT106.Client
 {
     public partial class MainMenuForm : Form
     {

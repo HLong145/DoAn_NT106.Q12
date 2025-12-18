@@ -1,10 +1,8 @@
-﻿
-using DoAn_NT106.Services;
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace DoAn_NT106.Client
+namespace DoAn_NT106.Client.Class
 {
     /// <summary>
     /// Helper class xử lý mất kết nối server cho tất cả các form

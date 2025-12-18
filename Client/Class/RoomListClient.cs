@@ -2,9 +2,8 @@
 using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading.Tasks;
-using DoAn_NT106.Services;
 
-namespace DoAn_NT106.Client
+namespace DoAn_NT106.Client.Class
 {
     /// <summary>
     /// Room List Client - Sử dụng PersistentTcpClient singleton

@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Windows.Forms;
 
-namespace DoAn_NT106
+namespace DoAn_NT106.Client
 {
     public partial class MapSelectForm : Form
     {
@@ -17,7 +17,7 @@ namespace DoAn_NT106
         {
             try
             {
-                // ✅ Initialize mapImages if null
+                //  Initialize mapImages if null
                 if (mapImages == null)
                     mapImages = new Dictionary<string, Image>();
                 else
@@ -69,7 +69,7 @@ namespace DoAn_NT106
 
             string chosen = cmbMaps.SelectedItem as string;  // e.g., "Battlefield 2"
             
-            // ✅ CONVERT: "Battlefield 2" → "battleground2"
+            //  "Battlefield 2" → "battleground2"
             int mapNum = -1;
             if (chosen.StartsWith("Battlefield"))
             {
