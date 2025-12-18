@@ -1,4 +1,5 @@
 ﻿using DoAn_NT106.Services;
+using DoAn_NT106.Client.Class;
 using System;
 using System.Drawing;
 using System.Threading.Tasks;
@@ -211,11 +212,11 @@ namespace DoAn_NT106.Client
                 try
                 {
                     // First, try using SoundManager if it has a LevelUp enum
-                    var seType = typeof(DoAn_NT106.Client.SoundEffect);
+                    var seType = typeof(DoAn_NT106.Client.Class.SoundEffect);
                     if (Enum.IsDefined(seType, "LevelUp"))
                     {
-                        var levelUpEffect = (DoAn_NT106.Client.SoundEffect)Enum.Parse(seType, "LevelUp");
-                        DoAn_NT106.SoundManager.PlaySound(levelUpEffect);
+                        var levelUpEffect = (DoAn_NT106.Client.Class.SoundEffect)Enum.Parse(seType, "LevelUp");
+                        DoAn_NT106.Client.Class.SoundManager.PlaySound(levelUpEffect);
                         Console.WriteLine("[TinhXP] ✅ Level up sound played via SoundManager");
                         return;
                     }

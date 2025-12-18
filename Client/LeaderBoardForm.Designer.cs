@@ -1,3 +1,5 @@
+using DoAn_NT106.Client;
+
 namespace DoAn_NT106
 {
     partial class LeaderBoardForm
