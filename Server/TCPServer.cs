@@ -1902,32 +1902,27 @@ catch (Exception ex)
             }
         }
 
-        // Server\TCPServer.cs  (bên trong ClientHandler, thêm 2 handler dưới các handler khác)
+        #endregion
 
+        #region Player XP
         private string HandleGetPlayerXp(Request request)
         {
             try
             {
                 var username = request.Data?["username"]?.ToString();
-                var token = request.Data?["token"]?.ToString();
 
-                if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(token))
-                    return CreateResponse(false, "Username and token are required");
-
-                // Xác thực token khớp username
-                if (!tokenManager.ValidateToken(token) ||
-                    !string.Equals(tokenManager.GetUsernameFromToken(token),
-                                   username,
-                                   StringComparison.OrdinalIgnoreCase))
+                if (string.IsNullOrEmpty(username))
                 {
-                    return CreateResponse(false, "Invalid token");
+                    return CreateResponse(false, "Username is required");
                 }
 
                 int xp = dbService.GetPlayerXp(username);
-                return CreateResponse(true, "OK", new Dictionary<string, object>
-        {
-            { "xp", xp }
-        });
+                server.Log($"🎯 HandleGetPlayerXp: {username} has {xp} XP");
+
+                return CreateResponse(true, "Player XP retrieved", new Dictionary<string, object>
+            {
+                { "xp", xp }
+            });
             }
             catch (Exception ex)
             {
@@ -1941,44 +1936,54 @@ catch (Exception ex)
             try
             {
                 var username = request.Data?["username"]?.ToString();
-                var token = request.Data?["token"]?.ToString();
 
-                if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(token))
-                    return CreateResponse(false, "Username and token are required");
-
-                // Xác thực token khớp username
-                if (!tokenManager.ValidateToken(token) ||
-                    !string.Equals(tokenManager.GetUsernameFromToken(token),
-                                   username,
-                                   StringComparison.OrdinalIgnoreCase))
+                if (string.IsNullOrEmpty(username))
                 {
-                    return CreateResponse(false, "Invalid token");
+                    return CreateResponse(false, "Username is required");
                 }
 
-                int xpAfter = Convert.ToInt32(request.Data?["xpAfter"] ?? 0);
-                int levelAfter = Convert.ToInt32(request.Data?["levelAfter"] ?? 1);
-                int xpNeeded = Convert.ToInt32(request.Data?["xpNeededForNextLevel"] ?? 0);
+                // Lấy xpAfter và xpNeededForNextLevel từ client
+                if (!request.Data.TryGetValue("xpAfter", out var xpAfterObj) ||
+                    !int.TryParse(xpAfterObj?.ToString(), out var xpAfter))
+                {
+                    return CreateResponse(false, "xpAfter is required and must be int");
+                }
 
-                bool isWin = request.Data?.ContainsKey("isWin") == true &&
-                             Convert.ToBoolean(request.Data["isWin"]);
-                int parry = request.Data?.ContainsKey("parryCount") == true
-                    ? Convert.ToInt32(request.Data["parryCount"])
-                    : 0;
-                int attack = request.Data?.ContainsKey("attackCount") == true
-                    ? Convert.ToInt32(request.Data["attackCount"])
-                    : 0;
-                int skill = request.Data?.ContainsKey("skillCount") == true
-                    ? Convert.ToInt32(request.Data["skillCount"])
-                    : 0;
+                if (!request.Data.TryGetValue("xpNeededForNextLevel", out var totalXpObj) ||
+                    !int.TryParse(totalXpObj?.ToString(), out var totalXpForLevel))
+                {
+                    totalXpForLevel = xpAfter; // fallback an toàn
+                }
 
-                // Các method này phải tồn tại trong DatabaseService
-                dbService.UpdatePlayerXp(username, xpAfter, xpNeeded);
-                dbService.UpdatePlayerLevel(username, levelAfter);
+                // Optional: levelAfter, isWin, stats (có thể dùng sau để log)
+                int levelAfter = 1;
+                if (request.Data.TryGetValue("levelAfter", out var levelObj))
+                {
+                    int.TryParse(levelObj?.ToString(), out levelAfter);
+                }
 
-                // Nếu bạn có lưu thống kê trận thì mới gọi, nếu chưa có method này thì bỏ dòng dưới
-                // dbService.SaveMatchStats(username, isWin, parry, attack, skill);
+                bool isWin = false;
+                if (request.Data.TryGetValue("isWin", out var winObj))
+                {
+                    bool.TryParse(winObj?.ToString(), out isWin);
+                }
 
-                return CreateResponse(true, "XP updated");
+                server.Log($"🎯 HandleUpdatePlayerXp: {username} -> XP={xpAfter}, Level={levelAfter}, TotalXP={totalXpForLevel}, Win={isWin}");
+
+                bool ok = dbService.UpdatePlayerXp(username, xpAfter, totalXpForLevel);
+
+                if (!ok)
+                {
+                    return CreateResponse(false, "Failed to update XP in database");
+                }
+
+                // Optionally cập nhật level nếu bạn muốn dùng levelAfter:
+                if (levelAfter > 0)
+                {
+                    dbService.UpdatePlayerLevel(username, levelAfter);
+                }
+
+                return CreateResponse(true, "Player XP updated");
             }
             catch (Exception ex)
             {
@@ -1986,9 +1991,7 @@ catch (Exception ex)
                 return CreateResponse(false, $"Error: {ex.Message}");
             }
         }
-
         #endregion
-
 
         #region Response
         private string CreateResponse(bool success, string message, Dictionary<string, object> data = null)

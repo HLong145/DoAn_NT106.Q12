@@ -1,6 +1,7 @@
 ﻿using DoAn_NT106.Services;
 using DoAn_NT106.Client.Class;
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -32,32 +33,74 @@ namespace DoAn_NT106.Client
         {
         }
 
+        // HÀM GỬI REQUEST LẤY XP TỪ SERVER (TCPServer)
+        private async Task<int> RequestPlayerXpAsync(string username, string token)
+        {
+            var response = await PersistentTcpClient.Instance.SendRequestAsync(
+                "GET_PLAYER_XP",
+                new Dictionary<string, object>
+                {
+                    { "username", username },
+                    { "token", token }
+                });
+
+            if (!response.Success || response.Data == null)
+            {
+                return 0;
+            }
+
+            if (response.Data.TryGetValue("xp", out var xpObj) &&
+                int.TryParse(xpObj?.ToString(), out var xpValue))
+            {
+                return xpValue;
+            }
+
+            return 0;
+        }
+
+        // HÀM GỬI REQUEST CẬP NHẬT XP LÊN SERVER (TCPServer)
+        private async Task<bool> RequestUpdatePlayerXpAsync(
+            string username,
+            string token,
+            int xpAfter,
+            int levelAfter,
+            int xpNeededForNextLevel,
+            bool isWin,
+            int parryCount,
+            int attackCount,
+            int skillCount)
+        {
+            var response = await PersistentTcpClient.Instance.SendRequestAsync(
+                "UPDATE_PLAYER_XP",
+                new Dictionary<string, object>
+                {
+                    { "username", username },
+                    { "token", token },
+                    { "xpAfter", xpAfter },
+                    { "levelAfter", levelAfter },
+                    { "xpNeededForNextLevel", xpNeededForNextLevel },
+                    { "isWin", isWin },
+                    { "parryCount", parryCount },
+                    { "attackCount", attackCount },
+                    { "skillCount", skillCount }
+                });
+
+            Console.WriteLine($"[TinhXP] UPDATE_PLAYER_XP result: {response.Success} - {response.Message}");
+            return response.Success;
+        }
+
         private async Task LoadAndDisplayXpAsync()
         {
             _calculatedXp = _result.PlayerIsWinner ? 100 : 40;
             const int xpPerLevel = 1000;
 
-            // 1. Lấy XP hiện tại từ server
             _xpBefore = 0;
             try
             {
                 if (!string.IsNullOrEmpty(_result.PlayerUsername) &&
                     !string.IsNullOrEmpty(_result.Token))
                 {
-                    var getXpResponse = await PersistentTcpClient.Instance.SendRequestAsync(
-                        "GET_PLAYER_XP",
-                        new System.Collections.Generic.Dictionary<string, object>
-                        {
-                            { "username", _result.PlayerUsername },
-                            { "token", _result.Token }
-                        });
-
-                    if (getXpResponse.Success && getXpResponse.Data != null &&
-                        getXpResponse.Data.TryGetValue("xp", out var xpObj) &&
-                        int.TryParse(xpObj?.ToString(), out var xpValue))
-                    {
-                        _xpBefore = xpValue;
-                    }
+                    _xpBefore = await RequestPlayerXpAsync(_result.PlayerUsername, _result.Token);
                 }
             }
             catch
@@ -76,28 +119,21 @@ namespace DoAn_NT106.Client
                 { Console.WriteLine($"[TinhXP] Error playing level up sound: {ex.Message}"); }
             }
 
-            // 2. Gửi XP mới lên server để server ghi DB
             try
             {
                 if (!string.IsNullOrEmpty(_result.PlayerUsername) &&
                     !string.IsNullOrEmpty(_result.Token))
                 {
-                    var updateResponse = await PersistentTcpClient.Instance.SendRequestAsync(
-                        "UPDATE_PLAYER_XP",
-                        new System.Collections.Generic.Dictionary<string, object>
-                        {
-                            { "username", _result.PlayerUsername },
-                            { "token", _result.Token },
-                            { "xpAfter", _xpAfter },
-                            { "levelAfter", _levelAfter },
-                            { "xpNeededForNextLevel", _xpNeededForNextLevel },
-                            { "isWin", _result.PlayerIsWinner },
-                            { "parryCount", _result.ParryCount },
-                            { "attackCount", _result.AttackCount },
-                            { "skillCount", _result.SkillCount }
-                        });
-
-                    Console.WriteLine($"[TinhXP] UPDATE_PLAYER_XP result: {updateResponse.Success} - {updateResponse.Message}");
+                    await RequestUpdatePlayerXpAsync(
+                        _result.PlayerUsername,
+                        _result.Token,
+                        _xpAfter,
+                        _levelAfter,
+                        _xpNeededForNextLevel,
+                        _result.PlayerIsWinner,
+                        _result.ParryCount,
+                        _result.AttackCount,
+                        _result.SkillCount);
                 }
             }
             catch (Exception ex)
@@ -326,6 +362,9 @@ namespace DoAn_NT106.Client
         public int ParryCount { get; set; }
         public int AttackCount { get; set; }
         public int SkillCount { get; set; }
+
+        // Thuộc tính XP thêm vào
+        public int Xp { get; set; }
     }
 }
 
