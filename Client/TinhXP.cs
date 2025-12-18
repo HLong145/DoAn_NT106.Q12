@@ -70,6 +70,19 @@ namespace DoAn_NT106.Client
 
             _xpNeededForNextLevel = _levelAfter * xpPerLevel;
 
+            // Play level up sound if player leveled up
+            if (_levelAfter > _levelBefore)
+            {
+                try
+                {
+                    PlayLevelUpSound();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[TinhXP] Error playing level up sound: {ex.Message}");
+                }
+            }
+
             // Persist new XP and level into database (best-effort)
             try
             {
@@ -185,6 +198,117 @@ namespace DoAn_NT106.Client
         private void btn_Continue_Click(object sender, EventArgs e)
         {
             this.Close();
+        }
+
+        /// <summary>Play level up sound from resources</summary>
+        private void PlayLevelUpSound()
+        {
+            try
+            {
+                // Try to play level_up resource (check if it exists in Resources)
+                try
+                {
+                    // First, try using SoundManager if it has a LevelUp enum
+                    var seType = typeof(DoAn_NT106.Client.SoundEffect);
+                    if (Enum.IsDefined(seType, "LevelUp"))
+                    {
+                        var levelUpEffect = (DoAn_NT106.Client.SoundEffect)Enum.Parse(seType, "LevelUp");
+                        DoAn_NT106.SoundManager.PlaySound(levelUpEffect);
+                        Console.WriteLine("[TinhXP] ✅ Level up sound played via SoundManager");
+                        return;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[TinhXP] SoundManager LevelUp not found: {ex.Message}");
+                }
+
+                // Fallback: Try to get level_up from resources directly
+                try
+                {
+                    var obj = Properties.Resources.ResourceManager.GetObject("level_up");
+                    if (obj != null)
+                    {
+                        byte[] audioBytes = null;
+                        
+                        if (obj is byte[] bb)
+                        {
+                            audioBytes = bb;
+                        }
+                        else if (obj is System.IO.UnmanagedMemoryStream ums)
+                        {
+                            using var tmp = new System.IO.MemoryStream();
+                            ums.CopyTo(tmp);
+                            audioBytes = tmp.ToArray();
+                        }
+                        else if (obj is System.IO.Stream s)
+                        {
+                            using var tmp = new System.IO.MemoryStream();
+                            s.Position = 0;
+                            s.CopyTo(tmp);
+                            audioBytes = tmp.ToArray();
+                        }
+
+                        if (audioBytes != null && audioBytes.Length > 0)
+                        {
+                            // Try NAudio for MP3 support
+                            try
+                            {
+                                var ms = new System.IO.MemoryStream(audioBytes);
+                                var reader = new NAudio.Wave.Mp3FileReader(ms);
+                                var wo = new NAudio.Wave.WaveOutEvent();
+                                wo.Init(reader);
+                                wo.PlaybackStopped += (s, e) =>
+                                {
+                                    try { wo.Dispose(); } catch { }
+                                    try { reader.Dispose(); } catch { }
+                                    try { ms.Dispose(); } catch { }
+                                };
+                                wo.Play();
+                                Console.WriteLine("[TinhXP] ✅ Level up sound played via NAudio");
+                                return;
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"[TinhXP] NAudio play failed: {ex.Message}");
+                            }
+
+                            // Fallback: Try SoundPlayer for WAV
+                            try
+                            {
+                                using var player = new System.Media.SoundPlayer(new System.IO.MemoryStream(audioBytes));
+                                player.PlaySync();
+                                Console.WriteLine("[TinhXP] ✅ Level up sound played via SoundPlayer");
+                                return;
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"[TinhXP] SoundPlayer play failed: {ex.Message}");
+                            }
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("[TinhXP] ⚠️ 'level_up' resource not found in Resources");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[TinhXP] Resource lookup failed: {ex.Message}");
+                }
+
+                // Final fallback: Play system beep
+                try
+                {
+                    System.Media.SystemSounds.Exclamation.Play();
+                    Console.WriteLine("[TinhXP] ✅ Level up - system beep played (fallback)");
+                }
+                catch { }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[TinhXP] PlayLevelUpSound error: {ex.Message}");
+            }
         }
 
         // Removed server fetch/update methods; DB is used as source of truth
