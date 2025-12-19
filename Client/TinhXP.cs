@@ -11,21 +11,21 @@ namespace DoAn_NT106.Client
     public partial class TinhXP : Form
     {
         private readonly MatchResult _result;
-        private int _calculatedXp;
-        private int _levelBefore;
-        private int _levelAfter;
-        private int _xpBefore;
-        private int _xpAfter;
-        private int _xpNeededForNextLevel;
+        private int _gainedXp;      // 100 (win) hoặc 40 (lose)
+        private int _xpBefore;      // XP trước trận (0-999)
+        private int _xpAfter;       // XP sau trận (0-999)
+        private int _levelBefore;   // Level trước trận
+        private int _levelAfter;    // Level sau trận
+        private int _totalXpBefore; // Ngưỡng XP trước (1000, 2000, ...)
+        private int _totalXpAfter;  // Ngưỡng XP sau
 
         public TinhXP(MatchResult result)
         {
             InitializeComponent();
-            this.AutoScroll = true;
-            this.AutoScrollMinSize = Size.Empty;
+            AutoScroll = true;
+            AutoScrollMinSize = Size.Empty;
             _result = result ?? throw new ArgumentNullException(nameof(result));
 
-            // Start async load to avoid blocking UI
             _ = LoadAndDisplayXpAsync();
         }
 
@@ -33,132 +33,261 @@ namespace DoAn_NT106.Client
         {
         }
 
-        // HÀM GỬI REQUEST LẤY XP TỪ SERVER (TCPServer)
-        private async Task<int> RequestPlayerXpAsync(string username, string token)
+        /// <summary>
+        /// Gửi request GET_PLAYER_XP để lấy XP hiện tại từ server
+        /// </summary>
+        private async Task<(int xp, int totalXp, int level)> RequestPlayerXpAsync(string username, string token)
         {
-            var response = await PersistentTcpClient.Instance.SendRequestAsync(
-                "GET_PLAYER_XP",
-                new Dictionary<string, object>
+            try
+            {
+                Console.WriteLine($"[TinhXP] 📤 Sending GET_PLAYER_XP for {username}");
+
+                var response = await PersistentTcpClient.Instance.SendRequestAsync(
+                    "GET_PLAYER_XP",
+                    new Dictionary<string, object>
+                    {
+                        { "username", username },
+                        { "token", token }
+                    });
+
+                Console.WriteLine($"[TinhXP] 📥 GET_PLAYER_XP Response: Success={response.Success}, Message={response.Message}");
+
+                if (!response.Success || response.Data == null)
                 {
-                    { "username", username },
-                    { "token", token }
-                });
+                    Console.WriteLine($"[TinhXP] ❌ GET_PLAYER_XP failed: {response.Message}");
+                    return (0, 1000, 1);
+                }
 
-            if (!response.Success || response.Data == null)
-            {
-                return 0;
+                int xp = 0;
+                int totalXp = 1000;
+                int level = 1;
+
+                if (response.Data.TryGetValue("xp", out var xpObj))
+                {
+                    xp = Convert.ToInt32(xpObj);
+                    Console.WriteLine($"[TinhXP] XP from server: {xp}");
+                }
+
+                if (response.Data.TryGetValue("totalXp", out var totalObj))
+                {
+                    totalXp = Convert.ToInt32(totalObj);
+                    Console.WriteLine($"[TinhXP] TotalXP from server: {totalXp}");
+                }
+
+                if (response.Data.TryGetValue("level", out var lvlObj))
+                {
+                    level = Math.Max(1, Convert.ToInt32(lvlObj));
+                    Console.WriteLine($"[TinhXP] Level from server: {level}");
+                }
+
+                Console.WriteLine($"[TinhXP] ✅ Got player XP: XP={xp}, TotalXP={totalXp}, Level={level}");
+                return (xp, totalXp, level);
             }
-
-            if (response.Data.TryGetValue("xp", out var xpObj) &&
-                int.TryParse(xpObj?.ToString(), out var xpValue))
+            catch (Exception ex)
             {
-                return xpValue;
+                Console.WriteLine($"[TinhXP] ❌ Error in RequestPlayerXpAsync: {ex.Message}");
+                return (0, 1000, 1);
             }
-
-            return 0;
         }
 
-        // HÀM GỬI REQUEST CẬP NHẬT XP LÊN SERVER (TCPServer)
-        private async Task<bool> RequestUpdatePlayerXpAsync(
+        /// <summary>
+        /// Gửi request UPDATE_PLAYER_XP để cập nhật XP (server sẽ xử lý logic level up)
+        /// </summary>
+        private async Task<(bool success, int newXp, int newTotalXp, int newLevel)> RequestUpdatePlayerXpAsync(
             string username,
             string token,
-            int xpAfter,
-            int levelAfter,
-            int xpNeededForNextLevel,
-            bool isWin,
-            int parryCount,
-            int attackCount,
-            int skillCount)
+            int gainedXp)
         {
-            var response = await PersistentTcpClient.Instance.SendRequestAsync(
-                "UPDATE_PLAYER_XP",
-                new Dictionary<string, object>
-                {
-                    { "username", username },
-                    { "token", token },
-                    { "xpAfter", xpAfter },
-                    { "levelAfter", levelAfter },
-                    { "xpNeededForNextLevel", xpNeededForNextLevel },
-                    { "isWin", isWin },
-                    { "parryCount", parryCount },
-                    { "attackCount", attackCount },
-                    { "skillCount", skillCount }
-                });
+            try
+            {
+                Console.WriteLine($"[TinhXP] 📤 Sending UPDATE_PLAYER_XP: {username} +{gainedXp} XP");
 
-            Console.WriteLine($"[TinhXP] UPDATE_PLAYER_XP result: {response.Success} - {response.Message}");
-            return response.Success;
+                var response = await PersistentTcpClient.Instance.SendRequestAsync(
+                    "UPDATE_PLAYER_XP",
+                    new Dictionary<string, object>
+                    {
+                        { "username", username },
+                        { "token", token },
+                        { "gainedXp", gainedXp }
+                    });
+
+                Console.WriteLine($"[TinhXP] 📥 UPDATE_PLAYER_XP Response: Success={response.Success}, Message={response.Message}");
+
+                if (!response.Success || response.Data == null)
+                {
+                    Console.WriteLine($"[TinhXP] ❌ UPDATE failed: {response.Message}");
+                    return (false, 0, 1000, 1);
+                }
+
+                int newXp = 0;
+                int newTotalXp = 1000;
+                int newLevel = 1;
+
+                if (response.Data.TryGetValue("xp", out var xpObj))
+                {
+                    newXp = Convert.ToInt32(xpObj);
+                    Console.WriteLine($"[TinhXP] New XP: {newXp}");
+                }
+
+                if (response.Data.TryGetValue("totalXp", out var totalObj))
+                {
+                    newTotalXp = Convert.ToInt32(totalObj);
+                    Console.WriteLine($"[TinhXP] New TotalXP: {newTotalXp}");
+                }
+
+                if (response.Data.TryGetValue("level", out var lvlObj))
+                {
+                    newLevel = Math.Max(1, Convert.ToInt32(lvlObj));
+                    Console.WriteLine($"[TinhXP] New Level: {newLevel}");
+                }
+
+                Console.WriteLine($"[TinhXP] ✅ After update: XP={newXp}, TotalXP={newTotalXp}, Level={newLevel}");
+                return (true, newXp, newTotalXp, newLevel);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[TinhXP] ❌ Error in RequestUpdatePlayerXpAsync: {ex.Message}");
+                return (false, 0, 1000, 1);
+            }
         }
 
         private async Task LoadAndDisplayXpAsync()
         {
-            _calculatedXp = _result.PlayerIsWinner ? 100 : 40;
-            const int xpPerLevel = 1000;
+            Console.WriteLine($"[TinhXP] ========== STARTING XP CALCULATION ==========");
+            Console.WriteLine($"[TinhXP] Player: {_result.PlayerUsername}, Win: {_result.PlayerIsWinner}");
 
-            _xpBefore = 0;
+            // 1. Lấy XP/Level TRƯỚC trận từ database
             try
             {
-                if (!string.IsNullOrEmpty(_result.PlayerUsername) &&
-                    !string.IsNullOrEmpty(_result.Token))
+                if (!string.IsNullOrEmpty(_result.PlayerUsername) && !string.IsNullOrEmpty(_result.Token))
                 {
-                    _xpBefore = await RequestPlayerXpAsync(_result.PlayerUsername, _result.Token);
+                    var before = await RequestPlayerXpAsync(_result.PlayerUsername, _result.Token);
+                    _xpBefore = before.xp;
+                    _totalXpBefore = before.totalXp;
+                    _levelBefore = before.level;
+
+                    Console.WriteLine($"[TinhXP] 📊 BEFORE MATCH: XP={_xpBefore}, TotalXP={_totalXpBefore}, Level={_levelBefore}");
                 }
-            }
-            catch
-            {
-                _xpBefore = 0;
-            }
-
-            _xpAfter = _xpBefore + _calculatedXp;
-            _levelBefore = Math.Max(1, (_xpBefore / xpPerLevel) + 1);
-            _levelAfter = Math.Max(1, (_xpAfter / xpPerLevel) + 1);
-            _xpNeededForNextLevel = _levelAfter * xpPerLevel;
-
-            if (_levelAfter > _levelBefore)
-            {
-                try { PlayLevelUpSound(); } catch (Exception ex)
-                { Console.WriteLine($"[TinhXP] Error playing level up sound: {ex.Message}"); }
-            }
-
-            try
-            {
-                if (!string.IsNullOrEmpty(_result.PlayerUsername) &&
-                    !string.IsNullOrEmpty(_result.Token))
+                else
                 {
-                    await RequestUpdatePlayerXpAsync(
-                        _result.PlayerUsername,
-                        _result.Token,
-                        _xpAfter,
-                        _levelAfter,
-                        _xpNeededForNextLevel,
-                        _result.PlayerIsWinner,
-                        _result.ParryCount,
-                        _result.AttackCount,
-                        _result.SkillCount);
+                    Console.WriteLine($"[TinhXP] ⚠️ Missing username or token, using defaults");
+                    _xpBefore = 0;
+                    _totalXpBefore = 1000;
+                    _levelBefore = 1;
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[TinhXP] Server XP update error: {ex.Message}");
+                Console.WriteLine($"[TinhXP] ❌ Error getting XP before: {ex.Message}");
+                _xpBefore = 0;
+                _totalXpBefore = 1000;
+                _levelBefore = 1;
             }
 
+            // 2. Tính XP được cộng (thắng: 100, thua: 40)
+            _gainedXp = _result.PlayerIsWinner ? 100 : 40;
+            Console.WriteLine($"[TinhXP] 💰 Gained XP: {_gainedXp} ({(_result.PlayerIsWinner ? "WIN" : "LOSE")})");
+
+            // 3. Gửi request cập nhật XP lên server
+            try
+            {
+                if (!string.IsNullOrEmpty(_result.PlayerUsername) && !string.IsNullOrEmpty(_result.Token))
+                {
+                    var update = await RequestUpdatePlayerXpAsync(
+                        _result.PlayerUsername,
+                        _result.Token,
+                        _gainedXp);
+
+                    if (update.success)
+                    {
+                        _xpAfter = update.newXp;
+                        _totalXpAfter = update.newTotalXp;
+                        _levelAfter = update.newLevel;
+
+                        Console.WriteLine($"[TinhXP] 📊 AFTER MATCH: XP={_xpAfter}, TotalXP={_totalXpAfter}, Level={_levelAfter}");
+                    }
+                    else
+                    {
+                        // Fallback: tính toán local nếu server fail
+                        Console.WriteLine("[TinhXP] ⚠️ Server update failed, using local calculation");
+                        CalculateXpLocally();
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("[TinhXP] ⚠️ Missing credentials, using local calculation");
+                    CalculateXpLocally();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[TinhXP] ❌ Error updating XP: {ex.Message}");
+                CalculateXpLocally();
+            }
+
+            // 4. Phát âm thanh nếu lên level
+            if (_levelAfter > _levelBefore)
+            {
+                try
+                {
+                    PlayLevelUpSound();
+                    Console.WriteLine($"[TinhXP] 🎉 LEVEL UP! {_levelBefore} → {_levelAfter}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[TinhXP] ⚠️ Error playing sound: {ex.Message}");
+                }
+            }
+
+            Console.WriteLine($"[TinhXP] ========== XP CALCULATION COMPLETE ==========");
+
+            // 5. Cập nhật UI
             if (InvokeRequired)
                 Invoke(new Action(UpdateUi));
             else
                 UpdateUi();
         }
 
-        private void UpdateUi()
+        /// <summary>
+        /// Tính toán XP local nếu server không phản hồi
+        /// </summary>
+        private void CalculateXpLocally()
         {
-            if (lbl_XPEarnedValue != null)
+            _xpAfter = _xpBefore + _gainedXp;
+            _levelAfter = _levelBefore;
+            _totalXpAfter = _totalXpBefore;
+
+            const int XP_PER_LEVEL = 1000;
+
+            // Xử lý lên level
+            while (_xpAfter >= XP_PER_LEVEL)
             {
-                lbl_XPEarnedValue.Text = "+" + _calculatedXp + " XP";
+                _xpAfter -= XP_PER_LEVEL;
+                _levelAfter++;
+                _totalXpAfter += XP_PER_LEVEL;
             }
 
+            Console.WriteLine($"[TinhXP] 🔧 Local calculation: XP={_xpAfter}, Level={_levelAfter}, TotalXP={_totalXpAfter}");
+        }
+
+        private void UpdateUi()
+        {
+            Console.WriteLine($"[TinhXP] 🎨 Updating UI...");
+
+            // Hiển thị XP earned (chỉ là số XP được cộng thêm)
+            if (lbl_XPEarnedValue != null)
+            {
+                lbl_XPEarnedValue.Text = $"+{_gainedXp} XP";
+                Console.WriteLine($"[TinhXP] UI: XP Earned = +{_gainedXp} XP");
+            }
+
+            // Hiển thị tên player
             if (lbl_PlayerValue != null)
             {
                 lbl_PlayerValue.Text = _result.PlayerUsername ?? "PLAYER";
             }
 
+            // Hiển thị kết quả (WIN/LOSE)
             if (lbl_ResultValue != null)
             {
                 if (_result.PlayerIsWinner)
@@ -173,170 +302,71 @@ namespace DoAn_NT106.Client
                 }
             }
 
+            // Hiển thị thời gian trận đấu
             if (lbl_TimeValue != null)
             {
                 TimeSpan time = _result.MatchTime;
-                if (time <= TimeSpan.Zero)
-                {
-                    lbl_TimeValue.Text = "00:00";
-                }
-                else
-                {
-                    lbl_TimeValue.Text = string.Format("{0:00}:{1:00}", (int)time.TotalMinutes, time.Seconds);
-                }
+                lbl_TimeValue.Text = time <= TimeSpan.Zero
+                    ? "00:00"
+                    : string.Format("{0:00}:{1:00}", (int)time.TotalMinutes, time.Seconds);
             }
 
+            // Hiển thị level progress
             if (lbl_XPProgress != null)
             {
                 if (_levelAfter > _levelBefore)
                 {
-                    lbl_XPProgress.Text = $"Level {_levelBefore} -> Level {_levelAfter}";
+                    lbl_XPProgress.Text = $"Level {_levelBefore} → Level {_levelAfter}";
+                    lbl_XPProgress.ForeColor = Color.Gold;
+                    Console.WriteLine($"[TinhXP] UI: Level Progress = Level {_levelBefore} → Level {_levelAfter}");
                 }
                 else
                 {
                     lbl_XPProgress.Text = $"Level {_levelAfter}";
+                    Console.WriteLine($"[TinhXP] UI: Level Progress = Level {_levelAfter}");
                 }
             }
 
+            // Hiển thị XP hiện tại / 1000 (cần để lên level tiếp theo)
             if (lbl_XPProgressValue != null)
             {
-                // Show total XP accumulated so far / xpPerLevel (simple compact format)
-                const int xpPerLevel = 1000;
-                lbl_XPProgressValue.Text = $"{_xpAfter} / {xpPerLevel}";
+                const int XP_PER_LEVEL = 1000;
+                lbl_XPProgressValue.Text = $"{_xpAfter} / {XP_PER_LEVEL}";
+                Console.WriteLine($"[TinhXP] UI: XP Progress Value = {_xpAfter} / {XP_PER_LEVEL}");
             }
 
-            // Update progress bar fill based on xp from DB + gained XP
-            const int xpPerLevelConst = 1000;
-            int xpInCurr = _xpAfter % xpPerLevelConst;
-            float percent = xpPerLevelConst > 0 ? (xpInCurr * 100f / xpPerLevelConst) : 0f;
+            // Cập nhật thanh XP bar
+            const int XP_PER_LEVEL_CONST = 1000;
+            float percent = XP_PER_LEVEL_CONST > 0 ? (_xpAfter * 100f / XP_PER_LEVEL_CONST) : 0f;
 
             if (pnl_XPBarFill != null && pnl_XPBarContainer != null)
             {
                 int maxWidth = pnl_XPBarContainer.Width;
                 int fillWidth = (int)(maxWidth * (percent / 100f));
+
+                // Clamp giá trị
                 if (fillWidth < 0) fillWidth = 0;
                 if (fillWidth > maxWidth) fillWidth = maxWidth;
+
                 pnl_XPBarFill.Width = fillWidth;
+
+                Console.WriteLine($"[TinhXP] UI: XP Bar = {_xpAfter}/{XP_PER_LEVEL_CONST} = {percent:F1}% (width: {fillWidth}px / {maxWidth}px)");
             }
+
+            Console.WriteLine($"[TinhXP] ✅ UI Update Complete");
         }
 
         private void btn_Continue_Click(object sender, EventArgs e)
         {
-            this.Close();
+            Close();
         }
 
-        /// <summary>Play level up sound from resources</summary>
         private void PlayLevelUpSound()
         {
-            try
-            {
-                // Try to play level_up resource (check if it exists in Resources)
-                try
-                {
-                    // First, try using SoundManager if it has a LevelUp enum
-                    var seType = typeof(DoAn_NT106.Client.Class.SoundEffect);
-                    if (Enum.IsDefined(seType, "LevelUp"))
-                    {
-                        var levelUpEffect = (DoAn_NT106.Client.Class.SoundEffect)Enum.Parse(seType, "LevelUp");
-                        DoAn_NT106.Client.Class.SoundManager.PlaySound(levelUpEffect);
-                        Console.WriteLine("[TinhXP] ✅ Level up sound played via SoundManager");
-                        return;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[TinhXP] SoundManager LevelUp not found: {ex.Message}");
-                }
-
-                // Fallback: Try to get level_up from resources directly
-                try
-                {
-                    var obj = Properties.Resources.ResourceManager.GetObject("level_up");
-                    if (obj != null)
-                    {
-                        byte[] audioBytes = null;
-                        
-                        if (obj is byte[] bb)
-                        {
-                            audioBytes = bb;
-                        }
-                        else if (obj is System.IO.UnmanagedMemoryStream ums)
-                        {
-                            using var tmp = new System.IO.MemoryStream();
-                            ums.CopyTo(tmp);
-                            audioBytes = tmp.ToArray();
-                        }
-                        else if (obj is System.IO.Stream s)
-                        {
-                            using var tmp = new System.IO.MemoryStream();
-                            s.Position = 0;
-                            s.CopyTo(tmp);
-                            audioBytes = tmp.ToArray();
-                        }
-
-                        if (audioBytes != null && audioBytes.Length > 0)
-                        {
-                            // Try NAudio for MP3 support
-                            try
-                            {
-                                var ms = new System.IO.MemoryStream(audioBytes);
-                                var reader = new NAudio.Wave.Mp3FileReader(ms);
-                                var wo = new NAudio.Wave.WaveOutEvent();
-                                wo.Init(reader);
-                                wo.PlaybackStopped += (s, e) =>
-                                {
-                                    try { wo.Dispose(); } catch { }
-                                    try { reader.Dispose(); } catch { }
-                                    try { ms.Dispose(); } catch { }
-                                };
-                                wo.Play();
-                                Console.WriteLine("[TinhXP] ✅ Level up sound played via NAudio");
-                                return;
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine($"[TinhXP] NAudio play failed: {ex.Message}");
-                            }
-
-                            // Fallback: Try SoundPlayer for WAV
-                            try
-                            {
-                                using var player = new System.Media.SoundPlayer(new System.IO.MemoryStream(audioBytes));
-                                player.PlaySync();
-                                Console.WriteLine("[TinhXP] ✅ Level up sound played via SoundPlayer");
-                                return;
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine($"[TinhXP] SoundPlayer play failed: {ex.Message}");
-                            }
-                        }
-                    }
-                    else
-                    {
-                        Console.WriteLine("[TinhXP] ⚠️ 'level_up' resource not found in Resources");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[TinhXP] Resource lookup failed: {ex.Message}");
-                }
-
-                // Final fallback: Play system beep
-                try
-                {
-                    System.Media.SystemSounds.Exclamation.Play();
-                    Console.WriteLine("[TinhXP] ✅ Level up - system beep played (fallback)");
-                }
-                catch { }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[TinhXP] PlayLevelUpSound error: {ex.Message}");
-            }
+            // You can use System.Media.SoundPlayer or any other method to play a sound.
+            // For demonstration, this will just beep.
+            System.Media.SystemSounds.Exclamation.Play();
         }
-
-        // Removed server fetch/update methods; DB is used as source of truth
     }
 
     public enum MatchReturnMode
@@ -363,7 +393,6 @@ namespace DoAn_NT106.Client
         public int AttackCount { get; set; }
         public int SkillCount { get; set; }
 
-        // Thuộc tính XP thêm vào
         public int Xp { get; set; }
     }
 }

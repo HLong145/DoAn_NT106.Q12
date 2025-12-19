@@ -1916,13 +1916,19 @@ catch (Exception ex)
                     return CreateResponse(false, "Username is required");
                 }
 
-                int xp = dbService.GetPlayerXp(username);
-                server.Log($"🎯 HandleGetPlayerXp: {username} has {xp} XP");
+                if (!dbService.GetPlayerXpAndLevel(username, out var xp, out var totalXp, out var level))
+                {
+                    return CreateResponse(false, "Player not found");
+                }
+
+                server.Log($"🎯 HandleGetPlayerXp: {username} XP={xp}, TOTAL_XP={totalXp}, LEVEL={level}");
 
                 return CreateResponse(true, "Player XP retrieved", new Dictionary<string, object>
-            {
-                { "xp", xp }
-            });
+                {
+                    { "xp", xp },
+                    { "totalXp", totalXp },
+                    { "level", level }
+                });
             }
             catch (Exception ex)
             {
@@ -1942,48 +1948,27 @@ catch (Exception ex)
                     return CreateResponse(false, "Username is required");
                 }
 
-                // Lấy xpAfter và xpNeededForNextLevel từ client
-                if (!request.Data.TryGetValue("xpAfter", out var xpAfterObj) ||
-                    !int.TryParse(xpAfterObj?.ToString(), out var xpAfter))
+                if (!request.Data.TryGetValue("gainedXp", out var gainedXpObj) ||
+                    !int.TryParse(gainedXpObj?.ToString(), out var gainedXp))
                 {
-                    return CreateResponse(false, "xpAfter is required and must be int");
+                    return CreateResponse(false, "gainedXp is required and must be int");
                 }
 
-                if (!request.Data.TryGetValue("xpNeededForNextLevel", out var totalXpObj) ||
-                    !int.TryParse(totalXpObj?.ToString(), out var totalXpForLevel))
+                server.Log($"🎯 HandleUpdatePlayerXp: {username} gained {gainedXp} XP");
+
+                if (!dbService.UpdatePlayerXpAndLevel(username, gainedXp, out var newXp, out var newTotalXp, out var newLevel))
                 {
-                    totalXpForLevel = xpAfter; // fallback an toàn
+                    return CreateResponse(false, "Failed to update XP/Level in database");
                 }
 
-                // Optional: levelAfter, isWin, stats (có thể dùng sau để log)
-                int levelAfter = 1;
-                if (request.Data.TryGetValue("levelAfter", out var levelObj))
+                server.Log($"✅ XP updated: {username} XP={newXp}, TOTAL_XP={newTotalXp}, LEVEL={newLevel}");
+
+                return CreateResponse(true, "Player XP/Level updated", new Dictionary<string, object>
                 {
-                    int.TryParse(levelObj?.ToString(), out levelAfter);
-                }
-
-                bool isWin = false;
-                if (request.Data.TryGetValue("isWin", out var winObj))
-                {
-                    bool.TryParse(winObj?.ToString(), out isWin);
-                }
-
-                server.Log($"🎯 HandleUpdatePlayerXp: {username} -> XP={xpAfter}, Level={levelAfter}, TotalXP={totalXpForLevel}, Win={isWin}");
-
-                bool ok = dbService.UpdatePlayerXp(username, xpAfter, totalXpForLevel);
-
-                if (!ok)
-                {
-                    return CreateResponse(false, "Failed to update XP in database");
-                }
-
-                // Optionally cập nhật level nếu bạn muốn dùng levelAfter:
-                if (levelAfter > 0)
-                {
-                    dbService.UpdatePlayerLevel(username, levelAfter);
-                }
-
-                return CreateResponse(true, "Player XP updated");
+                    { "xp", newXp },
+                    { "totalXp", newTotalXp },
+                    { "level", newLevel }
+                });
             }
             catch (Exception ex)
             {

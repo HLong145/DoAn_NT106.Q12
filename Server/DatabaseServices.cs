@@ -213,94 +213,218 @@ namespace DoAn_NT106.Server
             }
         }
 
-        public int GetPlayerXp(string username)
+        /// <summary>
+        /// Lấy XP hiện tại, TOTAL_XP và USER_LEVEL từ database
+        /// </summary>
+        public bool GetPlayerXpAndLevel(string username, out int xp, out int totalXp, out int level)
         {
-            // Example implementation: adjust table/column names as needed
-            using (var connection = new SqlConnection(connectionString))
-            {
-                connection.Open();
-                using (var command = new SqlCommand("SELECT XP FROM PLAYERS WHERE Username = @Username", connection))
-                {
-                    command.Parameters.AddWithValue("@Username", username);
-                    var result = command.ExecuteScalar();
-                    if (result != null && int.TryParse(result.ToString(), out int xp))
-                    {
-                        return xp;
-                    }
-                    return 0;
-                }
-            }
-        }
-
-        public bool UpdatePlayerXp(string username, int newXp, int totalXpForLevel)
-        {
-            // Example implementation, adjust table/column names as needed
-            using (var connection = new SqlConnection(connectionString))
-            {
-                connection.Open();
-                using (var command = new SqlCommand(
-                    "UPDATE PLAYERS SET XP = @xp, TOTAL_XP = @totalXp WHERE USERNAME = @username", connection))
-                {
-                    command.Parameters.AddWithValue("@xp", newXp);
-                    command.Parameters.AddWithValue("@totalXp", totalXpForLevel);
-                    command.Parameters.AddWithValue("@username", username);
-                    int rows = command.ExecuteNonQuery();
-                    return rows > 0;
-                }
-            }
-        }
-
-        public bool GetPlayerLevel(string username, out int level)
-        {
+            xp = 0;
+            totalXp = 1000;
             level = 1;
+
             try
             {
                 using (var connection = new SqlConnection(connectionString))
                 {
                     connection.Open();
+
+                    // Đầu tiên, đảm bảo user có giá trị XP hợp lệ
+                    using (var initCmd = new SqlCommand(
+                        @"UPDATE PLAYERS 
+                  SET USER_LEVEL = ISNULL(USER_LEVEL, 1),
+                      XP = ISNULL(XP, 0),
+                      TOTAL_XP = ISNULL(TOTAL_XP, 1000)
+                  WHERE USERNAME = @Username 
+                    AND (USER_LEVEL IS NULL OR XP IS NULL OR TOTAL_XP IS NULL)",
+                        connection))
+                    {
+                        initCmd.Parameters.AddWithValue("@Username", username);
+                        initCmd.ExecuteNonQuery();
+                    }
+
+                    // Sau đó lấy dữ liệu
                     using (var command = new SqlCommand(
-                               "SELECT USER_LEVEL FROM PLAYERS WHERE USERNAME = @Username",
-                               connection))
+                        "SELECT XP, TOTAL_XP, USER_LEVEL FROM PLAYERS WHERE USERNAME = @Username",
+                        connection))
                     {
                         command.Parameters.AddWithValue("@Username", username);
-                        var result = command.ExecuteScalar();
-                        if (result != null && int.TryParse(result.ToString(), out var lvl))
+                        using (var reader = command.ExecuteReader())
                         {
-                            level = lvl <= 0 ? 1 : lvl;
+                            if (!reader.Read())
+                            {
+                                Console.WriteLine($"❌ GetPlayerXpAndLevel: User {username} not found");
+                                return false;
+                            }
+
+                            xp = reader["XP"] != DBNull.Value ? Convert.ToInt32(reader["XP"]) : 0;
+                            level = reader["USER_LEVEL"] != DBNull.Value ? Convert.ToInt32(reader["USER_LEVEL"]) : 1;
+                            totalXp = reader["TOTAL_XP"] != DBNull.Value ? Convert.ToInt32(reader["TOTAL_XP"]) : 1000;
+
+                            // Validation
+                            if (level <= 0) level = 1;
+                            if (xp < 0) xp = 0;
+                            if (totalXp <= 0) totalXp = level * 1000;
+
+                            Console.WriteLine($"✅ GetPlayerXpAndLevel: {username} - XP={xp}, TotalXP={totalXp}, Level={level}");
+                            return true;
                         }
                     }
                 }
-                return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ GetPlayerLevel error for {username}: {ex.Message}");
-                level = 1;
+                Console.WriteLine($"❌ GetPlayerXpAndLevel error for {username}: {ex.Message}");
                 return false;
             }
         }
 
-        public bool UpdatePlayerLevel(string username, int newLevel)
+        /// <summary>
+        /// Cập nhật XP và Level cho player
+        /// Logic: 
+        /// - Thắng: +100 XP
+        /// - Thua: +40 XP
+        /// - Mỗi level cần 1000 XP
+        /// - XP là XP hiện tại trong level (0-999)
+        /// - TOTAL_XP là ngưỡng cần đạt cho level đó (level 1 = 1000, level 2 = 2000, ...)
+        /// - Khi XP >= 1000 thì level++, XP -= 1000, TOTAL_XP += 1000
+        /// </summary>
+        public bool UpdatePlayerXpAndLevel(string username, int gainedXp, out int newXp, out int newTotalXp, out int newLevel)
         {
+            newXp = 0;
+            newTotalXp = 1000;
+            newLevel = 1;
+
             try
             {
                 using (var connection = new SqlConnection(connectionString))
                 {
                     connection.Open();
-                    using (var command = new SqlCommand(
-                               "UPDATE PLAYERS SET USER_LEVEL = @Level WHERE USERNAME = @Username",
-                               connection))
+
+                    int currentXp = 0;
+                    int currentTotalXp = 1000;
+                    int currentLevel = 1;
+
+                    // 1. Đảm bảo user có giá trị XP hợp lệ
+                    using (var initCmd = new SqlCommand(
+                        @"UPDATE PLAYERS 
+                  SET USER_LEVEL = ISNULL(USER_LEVEL, 1),
+                      XP = ISNULL(XP, 0),
+                      TOTAL_XP = ISNULL(TOTAL_XP, 1000)
+                  WHERE USERNAME = @Username 
+                    AND (USER_LEVEL IS NULL OR XP IS NULL OR TOTAL_XP IS NULL)",
+                        connection))
                     {
-                        command.Parameters.AddWithValue("@Level", newLevel);
-                        command.Parameters.AddWithValue("@Username", username);
-                        int rows = command.ExecuteNonQuery();
-                        return rows > 0;
+                        initCmd.Parameters.AddWithValue("@Username", username);
+                        int affected = initCmd.ExecuteNonQuery();
+                        if (affected > 0)
+                        {
+                            Console.WriteLine($"⚠️ Initialized NULL values for {username}");
+                        }
+                    }
+
+                    // 2. Lấy thông tin hiện tại
+                    using (var selectCmd = new SqlCommand(
+                        "SELECT XP, TOTAL_XP, USER_LEVEL FROM PLAYERS WHERE USERNAME = @Username",
+                        connection))
+                    {
+                        selectCmd.Parameters.AddWithValue("@Username", username);
+                        using (var reader = selectCmd.ExecuteReader())
+                        {
+                            if (!reader.Read())
+                            {
+                                Console.WriteLine($"❌ User {username} not found");
+                                return false;
+                            }
+
+                            currentXp = reader["XP"] != DBNull.Value ? Convert.ToInt32(reader["XP"]) : 0;
+                            currentLevel = reader["USER_LEVEL"] != DBNull.Value ? Convert.ToInt32(reader["USER_LEVEL"]) : 1;
+                            currentTotalXp = reader["TOTAL_XP"] != DBNull.Value ? Convert.ToInt32(reader["TOTAL_XP"]) : 1000;
+
+                            // Validation
+                            if (currentLevel <= 0) currentLevel = 1;
+                            if (currentXp < 0) currentXp = 0;
+                            if (currentTotalXp <= 0) currentTotalXp = currentLevel * 1000;
+                        }
+                    }
+
+                    Console.WriteLine($"📊 BEFORE UPDATE: {username} - XP={currentXp}, Level={currentLevel}, TotalXP={currentTotalXp}, Gained={gainedXp}");
+
+                    // 3. Cộng XP mới vào
+                    newXp = currentXp + gainedXp;
+                    newLevel = currentLevel;
+                    newTotalXp = currentTotalXp;
+
+                    // 4. Xử lý lên level (có thể lên nhiều level nếu đủ XP)
+                    const int XP_PER_LEVEL = 1000;
+                    int levelUps = 0;
+
+                    while (newXp >= XP_PER_LEVEL)
+                    {
+                        newXp -= XP_PER_LEVEL;      // Trừ 1000 XP đã dùng
+                        newLevel++;                  // Tăng level
+                        newTotalXp += XP_PER_LEVEL;  // Tăng ngưỡng
+                        levelUps++;
+
+                        Console.WriteLine($"📈 LEVEL UP #{levelUps}! New Level={newLevel}, Remaining XP={newXp}, New TotalXP={newTotalXp}");
+                    }
+
+                    Console.WriteLine($"📊 AFTER CALCULATION: {username} - XP={newXp}, Level={newLevel}, TotalXP={newTotalXp}");
+
+                    // 5. Cập nhật vào database
+                    using (var updateCmd = new SqlCommand(
+                        @"UPDATE PLAYERS 
+                  SET XP = @Xp,
+                      TOTAL_XP = @TotalXp,
+                      USER_LEVEL = @Level
+                  WHERE USERNAME = @Username",
+                        connection))
+                    {
+                        updateCmd.Parameters.AddWithValue("@Xp", newXp);
+                        updateCmd.Parameters.AddWithValue("@TotalXp", newTotalXp);
+                        updateCmd.Parameters.AddWithValue("@Level", newLevel);
+                        updateCmd.Parameters.AddWithValue("@Username", username);
+
+                        int rows = updateCmd.ExecuteNonQuery();
+
+                        if (rows > 0)
+                        {
+                            Console.WriteLine($"✅ DATABASE UPDATED: {username} - XP={newXp}/{XP_PER_LEVEL}, Level={newLevel}, TotalXP={newTotalXp}");
+
+                            // Verify update
+                            using (var verifyCmd = new SqlCommand(
+                                "SELECT XP, TOTAL_XP, USER_LEVEL FROM PLAYERS WHERE USERNAME = @Username",
+                                connection))
+                            {
+                                verifyCmd.Parameters.AddWithValue("@Username", username);
+                                using (var verifyReader = verifyCmd.ExecuteReader())
+                                {
+                                    if (verifyReader.Read())
+                                    {
+                                        int verifyXp = Convert.ToInt32(verifyReader["XP"]);
+                                        int verifyLevel = Convert.ToInt32(verifyReader["USER_LEVEL"]);
+                                        int verifyTotal = Convert.ToInt32(verifyReader["TOTAL_XP"]);
+                                        Console.WriteLine($"✅ VERIFIED: XP={verifyXp}, Level={verifyLevel}, TotalXP={verifyTotal}");
+                                    }
+                                }
+                            }
+
+                            return true;
+                        }
+                        else
+                        {
+                            Console.WriteLine($"❌ UPDATE FAILED: No rows affected");
+                            return false;
+                        }
                     }
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ UpdatePlayerLevel error for {username}: {ex.Message}");
+                Console.WriteLine($"❌ UpdatePlayerXpAndLevel error for {username}: {ex.Message}");
+                Console.WriteLine($"❌ Stack trace: {ex.StackTrace}");
+                newXp = 0;
+                newTotalXp = 1000;
+                newLevel = 1;
                 return false;
             }
         }
@@ -1019,6 +1143,70 @@ namespace DoAn_NT106.Server
                 Console.WriteLine($"❌ CleanupInactiveRooms error: {ex.Message}");
             }
             return 0;
+        }
+
+        //Xử lý XP
+        public bool UpdatePlayerXpAndLevel(string username, int gainedXp)
+        {
+            try
+            {
+                using (var connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+
+                    // 1. Lấy XP hiện tại, TOTAL_XP và LEVEL
+                    int currentXp = 0;
+                    int totalXp = 0;
+                    int level = 1;
+
+                    using (var selectCmd = new SqlCommand(
+                               "SELECT XP, TOTAL_XP, USER_LEVEL FROM PLAYERS WHERE USERNAME = @Username",
+                               connection))
+                    {
+                        selectCmd.Parameters.AddWithValue("@Username", username);
+                        using (var reader = selectCmd.ExecuteReader())
+                        {
+                            if (!reader.Read())
+                            {
+                                return false; // user không tồn tại
+                            }
+
+                            currentXp = reader["XP"] != DBNull.Value ? Convert.ToInt32(reader["XP"]) : 0;
+                            totalXp = reader["TOTAL_XP"] != DBNull.Value ? Convert.ToInt32(reader["TOTAL_XP"]) : 0;
+                            level = reader["USER_LEVEL"] != DBNull.Value ? Convert.ToInt32(reader["USER_LEVEL"]) : 1;
+                        }
+                    }
+
+                    // 2. Cộng XP mới
+                    currentXp += gainedXp;
+
+                    // 3. Tính level mới dựa trên TOTAL_XP (mỗi level 1000 XP)
+                    int newLevel = (currentXp / 1000) + 1;
+                    if (newLevel <= 0) newLevel = 1;
+
+                    // 4. Cập nhật DB
+                    using (var updateCmd = new SqlCommand(
+                               @"UPDATE PLAYERS 
+                         SET XP = @Xp,
+                             TOTAL_XP = @TotalXp,
+                             USER_LEVEL = @Level
+                         WHERE USERNAME = @Username",
+                               connection))
+                    {
+                        updateCmd.Parameters.AddWithValue("@Xp", currentXp);
+                        updateCmd.Parameters.AddWithValue("@TotalXp", newLevel * 1000);
+                        updateCmd.Parameters.AddWithValue("@Level", newLevel);
+                        updateCmd.Parameters.AddWithValue("@Username", username);
+                        int rows = updateCmd.ExecuteNonQuery();
+                        return rows > 0;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ UpdatePlayerXpAndLevel error for {username}: {ex.Message}");
+                return false;
+            }
         }
 
         #endregion
