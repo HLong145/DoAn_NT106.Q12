@@ -11,15 +11,15 @@ namespace DoAn_NT106.Client
     public partial class TinhXP : Form
     {
         private readonly MatchResult _result;
-        private int _gainedXp;      // 100 (win) hoặc 40 (lose)
+        private int _gainedXp;      // XP được cộng (100 win / 40 lose)
         private int _xpBefore;      // XP trước trận (0-999)
         private int _xpAfter;       // XP sau trận (0-999)
         private int _levelBefore;   // Level trước trận
         private int _levelAfter;    // Level sau trận
-        private int _totalXpBefore; // Ngưỡng XP trước (1000, 2000, ...)
-        private int _totalXpAfter;  // Ngưỡng XP sau
-        private bool _xpFromServer = false; // Flag để biết XP đã được tính từ server chưa
+        private int _totalXpBefore; // Ngưỡng XP cần để lên level tiếp theo
+        private int _totalXpAfter;  // Ngưỡng XP sau khi tăng level
 
+        // Constructor 1: Nhận MatchResult và tự request XP từ server
         public TinhXP(MatchResult result)
         {
             InitializeComponent();
@@ -29,6 +29,8 @@ namespace DoAn_NT106.Client
 
             _ = LoadAndDisplayXpAsync();
         }
+
+        // Constructor 2: Nhận XP data trực tiếp từ server (XP_RESULT broadcast)
         public TinhXP(MatchResult result, int gainedXp, int oldXp, int newXp, int oldLevel, int newLevel, int totalXp)
         {
             InitializeComponent();
@@ -44,7 +46,6 @@ namespace DoAn_NT106.Client
             _levelAfter = newLevel;
             _totalXpBefore = oldLevel * 1000;
             _totalXpAfter = totalXp;
-            _xpFromServer = true;
 
             Console.WriteLine($"[TinhXP] 📊 XP FROM SERVER: Gained={_gainedXp}, {_xpBefore}→{_xpAfter}, Level {_levelBefore}→{_levelAfter}");
 
@@ -238,7 +239,21 @@ namespace DoAn_NT106.Client
                         _totalXpAfter = update.newTotalXp;
                         _levelAfter = update.newLevel;
 
-                        Console.WriteLine($"[TinhXP] 📊 AFTER MATCH: XP={_xpAfter}, TotalXP={_totalXpAfter}, Level={_levelAfter}");
+                        Console.WriteLine($"[TinhXP] 📊 AFTER UPDATE (from server): XP={_xpAfter}, TotalXP={_totalXpAfter}, Level={_levelAfter}");
+
+                        // ⚠️ CRITICAL: Chờ 200ms để database commit xong
+                        await Task.Delay(200);
+
+                        // ⚠️ REQUEST LẠI để lấy dữ liệu CHÍNH XÁC từ database
+                        Console.WriteLine($"[TinhXP] 🔄 Requesting FRESH data from database...");
+                        var freshData = await RequestPlayerXpAsync(_result.PlayerUsername, _result.Token);
+
+                        // Cập nhật lại với dữ liệu MỚI NHẤT từ database
+                        _xpAfter = freshData.xp;
+                        _totalXpAfter = freshData.totalXp;
+                        _levelAfter = freshData.level;
+
+                        Console.WriteLine($"[TinhXP] ✅ FRESH DATA FROM DB: XP={_xpAfter}, TotalXP={_totalXpAfter}, Level={_levelAfter}");
                     }
                     else
                     {
@@ -283,7 +298,7 @@ namespace DoAn_NT106.Client
         }
 
         /// <summary>
-        /// Tính toán XP local nếu server không phản hồi
+        /// Tính toán XP local nếu server không phản hồi (fallback)
         /// </summary>
         private void CalculateXpLocally()
         {
@@ -308,20 +323,20 @@ namespace DoAn_NT106.Client
         {
             Console.WriteLine($"[TinhXP] 🎨 Updating UI...");
 
-            // Hiển thị XP earned (chỉ là số XP được cộng thêm)
+            // 1. Hiển thị XP earned (XP được cộng thêm)
             if (lbl_XPEarnedValue != null)
             {
                 lbl_XPEarnedValue.Text = $"+{_gainedXp} XP";
                 Console.WriteLine($"[TinhXP] UI: XP Earned = +{_gainedXp} XP");
             }
 
-            // Hiển thị tên player
+            // 2. Hiển thị tên player
             if (lbl_PlayerValue != null)
             {
                 lbl_PlayerValue.Text = _result.PlayerUsername ?? "PLAYER";
             }
 
-            // Hiển thị kết quả (WIN/LOSE)
+            // 3. Hiển thị kết quả (WIN/LOSE)
             if (lbl_ResultValue != null)
             {
                 if (_result.PlayerIsWinner)
@@ -336,7 +351,7 @@ namespace DoAn_NT106.Client
                 }
             }
 
-            // Hiển thị thời gian trận đấu
+            // 4. Hiển thị thời gian trận đấu
             if (lbl_TimeValue != null)
             {
                 TimeSpan time = _result.MatchTime;
@@ -345,7 +360,7 @@ namespace DoAn_NT106.Client
                     : string.Format("{0:00}:{1:00}", (int)time.TotalMinutes, time.Seconds);
             }
 
-            // Hiển thị level progress
+            // 5. Hiển thị level progress (Level X → Level Y hoặc Level X)
             if (lbl_XPProgress != null)
             {
                 if (_levelAfter > _levelBefore)
@@ -361,20 +376,24 @@ namespace DoAn_NT106.Client
                 }
             }
 
-            // Hiển thị XP hiện tại / 1000 (cần để lên level tiếp theo)
+            // 6. Hiển thị XP progress value (XP hiện tại / TOTAL_XP từ database)
             if (lbl_XPProgressValue != null)
             {
-                int xpThreshold = _totalXpAfter > 0 ? _totalXpAfter : 1000;
+                // ⚠️ SỬA: Sử dụng TOTAL_XP từ database, KHÔNG hard-code 1000
+                // TOTAL_XP = Level * 1000 (Level 1 = 1000, Level 2 = 2000, Level 3 = 3000, ...)
+                int xpThreshold = _totalXpAfter > 0 ? (_levelAfter * 1000) : 1000;
                 lbl_XPProgressValue.Text = $"{_xpAfter}/{xpThreshold} XP";
                 Console.WriteLine($"[TinhXP] UI: XP Progress Value = {_xpAfter}/{xpThreshold} XP");
             }
 
-            // Cập nhật thanh XP bar dựa trên dữ liệu từ database
-            int thresholdForBar = _totalXpAfter > 0 ? _totalXpAfter : 1000;
-            float percent = thresholdForBar > 0 ? (_xpAfter * 100f / thresholdForBar) : 0f;
-
+            // 7. Cập nhật thanh XP bar (phần trăm XP trong level hiện tại)
             if (pnl_XPBarFill != null && pnl_XPBarContainer != null)
             {
+                // ⚠️ SỬA: XP bar LUÔN tính % dựa trên 1000 XP (XP cần để lên level tiếp theo)
+                // VÍ DỤ: Level 2 có XP=100 → thanh bar = 100/1000 = 10%
+                const int XP_PER_LEVEL = 1000;
+                float percent = (_xpAfter * 100f) / XP_PER_LEVEL;
+
                 int maxWidth = pnl_XPBarContainer.Width;
                 int fillWidth = (int)(maxWidth * (percent / 100f));
 
@@ -384,7 +403,7 @@ namespace DoAn_NT106.Client
 
                 pnl_XPBarFill.Width = fillWidth;
 
-                Console.WriteLine($"[TinhXP] UI: XP Bar = {_xpAfter}/{thresholdForBar} = {percent:F1}% (width: {fillWidth}px / {maxWidth}px)");
+                Console.WriteLine($"[TinhXP] UI: XP Bar = {_xpAfter}/{XP_PER_LEVEL} = {percent:F1}% (width: {fillWidth}px / {maxWidth}px)");
             }
 
             Console.WriteLine($"[TinhXP] ✅ UI Update Complete");
@@ -397,8 +416,6 @@ namespace DoAn_NT106.Client
 
         private void PlayLevelUpSound()
         {
-            // You can use System.Media.SoundPlayer or any other method to play a sound.
-            // For demonstration, this will just beep.
             System.Media.SystemSounds.Exclamation.Play();
         }
     }
@@ -430,4 +447,3 @@ namespace DoAn_NT106.Client
         public int Xp { get; set; }
     }
 }
-
