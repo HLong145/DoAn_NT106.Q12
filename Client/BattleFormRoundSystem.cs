@@ -994,27 +994,99 @@ namespace DoAn_NT106.Client
                 totalMatchTime = TimeSpan.Zero;
             }
 
-            // Tạo MatchResult để truyền sang form TinhXP
-            var result = new DoAn_NT106.Client.MatchResult
+            if (isOnlineMode && !string.IsNullOrEmpty(roomCode) && roomCode != "000000")
             {
-                PlayerUsername = username,
-                OpponentUsername = opponent,
-                PlayerIsWinner = localPlayerIsWinner,
-                MatchTime = totalMatchTime,
-                PlayerWins = _player1Wins,
-                OpponentWins = _player2Wins,
-                ParryCount = winnerIsPlayer1 ? (player1State?.ParryCount ?? 0) : (player2State?.ParryCount ?? 0),
-                AttackCount = winnerIsPlayer1 ? (player1State?.AttackCount ?? 0) : (player2State?.AttackCount ?? 0),
-                SkillCount = winnerIsPlayer1 ? (player1State?.SkillCount ?? 0) : (player2State?.SkillCount ?? 0)
+                // CẢ 2 CLIENT ĐỀU GỬI - Server sẽ loại bỏ duplicate
+                try
+                {
+                    // Lấy stats của cả 2 player
+                    int winnerParry = 0, winnerAttack = 0, winnerSkill = 0;
+                    int loserParry = 0, loserAttack = 0, loserSkill = 0;
+                    bool winnerNoRoundLost = false;
+                    bool loserNoRoundLost = false;
+
+                    if (winnerIsPlayer1)
+                    {
+                        winnerParry = player1State?.ParryCount ?? 0;
+                        winnerAttack = player1State?.AttackCount ?? 0;
+                        winnerSkill = player1State?.SkillCount ?? 0;
+                        winnerNoRoundLost = _player2Wins == 0; // Winner không thua round nào
+
+                        loserParry = player2State?.ParryCount ?? 0;
+                        loserAttack = player2State?.AttackCount ?? 0;
+                        loserSkill = player2State?.SkillCount ?? 0;
+                        loserNoRoundLost = _player1Wins == 0;
+                    }
+                    else
+                    {
+                        winnerParry = player2State?.ParryCount ?? 0;
+                        winnerAttack = player2State?.AttackCount ?? 0;
+                        winnerSkill = player2State?.SkillCount ?? 0;
+                        winnerNoRoundLost = _player1Wins == 0;
+
+                        loserParry = player1State?.ParryCount ?? 0;
+                        loserAttack = player1State?.AttackCount ?? 0;
+                        loserSkill = player1State?.SkillCount ?? 0;
+                        loserNoRoundLost = _player2Wins == 0;
+                    }
+
+                    // Xác định loser username
+                    string loserName = winnerIsPlayer1 ? p2NameFinal : p1NameFinal;
+
+                    var matchResultData = new Dictionary<string, object>
+            {
+                { "roomCode", roomCode },
+                { "winner", winner },
+                { "loser", loserName },
+                { "winnerParryCount", winnerParry },
+                { "winnerAttackCount", winnerAttack },
+                { "winnerSkillCount", winnerSkill },
+                { "loserParryCount", loserParry },
+                { "loserAttackCount", loserAttack },
+                { "loserSkillCount", loserSkill },
+                { "winnerNoRoundLost", winnerNoRoundLost },
+                { "loserNoRoundLost", loserNoRoundLost },
+                { "matchDuration", (int)totalMatchTime.TotalSeconds }
             };
 
+                    Console.WriteLine($"[BattleForm] 📤 Sending MATCH_RESULT: Winner={winner}, Loser={loserName}");
+                    Console.WriteLine($"[BattleForm] 📊 Winner stats: Parry={winnerParry}, Attack={winnerAttack}, Skill={winnerSkill}, NoLoss={winnerNoRoundLost}");
+                    Console.WriteLine($"[BattleForm] 📊 Loser stats: Parry={loserParry}, Attack={loserAttack}, Skill={loserSkill}, NoLoss={loserNoRoundLost}");
 
-
-            // Mở form tính XP sau khi nhấn OK
-            using (var xpForm = new DoAn_NT106.Client.TinhXP(result))
+                    // Gửi lên server - server sẽ tính XP và broadcast XP_RESULT
+                    var _ = PersistentTcpClient.Instance.SendRequestAsync("MATCH_RESULT", matchResultData, 10000);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[BattleForm] ❌ Failed to send MATCH_RESULT: {ex.Message}");
+                }
+            }
+            // Không mở TinhXP ở đây - sẽ mở khi nhận được XP_RESULT broadcast từ server
+            else if (!isOnlineMode)
             {
-                xpForm.StartPosition = FormStartPosition.CenterScreen;
-                xpForm.ShowDialog(this);
+                Console.WriteLine($"[BattleForm] 🎮 Offline mode - calculating XP locally");
+
+                var result = new DoAn_NT106.Client.MatchResult
+                {
+                    PlayerUsername = username,
+                    OpponentUsername = opponent,
+                    PlayerIsWinner = localPlayerIsWinner,
+                    MatchTime = totalMatchTime,
+                    PlayerWins = _player1Wins,
+                    OpponentWins = _player2Wins,
+                    ParryCount = winnerIsPlayer1 ? (player1State?.ParryCount ?? 0) : (player2State?.ParryCount ?? 0),
+                    AttackCount = winnerIsPlayer1 ? (player1State?.AttackCount ?? 0) : (player2State?.AttackCount ?? 0),
+                    SkillCount = winnerIsPlayer1 ? (player1State?.SkillCount ?? 0) : (player2State?.SkillCount ?? 0),
+                    RoomCode = roomCode,
+                    Token = token
+                };
+
+                // Mở TinhXP với constructor cũ (tính local)
+                using (var xpForm = new DoAn_NT106.Client.TinhXP(result))
+                {
+                    xpForm.StartPosition = FormStartPosition.CenterScreen;
+                    xpForm.ShowDialog(this);
+                }
             }
 
             // Close BattleForm only if user requested return earlier

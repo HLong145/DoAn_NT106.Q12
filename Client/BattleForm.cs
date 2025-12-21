@@ -252,19 +252,100 @@ namespace DoAn_NT106.Client
         {
             try
             {
-                if (string.Equals(action, "GAME_ENDED", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(action, "GAME_END", StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(action, "GAME_ENDED", StringComparison.OrdinalIgnoreCase))
                 {
-                    var roomCodeProp = data.TryGetProperty("roomCode", out var rc) ? rc.GetString() : null;
+                    string roomCodeProp = data.TryGetProperty("roomCode", out var src) ? src.GetString() : null;
                     if (!string.IsNullOrEmpty(roomCodeProp) && !string.Equals(roomCodeProp, roomCode, StringComparison.OrdinalIgnoreCase)) return;
 
                     var winner = data.TryGetProperty("winner", out var w) ? w.GetString() : null;
+                    var reason = data.TryGetProperty("reason", out var r) ? r.GetString() : null;
+
+                    // GAME_ENDED có kèm XP data không (forfeit case)
+                    bool hasXpData = data.TryGetProperty("hasXpData", out var hxd) && hxd.GetBoolean();
+
+                    Console.WriteLine($"[BattleForm] 📥 GAME_ENDED: winner={winner}, reason={reason}, hasXpData={hasXpData}");
 
                     this.BeginInvoke(new Action(() =>
                     {
                         try
                         {
-                            EndMatch(winner);
+                            // NẾU CÓ XP DATA (forfeit case) - Hiển thị TinhXP trực tiếp
+                            if (hasXpData && data.TryGetProperty("xpData", out var xpDataElement))
+                            {
+                                Console.WriteLine($"[BattleForm] 🎯 Forfeit with XP data - showing TinhXP directly");
+
+                                // Parse XP data
+                                string xpUsername = xpDataElement.TryGetProperty("username", out var xun) ? xun.GetString() : null;
+                                bool isWinner = xpDataElement.TryGetProperty("isWinner", out var xiw) && xiw.GetBoolean();
+                                int gainedXp = xpDataElement.TryGetProperty("gainedXp", out var xgx) ? xgx.GetInt32() : 0;
+                                int oldXp = xpDataElement.TryGetProperty("oldXp", out var xox) ? xox.GetInt32() : 0;
+                                int newXp = xpDataElement.TryGetProperty("newXp", out var xnx) ? xnx.GetInt32() : 0;
+                                int oldLevel = xpDataElement.TryGetProperty("oldLevel", out var xol) ? xol.GetInt32() : 1;
+                                int newLevel = xpDataElement.TryGetProperty("newLevel", out var xnl) ? xnl.GetInt32() : 1;
+                                int totalXp = xpDataElement.TryGetProperty("totalXp", out var xtx) ? xtx.GetInt32() : 1000;
+                                int matchDuration = xpDataElement.TryGetProperty("matchDuration", out var xmd) ? xmd.GetInt32() : 0;
+
+                                // Stop timers và set match ended
+                                _matchEnded = true;
+                                _roundInProgress = false;
+                                try { _roundTimer?.Stop(); } catch { }
+                                try { gameTimer?.Stop(); } catch { }
+                                try { walkAnimationTimer?.Stop(); } catch { }
+
+                                // Show MatchResultForm trước
+                                try
+                                {
+                                    string loserName = string.Equals(winner, username, StringComparison.OrdinalIgnoreCase)
+                                        ? opponent : username;
+
+                                    var resultForm = new MatchResultForm();
+                                    resultForm.SetMatchResult(winner, loserName, 2, 0, MatchEndReason.Forfeit,
+                                        player1State?.PlayerName ?? username,
+                                        player2State?.PlayerName ?? opponent);
+                                    resultForm.ShowDialog();
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine($"[BattleForm] Error showing MatchResultForm: {ex.Message}");
+                                }
+
+                                // Show TinhXP với XP từ server
+                                try
+                                {
+                                    var result = new DoAn_NT106.Client.MatchResult
+                                    {
+                                        PlayerUsername = username,
+                                        OpponentUsername = opponent,
+                                        PlayerIsWinner = isWinner,
+                                        MatchTime = TimeSpan.FromSeconds(matchDuration),
+                                        PlayerWins = isWinner ? 2 : 0,
+                                        OpponentWins = isWinner ? 0 : 2,
+                                        RoomCode = roomCode,
+                                        Token = token,
+                                        Xp = gainedXp
+                                    };
+
+                                    using (var xpForm = new DoAn_NT106.Client.TinhXP(
+                                        result, gainedXp, oldXp, newXp, oldLevel, newLevel, totalXp))
+                                    {
+                                        xpForm.StartPosition = FormStartPosition.CenterScreen;
+                                        xpForm.ShowDialog(this);
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine($"[BattleForm] Error showing TinhXP: {ex.Message}");
+                                }
+
+                                // Play music và close
+                                try { SoundManager.PlayMusic(BackgroundMusic.ThemeMusic, loop: true); } catch { }
+                                try { this.Close(); } catch { }
+                            }
+                            else
+                            {
+                                //  Gọi EndMatch bình thường (sẽ gửi MATCH_RESULT)
+                                EndMatch(winner);
+                            }
                         }
                         catch (Exception ex)
                         {
@@ -273,7 +354,6 @@ namespace DoAn_NT106.Client
                     }));
                     return;
                 }
-
                 // If server broadcasts PLAYER_LEFT or LOBBY_PLAYER_LEFT, treat as opponent forfeit
                 if (string.Equals(action, "PLAYER_LEFT", StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(action, "LOBBY_PLAYER_LEFT", StringComparison.OrdinalIgnoreCase))
@@ -296,6 +376,77 @@ namespace DoAn_NT106.Client
                         }));
                         return;
                     }
+                }
+
+                if (string.Equals(action, "XP_RESULT", StringComparison.OrdinalIgnoreCase))
+                {
+                    try
+                    {
+                        string xpRoomCode = data.TryGetProperty("roomCode", out var rc) ? rc.GetString() : null;
+                        if (!string.IsNullOrEmpty(xpRoomCode) &&
+                            !string.Equals(xpRoomCode, roomCode, StringComparison.OrdinalIgnoreCase))
+                        {
+                            return; // Không phải room của mình
+                        }
+
+                        string xpUsername = data.TryGetProperty("username", out var un) ? un.GetString() : null;
+
+                        // Chỉ xử lý nếu là XP của chính mình
+                        if (!string.Equals(xpUsername, username, StringComparison.OrdinalIgnoreCase))
+                        {
+                            Console.WriteLine($"[BattleForm] XP_RESULT for {xpUsername}, not me ({username}) - ignoring");
+                            return;
+                        }
+
+                        Console.WriteLine($"[BattleForm] 📥 Received XP_RESULT for {xpUsername}");
+
+                        // Parse XP data
+                        bool isWinner = data.TryGetProperty("isWinner", out var iw) && iw.GetBoolean();
+                        int gainedXp = data.TryGetProperty("gainedXp", out var gx) ? gx.GetInt32() : 0;
+                        int oldXp = data.TryGetProperty("oldXp", out var ox) ? ox.GetInt32() : 0;
+                        int newXp = data.TryGetProperty("newXp", out var nx) ? nx.GetInt32() : 0;
+                        int oldLevel = data.TryGetProperty("oldLevel", out var ol) ? ol.GetInt32() : 1;
+                        int newLevel = data.TryGetProperty("newLevel", out var nl) ? nl.GetInt32() : 1;
+                        int totalXp = data.TryGetProperty("totalXp", out var tx) ? tx.GetInt32() : 1000;
+                        int matchDuration = data.TryGetProperty("matchDuration", out var mdur) ? mdur.GetInt32() : 0;
+
+                        this.BeginInvoke(new Action(() =>
+                        {
+                            try
+                            {
+                                // Tạo MatchResult với XP từ server
+                                var result = new DoAn_NT106.Client.MatchResult
+                                {
+                                    PlayerUsername = username,
+                                    OpponentUsername = opponent,
+                                    PlayerIsWinner = isWinner,
+                                    MatchTime = TimeSpan.FromSeconds(matchDuration),
+                                    PlayerWins = _player1Wins,
+                                    OpponentWins = _player2Wins,
+                                    RoomCode = roomCode,
+                                    Token = token,
+                                    // XP từ server
+                                    Xp = gainedXp
+                                };
+
+                                // Mở form TinhXP với XP data từ server
+                                using (var xpForm = new DoAn_NT106.Client.TinhXP(result, gainedXp, oldXp, newXp, oldLevel, newLevel, totalXp))
+                                {
+                                    xpForm.StartPosition = FormStartPosition.CenterScreen;
+                                    xpForm.ShowDialog(this);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"[BattleForm] Error showing TinhXP: {ex.Message}");
+                            }
+                        }));
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[BattleForm] XP_RESULT parse error: {ex.Message}");
+                    }
+                    return;
                 }
             }
             catch (Exception ex)

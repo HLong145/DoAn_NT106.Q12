@@ -266,6 +266,10 @@ namespace DoAn_NT106.Server
         //  UDP Game Server reference
         private UDPGameServer udpGameServer;
 
+        // Cache để tránh xử lý duplicate MATCH_RESULT
+        private static readonly Dictionary<string, DateTime> _processedMatchResults = new Dictionary<string, DateTime>();
+        private static readonly object _matchResultLock = new object();
+        private const int MATCH_RESULT_EXPIRY_SECONDS = 60; // Cache 60 giây
         #endregion
 
         #region Constructor
@@ -600,6 +604,9 @@ namespace DoAn_NT106.Server
                     case "UPDATE_PLAYER_XP":
                         return HandleUpdatePlayerXp(request);
 
+                    //Handle hiển thị kết quả XP
+                    case "MATCH_RESULT":
+                        return HandleMatchResult(request);
                     default:
                         return CreateResponse(false, "Unknown action");
                 }
@@ -1153,8 +1160,55 @@ namespace DoAn_NT106.Server
                         if (!string.IsNullOrEmpty(opponentUsername))
                         {
                             var opponentClient = roomManager.GetClientHandler(roomCode, opponentUsername);
+
+                            // TÍNH XP CHO FORFEIT - Winner (opponent) và Loser (người leave)
                             try
                             {
+                                var xpCalculator = new CalculateXP();
+
+                                // Winner (người còn lại) được XP thắng + bonus không thua round
+                                int winnerGainedXp = xpCalculator.GetXP(
+                                    isWinner: true,
+                                    noRoundLost: true,  // Forfeit = không thua round nào
+                                    parryCount: 0,
+                                    comboHitCount: 0,
+                                    blockCount: 0,
+                                    skillCount: 0
+                                );
+
+                                // Loser (người leave) được XP thua
+                                int loserGainedXp = xpCalculator.GetXP(
+                                    isWinner: false,
+                                    noRoundLost: false,
+                                    parryCount: 0,
+                                    comboHitCount: 0,
+                                    blockCount: 0,
+                                    skillCount: 0
+                                );
+
+                                server.Log($"📊 Forfeit XP: Winner({opponentUsername})=+{winnerGainedXp}, Loser({username})=+{loserGainedXp}");
+
+                                // Cập nhật XP cho winner
+                                int winnerNewXp = 0, winnerNewTotalXp = 1000, winnerNewLevel = 1;
+                                int winnerOldXp = 0, winnerOldLevel = 1, winnerOldTotalXp = 1000;
+
+                                dbService.GetPlayerXpAndLevel(opponentUsername, out winnerOldXp, out winnerOldTotalXp, out winnerOldLevel);
+                                dbService.UpdatePlayerXpAndLevel(opponentUsername, winnerGainedXp,
+                                    out winnerNewXp, out winnerNewTotalXp, out winnerNewLevel);
+
+                                server.Log($"✅ Winner XP saved: {opponentUsername} Level {winnerOldLevel}→{winnerNewLevel}");
+
+                                // Cập nhật XP cho loser (người leave) - vẫn lưu vào DB dù họ offline
+                                int loserNewXp = 0, loserNewTotalXp = 1000, loserNewLevel = 1;
+                                int loserOldXp = 0, loserOldLevel = 1, loserOldTotalXp = 1000;
+
+                                dbService.GetPlayerXpAndLevel(username, out loserOldXp, out loserOldTotalXp, out loserOldLevel);
+                                dbService.UpdatePlayerXpAndLevel(username, loserGainedXp,
+                                    out loserNewXp, out loserNewTotalXp, out loserNewLevel);
+
+                                server.Log($"✅ Loser XP saved: {username} Level {loserOldLevel}→{loserNewLevel}");
+
+                                // Gửi GAME_ENDED kèm XP_RESULT cho winner
                                 var payload = new
                                 {
                                     Action = "GAME_ENDED",
@@ -1162,22 +1216,55 @@ namespace DoAn_NT106.Server
                                     {
                                         roomCode = roomCode,
                                         winner = opponentUsername,
-                                        reason = "opponent_left"
+                                        reason = "opponent_left",
+                                        // Kèm XP data luôn để client hiển thị
+                                        hasXpData = true,
+                                        xpData = new
+                                        {
+                                            username = opponentUsername,
+                                            isWinner = true,
+                                            gainedXp = winnerGainedXp,
+                                            oldXp = winnerOldXp,
+                                            newXp = winnerNewXp,
+                                            oldLevel = winnerOldLevel,
+                                            newLevel = winnerNewLevel,
+                                            totalXp = winnerNewTotalXp,
+                                            matchDuration = 0
+                                        }
                                     }
                                 };
+
                                 string json = System.Text.Json.JsonSerializer.Serialize(payload);
                                 if (opponentClient != null)
                                 {
                                     opponentClient.SendMessage(json);
-                                    server.Log($"📢 Notified opponent {opponentUsername} of forfeit win in room {roomCode}");
+                                    server.Log($"📢 Sent GAME_ENDED with XP to winner {opponentUsername}");
                                 }
                             }
                             catch (Exception ex)
                             {
-                                server.Log($"⚠️ Error notifying opponent about forfeit: {ex.Message}");
+                                server.Log($"⚠️ Error calculating forfeit XP: {ex.Message}");
+
+                                // Fallback: gửi GAME_ENDED không có XP
+                                try
+                                {
+                                    var fallbackPayload = new
+                                    {
+                                        Action = "GAME_ENDED",
+                                        Data = new
+                                        {
+                                            roomCode = roomCode,
+                                            winner = opponentUsername,
+                                            reason = "opponent_left",
+                                            hasXpData = false
+                                        }
+                                    };
+                                    string fallbackJson = System.Text.Json.JsonSerializer.Serialize(fallbackPayload);
+                                    opponentClient?.SendMessage(fallbackJson);
+                                }
+                                catch { }
                             }
                         }
-
                         try
                         {
                             var udpResult = udpGameServer.EndMatch(roomCode);
@@ -1976,6 +2063,205 @@ catch (Exception ex)
                 return CreateResponse(false, $"Error: {ex.Message}");
             }
         }
+
+
+        private string HandleMatchResult(Request request)
+        {
+            try
+            {
+                var roomCode = request.Data?["roomCode"]?.ToString();
+                var winnerUsername = request.Data?["winner"]?.ToString();
+                var loserUsername = request.Data?["loser"]?.ToString();
+
+                if (string.IsNullOrEmpty(roomCode) || string.IsNullOrEmpty(winnerUsername))
+                {
+                    return CreateResponse(false, "roomCode and winner are required");
+                }
+
+                lock (_matchResultLock)
+                {
+                    string cacheKey = $"{roomCode}";
+
+                    // Cleanup expired entries
+                    var expiredKeys = _processedMatchResults
+                        .Where(kvp => (DateTime.Now - kvp.Value).TotalSeconds > MATCH_RESULT_EXPIRY_SECONDS)
+                        .Select(kvp => kvp.Key)
+                        .ToList();
+                    foreach (var key in expiredKeys)
+                    {
+                        _processedMatchResults.Remove(key);
+                    }
+
+                    // Check if already processed
+                    if (_processedMatchResults.ContainsKey(cacheKey))
+                    {
+                        server.Log($"⚠️ MATCH_RESULT duplicate for room {roomCode} - ignoring");
+                        return CreateResponse(true, "Match result already processed (duplicate)");
+                    }
+
+                    // Mark as processed
+                    _processedMatchResults[cacheKey] = DateTime.Now;
+                    server.Log($"✅ MATCH_RESULT first request for room {roomCode} - processing");
+                }
+
+                // Stats từ client
+                int winnerParryCount = 0, winnerAttackCount = 0, winnerSkillCount = 0;
+                int loserParryCount = 0, loserAttackCount = 0, loserSkillCount = 0;
+                bool winnerNoRoundLost = false;
+                bool loserNoRoundLost = false;
+                int matchDurationSeconds = 0;
+
+                // Parse stats
+                if (request.Data.TryGetValue("winnerParryCount", out var wpc))
+                    int.TryParse(wpc?.ToString(), out winnerParryCount);
+                if (request.Data.TryGetValue("winnerAttackCount", out var wac))
+                    int.TryParse(wac?.ToString(), out winnerAttackCount);
+                if (request.Data.TryGetValue("winnerSkillCount", out var wsc))
+                    int.TryParse(wsc?.ToString(), out winnerSkillCount);
+                if (request.Data.TryGetValue("loserParryCount", out var lpc))
+                    int.TryParse(lpc?.ToString(), out loserParryCount);
+                if (request.Data.TryGetValue("loserAttackCount", out var lac))
+                    int.TryParse(lac?.ToString(), out loserAttackCount);
+                if (request.Data.TryGetValue("loserSkillCount", out var lsc))
+                    int.TryParse(lsc?.ToString(), out loserSkillCount);
+                if (request.Data.TryGetValue("winnerNoRoundLost", out var wnrl))
+                    bool.TryParse(wnrl?.ToString(), out winnerNoRoundLost);
+                if (request.Data.TryGetValue("loserNoRoundLost", out var lnrl))
+                    bool.TryParse(lnrl?.ToString(), out loserNoRoundLost);
+                if (request.Data.TryGetValue("matchDuration", out var md))
+                    int.TryParse(md?.ToString(), out matchDurationSeconds);
+
+                if (string.IsNullOrEmpty(roomCode) || string.IsNullOrEmpty(winnerUsername))
+                {
+                    return CreateResponse(false, "roomCode and winner are required");
+                }
+
+                server.Log($"🏆 MATCH_RESULT: Room={roomCode}, Winner={winnerUsername}, Loser={loserUsername}");
+
+                // Sử dụng CalculateXP để tính XP
+                var xpCalculator = new CalculateXP();
+
+                // Tính XP cho winner
+                int winnerGainedXp = xpCalculator.GetXP(
+                    isWinner: true,
+                    noRoundLost: winnerNoRoundLost,
+                    parryCount: winnerParryCount,
+                    comboHitCount: winnerAttackCount,
+                    blockCount: 0,
+                    skillCount: winnerSkillCount
+                );
+
+                // Tính XP cho loser
+                int loserGainedXp = xpCalculator.GetXP(
+                    isWinner: false,
+                    noRoundLost: loserNoRoundLost,
+                    parryCount: loserParryCount,
+                    comboHitCount: loserAttackCount,
+                    blockCount: 0,
+                    skillCount: loserSkillCount
+                );
+
+                server.Log($"📊 XP Calculated: Winner({winnerUsername})=+{winnerGainedXp}, Loser({loserUsername})=+{loserGainedXp}");
+
+                // Cập nhật XP vào database cho winner
+                int winnerNewXp = 0, winnerNewTotalXp = 1000, winnerNewLevel = 1;
+                int winnerOldXp = 0, winnerOldLevel = 1, winnerOldTotalXp = 1000;
+
+                if (!string.IsNullOrEmpty(winnerUsername))
+                {
+                    dbService.GetPlayerXpAndLevel(winnerUsername, out winnerOldXp, out winnerOldTotalXp, out winnerOldLevel);
+                    dbService.UpdatePlayerXpAndLevel(winnerUsername, winnerGainedXp,
+                        out winnerNewXp, out winnerNewTotalXp, out winnerNewLevel);
+                    server.Log($"✅ Winner XP saved: {winnerUsername} Level {winnerOldLevel}→{winnerNewLevel}, XP={winnerNewXp}");
+                }
+
+                // Cập nhật XP vào database cho loser
+                int loserNewXp = 0, loserNewTotalXp = 1000, loserNewLevel = 1;
+                int loserOldXp = 0, loserOldLevel = 1, loserOldTotalXp = 1000;
+
+                if (!string.IsNullOrEmpty(loserUsername))
+                {
+                    dbService.GetPlayerXpAndLevel(loserUsername, out loserOldXp, out loserOldTotalXp, out loserOldLevel);
+                    dbService.UpdatePlayerXpAndLevel(loserUsername, loserGainedXp,
+                        out loserNewXp, out loserNewTotalXp, out loserNewLevel);
+                    server.Log($"✅ Loser XP saved: {loserUsername} Level {loserOldLevel}→{loserNewLevel}, XP={loserNewXp}");
+                }
+
+                // Broadcast XP_RESULT cho cả 2 client
+                var room = roomManager.GetRoom(roomCode);
+                if (room != null)
+                {
+                    // Payload cho winner
+                    var winnerPayload = new
+                    {
+                        Action = "XP_RESULT",
+                        Data = new
+                        {
+                            roomCode = roomCode,
+                            username = winnerUsername,
+                            isWinner = true,
+                            gainedXp = winnerGainedXp,
+                            oldXp = winnerOldXp,
+                            newXp = winnerNewXp,
+                            oldLevel = winnerOldLevel,
+                            newLevel = winnerNewLevel,
+                            totalXp = winnerNewTotalXp,
+                            matchDuration = matchDurationSeconds
+                        }
+                    };
+
+                    // Payload cho loser
+                    var loserPayload = new
+                    {
+                        Action = "XP_RESULT",
+                        Data = new
+                        {
+                            roomCode = roomCode,
+                            username = loserUsername,
+                            isWinner = false,
+                            gainedXp = loserGainedXp,
+                            oldXp = loserOldXp,
+                            newXp = loserNewXp,
+                            oldLevel = loserOldLevel,
+                            newLevel = loserNewLevel,
+                            totalXp = loserNewTotalXp,
+                            matchDuration = matchDurationSeconds
+                        }
+                    };
+
+                    // Gửi cho từng client đúng payload của họ
+                    var winnerClient = roomManager.GetClientHandler(roomCode, winnerUsername);
+                    var loserClient = roomManager.GetClientHandler(roomCode, loserUsername);
+
+                    if (winnerClient != null)
+                    {
+                        string winnerJson = System.Text.Json.JsonSerializer.Serialize(winnerPayload);
+                        winnerClient.SendMessage(winnerJson);
+                        server.Log($"📤 Sent XP_RESULT to winner: {winnerUsername}");
+                    }
+
+                    if (loserClient != null)
+                    {
+                        string loserJson = System.Text.Json.JsonSerializer.Serialize(loserPayload);
+                        loserClient.SendMessage(loserJson);
+                        server.Log($"📤 Sent XP_RESULT to loser: {loserUsername}");
+                    }
+                }
+
+                return CreateResponse(true, "Match result processed", new Dictionary<string, object>
+                    {
+                        { "winnerXp", winnerGainedXp },
+                        { "loserXp", loserGainedXp }
+                    });
+            }
+            catch (Exception ex)
+            {
+                server.Log($"❌ HandleMatchResult error: {ex.Message}");
+                return CreateResponse(false, $"Error: {ex.Message}");
+            }
+        }
+
+
         #endregion
 
         #region Response

@@ -367,65 +367,122 @@ namespace DoAn_NT106.Server
                     try
                     {
                         string opponent = wasPlayer1 ? room.Player2Username : room.Player1Username;
-
-                        // Construct GAME_ENDED payload (winner is the remaining player)
                         var winner = opponent;
+
+                        // TÍNH XP CHO FORFEIT
+                        int winnerGainedXp = 0;
+                        int winnerOldXp = 0, winnerNewXp = 0, winnerOldLevel = 1, winnerNewLevel = 1, winnerNewTotalXp = 1000;
+                        int loserGainedXp = 0;
+
+                        try
+                        {
+                            var xpCalculator = new CalculateXP();
+
+                            // Winner được XP thắng + bonus
+                            winnerGainedXp = xpCalculator.GetXP(
+                                isWinner: true,
+                                noRoundLost: true,
+                                parryCount: 0, comboHitCount: 0, blockCount: 0, skillCount: 0
+                            );
+
+                            // Loser được XP thua
+                            loserGainedXp = xpCalculator.GetXP(
+                                isWinner: false,
+                                noRoundLost: false,
+                                parryCount: 0, comboHitCount: 0, blockCount: 0, skillCount: 0
+                            );
+
+                            Log($"📊 Forfeit XP calculated: Winner({opponent})=+{winnerGainedXp}, Loser({username})=+{loserGainedXp}");
+
+                            // Lưu XP cho winner
+                            int tempTotalXp;
+                            dbService.GetPlayerXpAndLevel(opponent, out winnerOldXp, out tempTotalXp, out winnerOldLevel);
+                            dbService.UpdatePlayerXpAndLevel(opponent, winnerGainedXp,
+                                out winnerNewXp, out winnerNewTotalXp, out winnerNewLevel);
+                            Log($"✅ Winner XP saved: {opponent}");
+
+                            // Lưu XP cho loser (dù offline)
+                            int loserOldXp, loserOldLevel, loserNewXp, loserNewTotalXp, loserNewLevel, loserTempTotal;
+                            dbService.GetPlayerXpAndLevel(username, out loserOldXp, out loserTempTotal, out loserOldLevel);
+                            dbService.UpdatePlayerXpAndLevel(username, loserGainedXp,
+                                out loserNewXp, out loserNewTotalXp, out loserNewLevel);
+                            Log($"✅ Loser XP saved: {username}");
+                        }
+                        catch (Exception xpEx)
+                        {
+                            Log($"⚠️ Error calculating forfeit XP: {xpEx.Message}");
+                        }
+
+                        // Construct GAME_ENDED payload với XP data
                         var gameEndedPayload = new
                         {
                             Action = "GAME_ENDED",
-                            Data = new { roomCode = roomCode, winner = winner, reason = "opponent_left" }
+                            Data = new
+                            {
+                                roomCode = roomCode,
+                                winner = winner,
+                                reason = "opponent_left",
+                                hasXpData = winnerGainedXp > 0,
+                                xpData = new
+                                {
+                                    username = opponent,
+                                    isWinner = true,
+                                    gainedXp = winnerGainedXp,
+                                    oldXp = winnerOldXp,
+                                    newXp = winnerNewXp,
+                                    oldLevel = winnerOldLevel,
+                                    newLevel = winnerNewLevel,
+                                    totalXp = winnerNewTotalXp,
+                                    matchDuration = 0
+                                }
+                            }
                         };
                         string gameEndedJson = System.Text.Json.JsonSerializer.Serialize(gameEndedPayload);
 
-                        // Notify both clients (if connected) so UI can handle end-of-match consistently
+                        // Notify winner client
                         try
                         {
-                            if (room.Player1Client != null)
-                                room.Player1Client.SendMessage(gameEndedJson);
-                            if (room.Player2Client != null)
+                            if (wasPlayer1 && room.Player2Client != null)
                                 room.Player2Client.SendMessage(gameEndedJson);
+                            else if (wasPlayer2 && room.Player1Client != null)
+                                room.Player1Client.SendMessage(gameEndedJson);
 
-                            Log($"📢 Broadcasted GAME_ENDED for room {roomCode} (winner={winner})");
+                            Log($"📢 Sent GAME_ENDED with XP to winner {winner}");
                         }
                         catch (Exception ex)
                         {
-                            Log($"⚠️ Error broadcasting GAME_ENDED: {ex.Message}");
+                            Log($"⚠️ Error sending GAME_ENDED: {ex.Message}");
                         }
 
-                        // End UDP match if running
+                        // End UDP match
                         try
                         {
                             var udpRes = UdpGameServer?.EndMatch(roomCode);
                             if (udpRes != null && udpRes.Value.Success)
-                                Log($"✅ UDP Match ended for room {roomCode} due to player leave");
-                            else if (udpRes != null)
-                                Log($"⚠️ UDP EndMatch returned: {udpRes.Value.Message}");
+                                Log($"✅ UDP Match ended for room {roomCode}");
                         }
                         catch (Exception ex)
                         {
-                            Log($"❌ Error ending UDP match for {roomCode}: {ex.Message}");
+                            Log($"❌ Error ending UDP match: {ex.Message}");
                         }
 
-                        // Reset lobby for rematch/return to lobby
+                        // Reset lobby
                         try
                         {
                             var reset = LobbyManager?.ResetLobbyForRematch(roomCode);
                             if (reset != null && reset.Value.Success)
                                 Log($"✅ Lobby {roomCode} reset after forfeit");
-                            else if (reset != null)
-                                Log($"⚠️ ResetLobbyForRematch returned: {reset.Value.Message}");
                         }
                         catch (Exception ex)
                         {
-                            Log($"❌ Error resetting lobby for {roomCode}: {ex.Message}");
+                            Log($"❌ Error resetting lobby: {ex.Message}");
                         }
                     }
                     catch (Exception ex)
                     {
-                        Log($"❌ Forfeit handling error: {ex.Message}");
+                        Log($"❌ Error handling forfeit in LeaveRoom: {ex.Message}");
                     }
                 }
-
                 // Set room status to waiting and broadcast updates
                 room.Status = "waiting";
 
