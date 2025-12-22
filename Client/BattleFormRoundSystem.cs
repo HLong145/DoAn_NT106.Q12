@@ -1064,28 +1064,102 @@ namespace DoAn_NT106.Client
             // Không mở TinhXP ở đây - sẽ mở khi nhận được XP_RESULT broadcast từ server
             else if (!isOnlineMode)
             {
-                Console.WriteLine($"[BattleForm] 🎮 Offline mode - calculating XP locally");
+                Console.WriteLine($"[BattleForm] 🎮 Offline mode - calculating XP locally WITH DATABASE");
 
-                var result = new DoAn_NT106.Client.MatchResult
+                // ✅ TÍNH TOÁN XP LOCAL VỚI DATABASE
+                try
                 {
-                    PlayerUsername = username,
-                    OpponentUsername = opponent,
-                    PlayerIsWinner = localPlayerIsWinner,
-                    MatchTime = totalMatchTime,
-                    PlayerWins = _player1Wins,
-                    OpponentWins = _player2Wins,
-                    ParryCount = winnerIsPlayer1 ? (player1State?.ParryCount ?? 0) : (player2State?.ParryCount ?? 0),
-                    AttackCount = winnerIsPlayer1 ? (player1State?.AttackCount ?? 0) : (player2State?.AttackCount ?? 0),
-                    SkillCount = winnerIsPlayer1 ? (player1State?.SkillCount ?? 0) : (player2State?.SkillCount ?? 0),
-                    RoomCode = roomCode,
-                    Token = token
-                };
+                    var dbService = new DoAn_NT106.Server.DatabaseService();
+                    
+                    // 1. Lấy XP hiện tại từ database
+                    int oldXp = 0, oldTotalXp = 1000, oldLevel = 1;
+                    if (dbService.GetPlayerXpAndLevel(username, out oldXp, out oldTotalXp, out oldLevel))
+                    {
+                        Console.WriteLine($"[BattleForm] 📊 BEFORE: {username} XP={oldXp}, Level={oldLevel}, TotalXP={oldTotalXp}");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"[BattleForm] ⚠️ Failed to get XP for {username}, using defaults");
+                    }
 
-                // Mở TinhXP với constructor cũ (tính local)
-                using (var xpForm = new DoAn_NT106.Client.TinhXP(result))
+                    // 2. Tính XP được cộng
+                    int gainedXp = localPlayerIsWinner ? 100 : 40;
+                    Console.WriteLine($"[BattleForm] 💰 Gained XP: {gainedXp} ({(localPlayerIsWinner ? "WIN" : "LOSE")})");
+
+                    // 3. Cập nhật XP vào database
+                    int newXp = 0, newTotalXp = 1000, newLevel = 1;
+                    if (dbService.UpdatePlayerXpAndLevel(username, gainedXp, out newXp, out newTotalXp, out newLevel))
+                    {
+                        Console.WriteLine($"[BattleForm] 📊 AFTER: {username} XP={newXp}, Level={newLevel}, TotalXP={newTotalXp}");
+                        
+                        // ✅ MỞ TINHXP VỚI CONSTRUCTOR 2 (DATA TỪ DATABASE)
+                        var result = new DoAn_NT106.Client.MatchResult
+                        {
+                            PlayerUsername = username,
+                            OpponentUsername = opponent,
+                            PlayerIsWinner = localPlayerIsWinner,
+                            MatchTime = totalMatchTime,
+                            PlayerWins = _player1Wins,
+                            OpponentWins = _player2Wins,
+                            ParryCount = winnerIsPlayer1 ? (player1State?.ParryCount ?? 0) : (player2State?.ParryCount ?? 0),
+                            AttackCount = winnerIsPlayer1 ? (player1State?.AttackCount ?? 0) : (player2State?.AttackCount ?? 0),
+                            SkillCount = winnerIsPlayer1 ? (player1State?.SkillCount ?? 0) : (player2State?.SkillCount ?? 0),
+                            RoomCode = roomCode,
+                            Token = token
+                        };
+
+                        using (var xpForm = new DoAn_NT106.Client.TinhXP(result, gainedXp, oldXp, newXp, oldLevel, newLevel, newTotalXp))
+                        {
+                            xpForm.StartPosition = FormStartPosition.CenterScreen;
+                            xpForm.ShowDialog(this);
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine($"[BattleForm] ❌ Failed to update XP for {username}");
+                        
+                        // Fallback: mở TinhXP với constructor 1 (sẽ dùng local calculation)
+                        var result = new DoAn_NT106.Client.MatchResult
+                        {
+                            PlayerUsername = username,
+                            OpponentUsername = opponent,
+                            PlayerIsWinner = localPlayerIsWinner,
+                            MatchTime = totalMatchTime,
+                            PlayerWins = _player1Wins,
+                            OpponentWins = _player2Wins,
+                            RoomCode = roomCode,
+                            Token = token
+                        };
+
+                        using (var xpForm = new DoAn_NT106.Client.TinhXP(result))
+                        {
+                            xpForm.StartPosition = FormStartPosition.CenterScreen;
+                            xpForm.ShowDialog(this);
+                        }
+                    }
+                }
+                catch (Exception ex)
                 {
-                    xpForm.StartPosition = FormStartPosition.CenterScreen;
-                    xpForm.ShowDialog(this);
+                    Console.WriteLine($"[BattleForm] ❌ Offline XP calculation error: {ex.Message}");
+                    
+                    // Fallback: mở TinhXP với constructor 1
+                    var result = new DoAn_NT106.Client.MatchResult
+                    {
+                        PlayerUsername = username,
+                        OpponentUsername = opponent,
+                        PlayerIsWinner = localPlayerIsWinner,
+                        MatchTime = totalMatchTime,
+                        PlayerWins = _player1Wins,
+                        OpponentWins = _player2Wins,
+                        RoomCode = roomCode,
+                        Token = token
+                    };
+
+                    using (var xpForm = new DoAn_NT106.Client.TinhXP(result))
+                    {
+                        xpForm.StartPosition = FormStartPosition.CenterScreen;
+                        xpForm.ShowDialog(this);
+                    }
                 }
             }
 

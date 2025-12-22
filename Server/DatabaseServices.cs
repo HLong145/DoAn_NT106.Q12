@@ -288,6 +288,7 @@ namespace DoAn_NT106.Server
         /// - TOTAL_XP là ngưỡng cần đạt cho level đó (level 1 = 1000, level 2 = 2000, ...)
         /// - Khi XP >= 1000 thì level++, XP -= 1000, TOTAL_XP += 1000
         /// </summary>
+        // ✅ SỬA: Method UpdatePlayerXpAndLevel - RETURN EXACT VALUES FROM DATABASE
         public bool UpdatePlayerXpAndLevel(string username, int gainedXp, out int newXp, out int newTotalXp, out int newLevel)
         {
             newXp = 0;
@@ -304,7 +305,7 @@ namespace DoAn_NT106.Server
                     int currentTotalXp = 1000;
                     int currentLevel = 1;
 
-                    // 1. Đảm bảo user có giá trị XP hợp lệ
+                    // 1. Initialize NULL values
                     using (var initCmd = new SqlCommand(
                         @"UPDATE PLAYERS 
                   SET USER_LEVEL = ISNULL(USER_LEVEL, 1),
@@ -315,14 +316,10 @@ namespace DoAn_NT106.Server
                         connection))
                     {
                         initCmd.Parameters.AddWithValue("@Username", username);
-                        int affected = initCmd.ExecuteNonQuery();
-                        if (affected > 0)
-                        {
-                            Console.WriteLine($"⚠️ Initialized NULL values for {username}");
-                        }
+                        initCmd.ExecuteNonQuery();
                     }
 
-                    // 2. Lấy thông tin hiện tại
+                    // 2. Get current values
                     using (var selectCmd = new SqlCommand(
                         "SELECT XP, TOTAL_XP, USER_LEVEL FROM PLAYERS WHERE USERNAME = @Username",
                         connection))
@@ -340,7 +337,6 @@ namespace DoAn_NT106.Server
                             currentLevel = reader["USER_LEVEL"] != DBNull.Value ? Convert.ToInt32(reader["USER_LEVEL"]) : 1;
                             currentTotalXp = reader["TOTAL_XP"] != DBNull.Value ? Convert.ToInt32(reader["TOTAL_XP"]) : 1000;
 
-                            // Validation
                             if (currentLevel <= 0) currentLevel = 1;
                             if (currentXp < 0) currentXp = 0;
                             if (currentTotalXp <= 0) currentTotalXp = currentLevel * 1000;
@@ -349,33 +345,32 @@ namespace DoAn_NT106.Server
 
                     Console.WriteLine($"📊 BEFORE UPDATE: {username} - XP={currentXp}, Level={currentLevel}, TotalXP={currentTotalXp}, Gained={gainedXp}");
 
-                    // 3. Cộng XP mới vào
+                    // 3. Calculate new values
                     newXp = currentXp + gainedXp;
                     newLevel = currentLevel;
                     newTotalXp = currentTotalXp;
 
-                    // 4. Xử lý lên level (có thể lên nhiều level nếu đủ XP)
                     const int XP_PER_LEVEL = 1000;
                     int levelUps = 0;
 
                     while (newXp >= XP_PER_LEVEL)
                     {
-                        newXp -= XP_PER_LEVEL;      // Trừ 1000 XP đã dùng
-                        newLevel++;                  // Tăng level
-                        newTotalXp += XP_PER_LEVEL;  // Tăng ngưỡng
+                        newXp -= XP_PER_LEVEL;
+                        newLevel++;
+                        newTotalXp += XP_PER_LEVEL;
                         levelUps++;
-
                         Console.WriteLine($"📈 LEVEL UP #{levelUps}! New Level={newLevel}, Remaining XP={newXp}, New TotalXP={newTotalXp}");
                     }
 
                     Console.WriteLine($"📊 AFTER CALCULATION: {username} - XP={newXp}, Level={newLevel}, TotalXP={newTotalXp}");
 
-                    // 5. Cập nhật vào database
+                    // 4. ✅ UPDATE with OUTPUT clause to get EXACT values from database
                     using (var updateCmd = new SqlCommand(
                         @"UPDATE PLAYERS 
                   SET XP = @Xp,
                       TOTAL_XP = @TotalXp,
                       USER_LEVEL = @Level
+                  OUTPUT INSERTED.XP, INSERTED.TOTAL_XP, INSERTED.USER_LEVEL
                   WHERE USERNAME = @Username",
                         connection))
                     {
@@ -384,36 +379,24 @@ namespace DoAn_NT106.Server
                         updateCmd.Parameters.AddWithValue("@Level", newLevel);
                         updateCmd.Parameters.AddWithValue("@Username", username);
 
-                        int rows = updateCmd.ExecuteNonQuery();
-
-                        if (rows > 0)
+                        // ✅ Read OUTPUT values directly from database
+                        using (var reader = updateCmd.ExecuteReader())
                         {
-                            Console.WriteLine($"✅ DATABASE UPDATED: {username} - XP={newXp}/{XP_PER_LEVEL}, Level={newLevel}, TotalXP={newTotalXp}");
-
-                            // Verify update
-                            using (var verifyCmd = new SqlCommand(
-                                "SELECT XP, TOTAL_XP, USER_LEVEL FROM PLAYERS WHERE USERNAME = @Username",
-                                connection))
+                            if (reader.Read())
                             {
-                                verifyCmd.Parameters.AddWithValue("@Username", username);
-                                using (var verifyReader = verifyCmd.ExecuteReader())
-                                {
-                                    if (verifyReader.Read())
-                                    {
-                                        int verifyXp = Convert.ToInt32(verifyReader["XP"]);
-                                        int verifyLevel = Convert.ToInt32(verifyReader["USER_LEVEL"]);
-                                        int verifyTotal = Convert.ToInt32(verifyReader["TOTAL_XP"]);
-                                        Console.WriteLine($"✅ VERIFIED: XP={verifyXp}, Level={verifyLevel}, TotalXP={verifyTotal}");
-                                    }
-                                }
-                            }
+                                // ✅ Get EXACT values that were written to database
+                                newXp = Convert.ToInt32(reader[0]);
+                                newTotalXp = Convert.ToInt32(reader[1]);
+                                newLevel = Convert.ToInt32(reader[2]);
 
-                            return true;
-                        }
-                        else
-                        {
-                            Console.WriteLine($"❌ UPDATE FAILED: No rows affected");
-                            return false;
+                                Console.WriteLine($"✅ DATABASE CONFIRMED: {username} - XP={newXp}, Level={newLevel}, TotalXP={newTotalXp}");
+                                return true;
+                            }
+                            else
+                            {
+                                Console.WriteLine($"❌ UPDATE FAILED: No rows affected");
+                                return false;
+                            }
                         }
                     }
                 }

@@ -410,6 +410,8 @@ namespace DoAn_NT106.Client
                         int totalXp = data.TryGetProperty("totalXp", out var tx) ? tx.GetInt32() : 1000;
                         int matchDuration = data.TryGetProperty("matchDuration", out var mdur) ? mdur.GetInt32() : 0;
 
+                        Console.WriteLine($"[BattleForm] 📊 XP DATA: Gained={gainedXp}, {oldXp}→{newXp}, Level {oldLevel}→{newLevel}, TotalXP={totalXp}");
+
                         this.BeginInvoke(new Action(() =>
                         {
                             try
@@ -429,7 +431,8 @@ namespace DoAn_NT106.Client
                                     Xp = gainedXp
                                 };
 
-                                // Mở form TinhXP với XP data từ server
+                                // ✅ SỬA: Mở form TinhXP với constructor #2 (nhận XP từ server trực tiếp)
+                                Console.WriteLine($"[BattleForm] Opening TinhXP with SERVER data: Gained={gainedXp}, Old={oldXp}, New={newXp}");
                                 using (var xpForm = new DoAn_NT106.Client.TinhXP(result, gainedXp, oldXp, newXp, oldLevel, newLevel, totalXp))
                                 {
                                     xpForm.StartPosition = FormStartPosition.CenterScreen;
