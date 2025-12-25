@@ -165,6 +165,8 @@ namespace DoAn_NT106.Client
             tcpClient = PersistentTcpClient.Instance;
             UpdateUsernameDisplay(username);
 
+            ConnectionHelper.OnReconnected += OnServerReconnected;
+
             this.Load += (s, e) =>
             {
                 InitializeRainEffect();
@@ -179,6 +181,7 @@ namespace DoAn_NT106.Client
 
             LoadUserAvatar();
         }
+
 
         // KHỞI TẠO HIỆU ỨNG HẠT RƠI - ĐÃ SỬA
         private void InitializeRainEffect()
@@ -354,13 +357,22 @@ namespace DoAn_NT106.Client
             panelMainContent.Paint -= PanelMainContent_Paint;
         }
 
+        private void OnServerReconnected()
+        {
+            if (!this.Visible || this.IsDisposed) return;
+
+            Console.WriteLine("[MainForm] 🔄 Server reconnected");
+            SetAllControl(true);
+        }
+
         // SỬA LẠI FORM CLOSING
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
             StopRainEffect(); // Dừng animation
             frm_DangNhap?.Close();
             frm_DangKy?.Close();
-            
+
+            ConnectionHelper.OnReconnected -= OnServerReconnected;
             // STOP MUSIC when closing app
             SoundManager.StopMusic();
             SoundManager.Cleanup();

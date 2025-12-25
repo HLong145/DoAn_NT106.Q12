@@ -124,6 +124,9 @@ namespace DoAn_NT106.Client.Class
                     return false;
                 }
 
+                // Cấu hình TCP Keep-Alive để phát hiện mất kết nối nhanh hơn
+                ConfigureKeepAlive(client.Client);
+
                 stream = client.GetStream();
                 isConnected = true;
 
@@ -141,6 +144,35 @@ namespace DoAn_NT106.Client.Class
             }
         }
 
+        /// <summary>
+        /// Cấu hình TCP Keep-Alive để phát hiện mất kết nối nhanh
+        /// </summary>
+        private void ConfigureKeepAlive(Socket socket)
+        {
+            try
+            {
+                // Bật Keep-Alive
+                socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+
+                // Trên Windows, cấu hình chi tiết Keep-Alive timing
+                // Keep-Alive time: 5 giây (thời gian idle trước khi gửi probe đầu tiên)
+                // Keep-Alive interval: 1 giây (khoảng cách giữa các probe)
+                if (Environment.OSVersion.Platform == PlatformID.Win32NT)
+                {
+                    byte[] keepAliveValues = new byte[12];
+                    BitConverter.GetBytes((uint)1).CopyTo(keepAliveValues, 0);      
+                    BitConverter.GetBytes((uint)5000).CopyTo(keepAliveValues, 4);   
+                    BitConverter.GetBytes((uint)1000).CopyTo(keepAliveValues, 8);   
+
+                    socket.IOControl(IOControlCode.KeepAliveValues, keepAliveValues, null);
+                    Console.WriteLine("[TCP] ✅ TCP Keep-Alive configured (5s idle, 1s interval)");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[TCP] ⚠️ Keep-Alive config failed: {ex.Message}");
+            }
+        }
         #endregion
 
         #region Send request
@@ -252,29 +284,57 @@ namespace DoAn_NT106.Client.Class
 
             try
             {
+                // Set ReceiveTimeout trên socket để ReadAsync không block mãi mãi
+                if (client?.Client != null)
+                {
+                    client.Client.ReceiveTimeout = 10000; 
+                }
+
                 while (!token.IsCancellationRequested && client?.Connected == true)
                 {
-                    int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, token);
-                    if (bytesRead == 0) break; // server đóng kết nối
+                    int bytesRead;
+
+                    try
+                    {
+                        bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, token);
+                    }
+                    catch (IOException ex) when (ex.InnerException is SocketException)
+                    {
+                        // Socket error = mất kết nối thực sự
+                        Console.WriteLine($"[TCP] ❌ Socket error: {ex.InnerException.Message}");
+                        break;
+                    }
+                    catch (SocketException ex)
+                    {
+                        Console.WriteLine($"[TCP] ❌ Socket exception: {ex.Message}");
+                        break;
+                    }
+
+                    if (bytesRead == 0)
+                    {
+                        Console.WriteLine("[TCP] Server closed connection (bytesRead = 0)");
+                        break;
+                    }
 
                     msgBuffer.Append(Encoding.UTF8.GetString(buffer, 0, bytesRead));
                     ProcessMessages(msgBuffer);
                 }
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
-                // Bị cancel thì bỏ qua
+                Console.WriteLine("[TCP] Listen cancelled");
             }
             catch (Exception ex)
             {
+                Console.WriteLine($"[TCP] ❌ Listen error: {ex.Message}");
                 if (!token.IsCancellationRequested)
                     OnError?.Invoke($"Listen error: {ex.Message}");
             }
             finally
             {
+                Console.WriteLine("[TCP] 🔴 ListenLoop ended, firing OnDisconnected...");
                 isConnected = false;
 
-                // Báo lỗi cho tất cả request đang chờ
                 foreach (var kvp in pendingRequests)
                     kvp.Value.TrySetResult(new ServerResponse { Success = false, Message = "Disconnected" });
 
@@ -282,7 +342,6 @@ namespace DoAn_NT106.Client.Class
                 OnDisconnected?.Invoke("Connection closed");
             }
         }
-
         // Cắt chuỗi buffer theo từng dòng (mỗi message 1 dòng)
         private void ProcessMessages(StringBuilder buffer)
         {

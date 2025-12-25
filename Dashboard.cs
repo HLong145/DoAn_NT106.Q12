@@ -145,6 +145,20 @@ namespace DoAn_NT106.Client
                     "❌ Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
+
+        /// <summary>
+        /// Khi rời khỏi textbox IP - cập nhật AppConfig
+        /// </summary>
+        private void txtServerIP_Leave(object sender, EventArgs e)
+        {
+            string ip = txtServerIP.Text.Trim();
+
+            if (!string.IsNullOrEmpty(ip))
+            {
+                AppConfig.SERVER_IP = ip;
+                Console.WriteLine($"[Dashboard] ✅ Server IP set to: {ip}");
+            }
+        }
     }
 
     /// <summary>

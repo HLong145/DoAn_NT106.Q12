@@ -8,9 +8,20 @@ namespace DoAn_NT106.Client
     public static class AppConfig
     {
         // ? SERVER IP/PORT - Single source of truth for all connections
-        public const string SERVER_IP = "127.0.0.1";    
+        private static string _serverIP = "103.188.244.112";
         public const int TCP_PORT = 8080;               // ? TCP Server port
         public const int UDP_PORT = 5000;               // ? UDP Game Server port
+
+
+        public static string SERVER_IP
+        {
+            get => _serverIP;
+            set
+            {
+                if (!string.IsNullOrWhiteSpace(value))
+                    _serverIP = value.Trim();
+            }
+        }
 
         /// <summary>
         /// Validate configuration

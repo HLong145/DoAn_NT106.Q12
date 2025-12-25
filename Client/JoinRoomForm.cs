@@ -847,6 +847,8 @@ namespace DoAn_NT106.Client
                 await ConnectGlobalChatAsync();
                 SetupRoomListClient();
             };
+
+            ConnectionHelper.OnReconnected += OnServerReconnected;
         }
 
         private async Task ConnectGlobalChatAsync()
@@ -1055,6 +1057,8 @@ namespace DoAn_NT106.Client
             {
                 Console.WriteLine("[JoinRoomForm] Cleaning up before close...");
 
+                ConnectionHelper.OnReconnected -= OnServerReconnected;
+
                 // Disconnect room list client
                 if (roomListClient != null)
                 {
@@ -1095,6 +1099,56 @@ namespace DoAn_NT106.Client
             public string Code { get; set; }     
             public string Players { get; set; }  
             public bool IsLocked { get; set; }   
+        }
+
+        #endregion
+
+        #region Reconnect
+
+        private async void OnServerReconnected()
+        {
+            // Chỉ xử lý nếu form này đang visible
+            if (!this.Visible || this.IsDisposed) return;
+
+            Console.WriteLine("[JoinRoomForm] 🔄 Server reconnected, rejoining services...");
+
+            // 1. Cleanup GlobalChat cũ
+            if (globalChatClient != null)
+            {
+                globalChatClient.OnChatMessage -= GlobalChat_OnChatMessage;
+                globalChatClient.OnOnlineCountUpdate -= GlobalChat_OnOnlineCountUpdate;
+                globalChatClient.OnError -= GlobalChat_OnError;
+                globalChatClient.OnDisconnected -= GlobalChat_OnDisconnected;
+                globalChatClient.Dispose();
+                globalChatClient = null;
+            }
+
+            // 2. Cleanup RoomListClient cũ
+            if (roomListClient != null)
+            {
+                roomListClient.OnRoomListUpdated -= HandleRoomListUpdate;
+                roomListClient.Disconnect();
+                roomListClient = null;
+            }
+
+            // 3. Clear chat UI
+            if (pnlChatMessages != null && !pnlChatMessages.IsDisposed)
+            {
+                if (pnlChatMessages.InvokeRequired)
+                {
+                    pnlChatMessages.Invoke(new Action(() => pnlChatMessages.Controls.Clear()));
+                }
+                else
+                {
+                    pnlChatMessages.Controls.Clear();
+                }
+            }
+
+            // 4. Reconnect
+            await ConnectGlobalChatAsync();
+            SetupRoomListClient();
+
+            Console.WriteLine("[JoinRoomForm] ✅ Services reconnected!");
         }
 
         #endregion

@@ -110,6 +110,8 @@ namespace DoAn_NT106.Client
             TcpClient.OnBroadcast += HandleBroadcast;
             TcpClient.OnDisconnected += HandleDisconnected;
 
+            ConnectionHelper.OnReconnected += OnServerReconnected;
+
             // Join lobby
             await JoinLobbyAsync();
         }
@@ -118,6 +120,9 @@ namespace DoAn_NT106.Client
         {
             // Unsubscribe events ngay lập tức
             TcpClient.OnBroadcast -= HandleBroadcast;
+            TcpClient.OnDisconnected -= HandleDisconnected;
+
+            ConnectionHelper.OnReconnected -= OnServerReconnected;
 
             // Tránh gọi nhiều lần
             if (hasLeft)
@@ -182,7 +187,7 @@ namespace DoAn_NT106.Client
         {
             //Hiển thị room code
             roomCodeValueLabel.Text = roomCode;
-            
+
             //Khởi tạo nút ready
             notReadyButton.Text = "NOT READY";
             notReadyButton.BackColor = notReadyColor;
@@ -245,7 +250,7 @@ namespace DoAn_NT106.Client
             try
             {
                 Console.WriteLine($"[GameLobby] Leaving room {roomCode}...");
-                
+
                 // Gọi LobbyLeave (server tự gọi LeaveRoom)
                 var response = await TcpClient.LobbyLeaveAsync(roomCode, username);
                 Console.WriteLine($"[GameLobby] LobbyLeave response: {response.Success} - {response.Message}");
@@ -604,7 +609,7 @@ namespace DoAn_NT106.Client
                     hasLeft = true;
                     isLeaving = true;
 
-                    // ✅ PASS MAP TO CHARACTER SELECT FORM
+                    //  PASS MAP TO CHARACTER SELECT FORM
                     // Use server-provided map if present
                     string opponent = opponentName ?? "Opponent";
                     var mapFromServer = GetStringOrNull(data, "selectedMap");
@@ -702,7 +707,7 @@ namespace DoAn_NT106.Client
         private void UpdateChatDisplay()
         {
             chatMessagesPanel.Controls.Clear();
-            
+
             int yOffset = 5;
 
             foreach (var msg in messages)
@@ -1030,7 +1035,7 @@ namespace DoAn_NT106.Client
             return false;
         }
 
-        private void SetAllControl (bool enable)
+        private void SetAllControl(bool enable)
         {
             isProcessing = !enable;
             copyCodeButton.Enabled = enable;
@@ -1092,5 +1097,97 @@ namespace DoAn_NT106.Client
         }
 
         #endregion
+
+        #region Reconnect
+        private async void OnServerReconnected()
+        {
+            // Chỉ xử lý nếu form này đang visible
+            if (!this.Visible || this.IsDisposed) return;
+
+            Console.WriteLine("[GameLobby] 🔄 Server reconnected, checking room status...");
+
+            try
+            {
+                // Thử re-join lobby
+                var response = await TcpClient.LobbyJoinAsync(roomCode, username, token);
+
+                if (response.Success)
+                {
+                    Console.WriteLine("[GameLobby] ✅ Lobby reconnected!");
+
+                    if (response.RawData.ValueKind != System.Text.Json.JsonValueKind.Undefined)
+                    {
+                        UpdateFromServerState(response.RawData);
+                    }
+
+                    AddSystemMessage("🔄 Reconnected to lobby!");
+                }
+                else
+                {
+                    // Room không còn tồn tại hoặc player đã bị kick
+                    Console.WriteLine($"[GameLobby] ❌ Cannot rejoin room: {response.Message}");
+
+                    MessageBox.Show(
+                        $"Cannot rejoin room.\n\nReason: {response.Message}\n\nYou will be returned to the room list.",
+                        "Room Unavailable",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning
+                    );
+
+                    // Đánh dấu đã rời room để không gọi LeaveRoom khi đóng form
+                    hasLeft = true;
+
+                    // Mở JoinRoomForm và đóng LobbyForm
+                    ReturnToJoinRoomForm();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GameLobby] ❌ Reconnect error: {ex.Message}");
+
+                MessageBox.Show(
+                    $"Error reconnecting to room.\n\nDetails: {ex.Message}\n\nYou will be returned to the room list.",
+                    "Connection Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
+
+                hasLeft = true;
+                ReturnToJoinRoomForm();
+            }
+        }
+
+        /// <summary>
+        /// Quay về JoinRoomForm khi không thể ở lại lobby
+        /// </summary>
+        private void ReturnToJoinRoomForm()
+        {
+            try
+            {
+                Console.WriteLine("[GameLobby] 🔙 Returning to JoinRoomForm...");
+
+                // Unsubscribe events
+                TcpClient.OnBroadcast -= HandleBroadcast;
+                TcpClient.OnDisconnected -= HandleDisconnected;
+                ConnectionHelper.OnReconnected -= OnServerReconnected;
+
+                // Mở JoinRoomForm mới
+                var joinRoomForm = new JoinRoomForm(username, token);
+                joinRoomForm.StartPosition = FormStartPosition.CenterScreen;
+                joinRoomForm.Show();
+
+                // Đóng LobbyForm
+                this.Close();
+
+                Console.WriteLine("[GameLobby] ✅ Returned to JoinRoomForm");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GameLobby] ❌ Error returning to JoinRoomForm: {ex.Message}");
+                // Fallback: đóng form
+                this.Close();
+            }
+        }
+        #endregion    
     }
 }

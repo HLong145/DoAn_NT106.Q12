@@ -764,6 +764,7 @@ namespace DoAn_NT106.Client
         {
             InitializeComponent();
 
+
             this.player1Name = player1NameParam;     //  SỬAR: Player 1 name từ server
             this.player2Name = player2NameParam;     //  SỬAR: Player 2 name từ server
             this.username = myPlayerNumber == 1 ? player1NameParam : player2NameParam;  //  Local player name
@@ -895,10 +896,16 @@ namespace DoAn_NT106.Client
             //  Initialize once here
             SetupGame();
             SetupEventHandlers();
+            ConnectionHelper.OnReconnected += OnServerReconnected;
 
             this.Text = $"⚔️ Street Fighter - {player1Name} vs {player2Name}";
             this.DoubleBuffered = true;
             this.KeyPreview = true;
+        }
+        private void OnServerReconnected()
+        {
+            if (!this.Visible || this.IsDisposed) return;
+            Console.WriteLine("[BattleForm] 🔄 Server reconnected");
         }
 
         private void BattleForm_Load(object sender, EventArgs e)
@@ -2925,6 +2932,9 @@ namespace DoAn_NT106.Client
                 try { s.Dispose(); } catch { }
             }
             resourceStreams.Clear();
+
+            ConnectionHelper.OnReconnected -= OnServerReconnected;
+
 
             base.OnFormClosing(e);
         }

@@ -24,10 +24,10 @@ namespace DoAn_NT106.Client.Class
 
         private string username;
         private string token;
-        private string roomCode;  // ✅ THÊM: roomCode
+        private string roomCode;  
         private string opponentName;
         private bool isHost;
-        private string selectedMap = "battleground1";  // ✅ MAP SELECTION
+        private string selectedMap = "battleground1";  
 
         // Available characters
         private List<CharacterInfo> characters = new List<CharacterInfo>();
@@ -63,9 +63,9 @@ namespace DoAn_NT106.Client.Class
             this.roomCode = roomCode;
             this.opponentName = opponentName;
             this.isHost = isHost;
-            this.selectedMap = selectedMap;  // ✅ SAVE MAP
+            this.selectedMap = selectedMap;  // SAVE MAP
 
-            // ✅ GÁN GIÁ TRỊ MẶC ĐỊNH CHO CHARACTER
+            // GÁN GIÁ TRỊ MẶC ĐỊNH CHO CHARACTER
             player1Character = "girlknight"; // Người chơi hiện tại chọn
             player2Character = "girlknight"; // Đối thủ (tạm thời giả định)
 
@@ -73,12 +73,25 @@ namespace DoAn_NT106.Client.Class
             InitializeUI();
             UpdatePreview();
             
-            // ✅ REGISTER TCP BROADCAST HANDLER BEFORE SHOWING
+            // REGISTER TCP BROADCAST HANDLER BEFORE SHOWING
             PersistentTcpClient.Instance.OnBroadcast += TcpClient_OnBroadcast;
+            ConnectionHelper.OnReconnected += OnServerReconnected;
             Console.WriteLine("[CharacterSelectForm] Registered for TCP broadcasts");
         }
 
-        // ✅ LISTEN TO SERVER BROADCASTS (INCLUDING START_GAME)
+
+        private void OnServerReconnected()
+        {
+            if (!this.Visible || this.IsDisposed) return;
+            Console.WriteLine("[CharacterSelectForm] 🔄 Server reconnected");
+            if (btnConfirm != null)
+            {
+                btnConfirm.Enabled = true;
+                btnConfirm.Text = "✓ CONFIRM";
+            }
+        }
+
+        // LISTEN TO SERVER BROADCASTS (INCLUDING START_GAME)
         private void TcpClient_OnBroadcast(string action, JsonElement data)
         {
             if (action == "START_GAME")
@@ -113,7 +126,7 @@ namespace DoAn_NT106.Client.Class
                 string mapFromServer = GetStringOrNull(data, "selectedMap");
                 string mapToUse = !string.IsNullOrEmpty(mapFromServer) ? mapFromServer : selectedMap;
 
-                // ✅ DETERMINE MY PLAYER NUMBER BASED ON USERNAME MATCH
+                // DETERMINE MY PLAYER NUMBER BASED ON USERNAME MATCH
                 if (string.Equals(p1Name, username, StringComparison.OrdinalIgnoreCase))
                 {
                     myPlayerNumber = 1;
@@ -132,32 +145,32 @@ namespace DoAn_NT106.Client.Class
 
                 Console.WriteLine($"[CharacterSelectForm] Game starting: P1={p1Name}({p1Char}) vs P2={p2Name}({p2Char})");
 
-                // ✅ UNREGISTER BROADCAST BEFORE CLOSING
+                // UNREGISTER BROADCAST BEFORE CLOSING
                 PersistentTcpClient.Instance.OnBroadcast -= TcpClient_OnBroadcast;
 
-                // ✅ MOVE TO BATTLE ON UI THREAD
+                // MOVE TO BATTLE ON UI THREAD
                 BeginInvoke(new Action(() =>
                 {
                     try
                     {
                         if (myPlayerNumber == 1)
                         {
-                            // ✅ PLAYER 1: CREATE NEW BATTLEFORM
+                            // PLAYER 1: CREATE NEW BATTLEFORM
                             Console.WriteLine($"[CharacterSelectForm] Player 1 creating new BattleForm for room {roomCode}");
                             // Prefer server-provided map if present in START_GAME payload
                             var mapFromServer = GetStringOrNull(data, "selectedMap");
                             var mapToUse = !string.IsNullOrEmpty(mapFromServer) ? mapFromServer : selectedMap;
 
                             var battleForm = new BattleForm(
-                                p1Name,  // ✅ SỬA: LUÔN là Player 1 từ server
+                                p1Name,  // SỬA: LUÔN là Player 1 từ server
                                 token,
-                                p2Name,  // ✅ SỬA: LUÔN là Player 2 từ server
+                                p2Name,  // SỬA: LUÔN là Player 2 từ server
                                 p1Char,  // Player 1's selected character
                                 p2Char,  // Player 2's selected character
                                 mapToUse,
                                 roomCode,
                                 myPlayerNumber,
-                                isCreator: true  // ✅ PASS FLAG: I'm the creator
+                                isCreator: true  // PASS FLAG: I'm the creator
                             );
 
                             battleForm.FormClosed += (s, args) =>
@@ -170,7 +183,7 @@ namespace DoAn_NT106.Client.Class
                         }
                         else
                         {
-                            // ✅ PLAYER 2: FIND AND JOIN EXISTING BATTLEFORM
+                            // PLAYER 2: FIND AND JOIN EXISTING BATTLEFORM
                             Console.WriteLine($"[CharacterSelectForm] Player 2 searching for BattleForm in room {roomCode}");
                             
                             // Tìm BattleForm đã được tạo bởi Player 1
@@ -186,7 +199,7 @@ namespace DoAn_NT106.Client.Class
 
                             if (existingBattleForm != null && !existingBattleForm.IsDisposed)
                             {
-                                // ✅ JOIN EXISTING BATTLEFORM
+                                // JOIN EXISTING BATTLEFORM
                                 Console.WriteLine($"[CharacterSelectForm] Found existing BattleForm, joining...");
                                 // Ensure existing form uses server map
                                 try { existingBattleForm.UpdateSelectedMap(mapToUse); } catch { }
@@ -203,7 +216,7 @@ namespace DoAn_NT106.Client.Class
                             }
                             else
                             {
-                                // ✅ PLAYER 1 HASN'T CREATED YET - WAIT AND RETRY
+                                // PLAYER 1 HASN'T CREATED YET - WAIT AND RETRY
                                 Console.WriteLine($"[CharacterSelectForm] BattleForm not found yet, waiting...");
                                 Thread.Sleep(500);
                                 
@@ -233,18 +246,18 @@ namespace DoAn_NT106.Client.Class
                                 }
                                 else
                                 {
-                                // ✅ FALLBACK: CREATE OWN BATTLEFORM IF PLAYER 1 FAILED
+                                // FALLBACK: CREATE OWN BATTLEFORM IF PLAYER 1 FAILED
                                     Console.WriteLine($"[CharacterSelectForm] BattleForm still not found, creating fallback...");
                                 // For fallback or when creating as player2 with no existing BattleForm,
                                 // prefer server map
                                 var mapFromServer2 = GetStringOrNull(data, "selectedMap");
                                 var mapToUse2 = !string.IsNullOrEmpty(mapFromServer2) ? mapFromServer2 : selectedMap;
 
-                                // ✅ SỬA: LUÔN truyền p1Name trước, p2Name sau (thứ tự từ server)
+                                // SỬA: LUÔN truyền p1Name trước, p2Name sau (thứ tự từ server)
                                 var battleForm = new BattleForm(
-                                        p1Name,      // ✅ SỬA: LUÔN là Player 1
+                                        p1Name,      // SỬA: LUÔN là Player 1
                                         token,
-                                        p2Name,      // ✅ SỬA: LUÔN là Player 2
+                                        p2Name,      // SỬA: LUÔN là Player 2
                                         p1Char,
                                         p2Char,
                                         mapToUse2,
@@ -277,7 +290,7 @@ namespace DoAn_NT106.Client.Class
             }
         }
 
-        // ✅ THÊM: Handle RETURN_TO_LOBBY broadcast
+        // THÊM: Handle RETURN_TO_LOBBY broadcast
         private void HandleReturnToLobbyBroadcast(JsonElement data)
         {
             Console.WriteLine("[CharacterSelectForm] Received RETURN_TO_LOBBY broadcast");
@@ -293,10 +306,10 @@ namespace DoAn_NT106.Client.Class
 
                 Console.WriteLine($"[CharacterSelectForm] Returning to lobby for room {roomCode}");
 
-                // ✅ UNREGISTER BROADCAST BEFORE CLOSING
+                // UNREGISTER BROADCAST BEFORE CLOSING
                 PersistentTcpClient.Instance.OnBroadcast -= TcpClient_OnBroadcast;
 
-                // ✅ RETURN TO LOBBY ON UI THREAD
+                // RETURN TO LOBBY ON UI THREAD
                 BeginInvoke(new Action(() =>
                 {
                     try
@@ -316,7 +329,7 @@ namespace DoAn_NT106.Client.Class
             }
         }
 
-        // ✅ HELPER: Get string from JSON safely
+        // HELPER: Get string from JSON safely
         private string GetStringOrNull(JsonElement data, string propertyName)
         {
             try
@@ -760,13 +773,13 @@ namespace DoAn_NT106.Client.Class
         {
             SelectedCharacter = characters[selectedIndex].Name;
 
-            // ✅ Disable button and show feedback
+            // Disable button and show feedback
             btnConfirm.Enabled = false;
             btnConfirm.Text = "⏳ SENDING...";
 
             try
             {
-                // ✅ USE THE CORRECT OVERLOAD (action, data)
+                // USE THE CORRECT OVERLOAD (action, data)
                 var response = await PersistentTcpClient.Instance.SendRequestAsync(
                     "SELECT_CHARACTER",
                     new Dictionary<string, object>
@@ -779,12 +792,12 @@ namespace DoAn_NT106.Client.Class
 
                 if (response.Success)
                 {
-                    // ✅ Show success feedback
+                    // Show success feedback
                     btnConfirm.Text = "✓ CONFIRMED";
                     btnConfirm.BackColor = Color.FromArgb(100, 200, 100);
                     Console.WriteLine($"[CharacterSelectForm] SELECT_CHARACTER sent successfully: {SelectedCharacter}");
                     
-                    // ✅ Wait for server START_GAME (handled in TcpClient_OnBroadcast)
+                    // Wait for server START_GAME (handled in TcpClient_OnBroadcast)
                     btnConfirm.Enabled = false;
                 }
                 else
@@ -821,7 +834,7 @@ namespace DoAn_NT106.Client.Class
 
             if (result == DialogResult.Yes)
             {
-                // ✅ Gửi request về server để notify cả 2 người quay về lobby
+                // Gửi request về server để notify cả 2 người quay về lobby
                 if (!string.IsNullOrEmpty(roomCode) && roomCode != "000000")
                 {
                     try
@@ -888,12 +901,12 @@ namespace DoAn_NT106.Client.Class
             }
         }
 
-        // ✅ THÊM: Helper method để quay lại lobby
+        // THÊM: Helper method để quay lại lobby
         private void ReturnToLobby()
         {
             try
             {
-                // ✅ KIỂM TRA: Có GameLobbyForm nào đang mở cho phòng này không?
+                // KIỂM TRA: Có GameLobbyForm nào đang mở cho phòng này không?
                 GameLobbyForm existingLobbyForm = null;
                 foreach (Form form in Application.OpenForms)
                 {
@@ -915,7 +928,7 @@ namespace DoAn_NT106.Client.Class
                     }
                 }
 
-                // ✅ NẾU ĐÃ CÓ FORM LOBBY RỒI: Chỉ cần show lại thôi
+                // NẾU ĐÃ CÓ FORM LOBBY RỒI: Chỉ cần show lại thôi
                 if (existingLobbyForm != null && !existingLobbyForm.IsDisposed)
                 {
                     Console.WriteLine($"[CharacterSelectForm] Found existing GameLobbyForm for room {roomCode}, showing it");
@@ -925,7 +938,7 @@ namespace DoAn_NT106.Client.Class
                     return;
                 }
 
-                // ✅ NẾU CHƯA CÓ: TẠO FORM LOBBY MỚI
+                // NẾU CHƯA CÓ: TẠO FORM LOBBY MỚI
                 Console.WriteLine($"[CharacterSelectForm] No existing GameLobbyForm found, creating new one for room {roomCode}");
                 var lobbyForm = new GameLobbyForm(roomCode, username, token);
                 lobbyForm.FormClosed += (s, args) =>
@@ -947,7 +960,7 @@ namespace DoAn_NT106.Client.Class
             }
         }
         
-        // ✅ CLEANUP
+        // CLEANUP
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             try
@@ -956,7 +969,9 @@ namespace DoAn_NT106.Client.Class
                 Console.WriteLine("[CharacterSelectForm] Unregistered from TCP broadcasts");
             }
             catch { }
-            
+
+            ConnectionHelper.OnReconnected -= OnServerReconnected;
+
             base.OnFormClosing(e);
         }
     }

@@ -5,10 +5,12 @@ using System.Windows.Forms;
 using DoAn_NT106.Client;
 using DoAn_NT106.Client.Class;
 
+
 namespace DoAn_NT106
 {
     internal static class Program
     {
+
         // FLAG ĐỂ TRÁNH SHUTDOWN NHIỀU LẦN
         private static bool isShuttingDown = false;
         private static readonly object shutdownLock = new object();
@@ -27,7 +29,7 @@ namespace DoAn_NT106
 
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-
+            ConnectionHelper.Initialize();
             try
             {
                 // Initialize Sound Manager and UI Audio Wiring at startup

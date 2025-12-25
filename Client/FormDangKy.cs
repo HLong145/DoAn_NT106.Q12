@@ -39,6 +39,7 @@ namespace DoAn_NT106.Client
             
 
             tcpClient = PersistentTcpClient.Instance;
+            ConnectionHelper.OnReconnected += OnServerReconnected;
 
             this.Shown += (s, e) =>
             {
@@ -61,6 +62,13 @@ namespace DoAn_NT106.Client
                 MessageBoxIcon.Information);
 
 
+        }
+
+        private void OnServerReconnected()
+        {
+            if (!this.Visible || this.IsDisposed) return;
+            Console.WriteLine("[FormDangKy] 🔄 Server reconnected");
+            SetAllControl(true);
         }
 
         #endregion
@@ -426,6 +434,7 @@ namespace DoAn_NT106.Client
         #region Animation
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
+            ConnectionHelper.OnReconnected -= OnServerReconnected;
             StopAnimations();
             base.OnFormClosing(e);
         }

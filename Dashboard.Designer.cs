@@ -13,6 +13,9 @@
         private PictureBox pictureBox2;
         private PictureBox pictureBox3;
 
+        private System.Windows.Forms.Label lblServerIP;
+        private System.Windows.Forms.TextBox txtServerIP;
+
         protected override void Dispose(bool disposing)
         {
             if (disposing && (components != null))
@@ -31,12 +34,16 @@
             pictureBox1 = new PictureBox();
             pictureBox2 = new PictureBox();
             pictureBox3 = new PictureBox();
+            lblServerIP = new Label();
+            txtServerIP = new TextBox();
+
             pnl_Main.SuspendLayout();
             pnl_Title.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)pictureBox1).BeginInit();
             ((System.ComponentModel.ISupportInitialize)pictureBox2).BeginInit();
             ((System.ComponentModel.ISupportInitialize)pictureBox3).BeginInit();
             SuspendLayout();
+
             // 
             // pnl_Main
             // 
@@ -44,13 +51,16 @@
             pnl_Main.Controls.Add(pnl_Title);
             pnl_Main.Controls.Add(btn_Client);
             pnl_Main.Controls.Add(btn_Server);
+            pnl_Main.Controls.Add(lblServerIP);
+            pnl_Main.Controls.Add(txtServerIP);
             pnl_Main.Controls.Add(pictureBox1);
             pnl_Main.Controls.Add(pictureBox2);
             pnl_Main.Controls.Add(pictureBox3);
             pnl_Main.Location = new Point(60, 40);
             pnl_Main.Name = "pnl_Main";
-            pnl_Main.Size = new Size(380, 320);
+            pnl_Main.Size = new Size(380, 350); 
             pnl_Main.TabIndex = 0;
+
             // 
             // pnl_Title
             // 
@@ -61,6 +71,7 @@
             pnl_Title.Name = "pnl_Title";
             pnl_Title.Size = new Size(340, 80);
             pnl_Title.TabIndex = 0;
+
             // 
             // lbl_Title
             // 
@@ -73,6 +84,7 @@
             lbl_Title.TabIndex = 0;
             lbl_Title.Text = "⚙️ DASHBOARD ⚙️";
             lbl_Title.TextAlign = ContentAlignment.MiddleCenter;
+
             // 
             // lbl_Subtitle
             // 
@@ -85,6 +97,7 @@
             lbl_Subtitle.TabIndex = 1;
             lbl_Subtitle.Text = "CHOOSE YOUR MODE";
             lbl_Subtitle.TextAlign = ContentAlignment.MiddleCenter;
+
             // 
             // btn_Client
             // 
@@ -92,12 +105,13 @@
             btn_Client.FlatStyle = FlatStyle.Flat;
             btn_Client.Font = new Font("Courier New", 12F, FontStyle.Bold);
             btn_Client.ForeColor = Color.White;
-            btn_Client.Location = new Point(60, 120);
+            btn_Client.Location = new Point(60, 100);
             btn_Client.Name = "btn_Client";
-            btn_Client.Size = new Size(260, 60);
+            btn_Client.Size = new Size(260, 55);
             btn_Client.TabIndex = 1;
-            btn_Client.Text = "\U0001f9d1‍💻 CLIENT";
+            btn_Client.Text = "🧑‍💻 CLIENT";
             btn_Client.Click += btn_Client_Click;
+
             // 
             // btn_Server
             // 
@@ -105,23 +119,53 @@
             btn_Server.FlatStyle = FlatStyle.Flat;
             btn_Server.Font = new Font("Courier New", 12F, FontStyle.Bold);
             btn_Server.ForeColor = Color.White;
-            btn_Server.Location = new Point(60, 200);
+            btn_Server.Location = new Point(60, 165);
             btn_Server.Name = "btn_Server";
-            btn_Server.Size = new Size(260, 60);
+            btn_Server.Size = new Size(260, 55);
             btn_Server.TabIndex = 2;
             btn_Server.Text = "🖥️ SERVER";
             btn_Server.Click += btn_Server_Click;
+
+            // 
+            // lblServerIP
+            // 
+            lblServerIP.BackColor = Color.Transparent;
+            lblServerIP.Font = new Font("Courier New", 9F, FontStyle.Bold);
+            lblServerIP.ForeColor = Color.White;
+            lblServerIP.Location = new Point(60, 235);
+            lblServerIP.Name = "lblServerIP";
+            lblServerIP.Size = new Size(90, 20);
+            lblServerIP.TabIndex = 6;
+            lblServerIP.Text = "Server IP:";
+            lblServerIP.TextAlign = ContentAlignment.MiddleLeft;
+
+            // 
+            // txtServerIP
+            // 
+            txtServerIP.BackColor = Color.FromArgb(42, 31, 26);
+            txtServerIP.BorderStyle = BorderStyle.FixedSingle;
+            txtServerIP.Font = new Font("Courier New", 10F);
+            txtServerIP.ForeColor = Color.Gold;
+            txtServerIP.Location = new Point(150, 233);
+            txtServerIP.Name = "txtServerIP";
+            txtServerIP.Size = new Size(170, 23);
+            txtServerIP.TabIndex = 7;
+            txtServerIP.Text = "103.188.244.112";
+            txtServerIP.TextAlign = HorizontalAlignment.Center;
+            txtServerIP.Leave += txtServerIP_Leave;
+
             // 
             // pictureBox1
             // 
             pictureBox1.BackColor = Color.Transparent;
             pictureBox1.Image = Properties.Resources.núi;
-            pictureBox1.Location = new Point(0, 254);
+            pictureBox1.Location = new Point(0, 280);
             pictureBox1.Name = "pictureBox1";
             pictureBox1.Size = new Size(120, 80);
             pictureBox1.SizeMode = PictureBoxSizeMode.Zoom;
             pictureBox1.TabIndex = 3;
             pictureBox1.TabStop = false;
+
             // 
             // pictureBox2
             // 
@@ -133,6 +177,7 @@
             pictureBox2.SizeMode = PictureBoxSizeMode.Zoom;
             pictureBox2.TabIndex = 4;
             pictureBox2.TabStop = false;
+
             // 
             // pictureBox3
             // 
@@ -144,13 +189,14 @@
             pictureBox3.SizeMode = PictureBoxSizeMode.Zoom;
             pictureBox3.TabIndex = 5;
             pictureBox3.TabStop = false;
+
             // 
             // Dashboard
             // 
             AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
             BackgroundImage = Properties.Resources.background2;
-            ClientSize = new Size(500, 400);
+            ClientSize = new Size(500, 430); 
             Controls.Add(pnl_Main);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
@@ -158,6 +204,7 @@
             StartPosition = FormStartPosition.CenterScreen;
             Text = "Dashboard";
             pnl_Main.ResumeLayout(false);
+            pnl_Main.PerformLayout();
             pnl_Title.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)pictureBox1).EndInit();
             ((System.ComponentModel.ISupportInitialize)pictureBox2).EndInit();

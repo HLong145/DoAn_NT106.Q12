@@ -44,7 +44,8 @@ namespace DoAn_NT106.Client
             tcpClient = PersistentTcpClient.Instance;         
             tcpClient = PersistentTcpClient.Instance;
             this.Load += FormDangNhap_Load;
-            tcpClient.OnDisconnected += HandleServerDisconnected;
+
+            ConnectionHelper.OnReconnected += OnServerReconnected;
 
             if (!isAutoLoginPerformed)
             {
@@ -110,15 +111,17 @@ namespace DoAn_NT106.Client
             );// Mặc định sẽ hiện dialog retry/cancel
         }
 
-        private void HandleServerDisconnected(string message)
+        private void OnServerReconnected()
         {
-            ConnectionHelper.HandleDisconnect(
-                this,
-                message,
-                onRetrySuccess: () => SetControlsEnabled(true),
-                onCancel: () => this.Close()
-            );
+            // Chỉ xử lý nếu form này đang visible
+            if (!this.Visible || this.IsDisposed) return;
+
+            Console.WriteLine("[FormDangNhap] 🔄 Server reconnected");
+
+            // Enable lại controls nếu form đang hiển thị
+            SetControlsEnabled(true);
         }
+
         private void SetControlsEnabled(bool enabled)
         {
             if (this.InvokeRequired)
@@ -482,10 +485,7 @@ namespace DoAn_NT106.Client
                 e.Cancel = false;
             }
 
-            if (tcpClient != null)
-            {
-                tcpClient.OnDisconnected -= HandleServerDisconnected;
-            }
+            ConnectionHelper.OnReconnected -= OnServerReconnected;
 
             base.OnFormClosing(e);
         }

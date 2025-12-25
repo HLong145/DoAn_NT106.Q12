@@ -4,18 +4,90 @@ using System.Windows.Forms;
 
 namespace DoAn_NT106.Client.Class
 {
-    /// <summary>
-    /// Helper class xử lý mất kết nối server cho tất cả các form
-    /// </summary>
     public static class ConnectionHelper
     {
-        //  để chống hiện nhiều MessageBox cùng lúc
         private static bool _isShowingDisconnectDialog = false;
         private static readonly object _lock = new object();
+        private static bool _isSubscribed = false; 
+
+        // Event để các form subscribe và tự reconnect services
+        public static event Action OnReconnected;
+
+        /// <summary>
+        /// Khởi tạo ConnectionHelper - gọi 1 lần khi app start
+        /// </summary>
+        public static void Initialize()
+        {
+            if (_isSubscribed) return;
+
+            PersistentTcpClient.Instance.OnDisconnected += OnTcpDisconnected;
+            _isSubscribed = true;
+            Console.WriteLine("[ConnectionHelper] ✅ Initialized and subscribed to OnDisconnected");
+        }
+
+        /// <summary>
+        /// Xử lý khi TCP disconnect - tìm form visible và hiện dialog
+        /// </summary>
+        private static void OnTcpDisconnected(string message)
+        {
+            Console.WriteLine($"[ConnectionHelper] 🔴 TCP Disconnected: {message}");
+
+            try
+            {
+                if (Application.OpenForms.Count > 0)
+                {
+                    Form anyForm = Application.OpenForms[0];
+
+                    if (anyForm.InvokeRequired)
+                    {
+                        anyForm.BeginInvoke(new Action(() => ShowDisconnectDialog(message)));
+                    }
+                    else
+                    {
+                        ShowDisconnectDialog(message);
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("[ConnectionHelper] No forms available!");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ConnectionHelper] OnTcpDisconnected error: {ex.Message}");
+            }
+        }
+
+        private static void ShowDisconnectDialog(string message)
+        {
+            Form activeForm = GetActiveVisibleForm();
+            if (activeForm == null)
+            {
+                Console.WriteLine("[ConnectionHelper] No visible form found!");
+                return;
+            }
+
+            HandleDisconnect(activeForm, message, null, null);
+        }
+
+
+        /// <summary>
+        /// Tìm form đang visible và active
+        /// </summary>
+        private static Form GetActiveVisibleForm()
+        {
+            foreach (Form f in Application.OpenForms)
+            {
+                if (f.Visible && !f.IsDisposed)
+                {
+                    return f;
+                }
+            }
+            return null;
+        }
 
         /// <summary>
         /// Xử lý khi mất kết nối - hiển thị dialog Retry/Cancel
-        /// Chỉ hiện 1 dialog duy nhất dù có nhiều nơi gọi
         /// </summary>
         public static void HandleDisconnect(
             Form form,
@@ -41,7 +113,7 @@ namespace DoAn_NT106.Client.Class
             {
                 if (_isShowingDisconnectDialog)
                 {
-                    Console.WriteLine($"[ConnectionHelper] Dialog already showing, skipping duplicate for: {form.Name}");
+                    Console.WriteLine($"[ConnectionHelper] Dialog already showing, skipping");
                     return;
                 }
                 _isShowingDisconnectDialog = true;
@@ -49,9 +121,13 @@ namespace DoAn_NT106.Client.Class
 
             try
             {
-                Console.WriteLine($"[ConnectionHelper] Showing disconnect dialog for: {form.Name}");
+                // Tìm form đang visible để hiển thị dialog
+                Form dialogOwner = GetActiveVisibleForm() ?? form;
+
+                Console.WriteLine($"[ConnectionHelper] Showing disconnect dialog on: {dialogOwner.Name}");
 
                 var result = MessageBox.Show(
+                    dialogOwner,
                     $"❌ Lost connection to the server!\n\n" +
                     $"Details: {message}\n\n" +
                     "Please check:\n" +
@@ -65,21 +141,19 @@ namespace DoAn_NT106.Client.Class
 
                 if (result == DialogResult.Retry)
                 {
-                    _ = RetryConnectionAsync(form, onRetrySuccess, onCancel);
+                    _ = RetryConnectionAsync(dialogOwner, onRetrySuccess, onCancel);
                 }
                 else
                 {
-                    // Reset flag trước khi thực hiện action
                     ResetDialogFlag();
 
-                    // Thực hiện action cancel hoặc đóng form mặc định
                     if (onCancel != null)
                     {
                         onCancel.Invoke();
                     }
                     else
                     {
-                        form.Close();
+                        dialogOwner.Close();
                     }
                 }
             }
@@ -90,9 +164,6 @@ namespace DoAn_NT106.Client.Class
             }
         }
 
-        /// <summary>
-        /// Reset flag khi dialog đã đóng
-        /// </summary>
         private static void ResetDialogFlag()
         {
             lock (_lock)
@@ -101,9 +172,6 @@ namespace DoAn_NT106.Client.Class
             }
         }
 
-        /// <summary>
-        /// Thử kết nối lại server
-        /// </summary>
         private static async Task RetryConnectionAsync(Form form, Action onSuccess = null, Action onCancel = null)
         {
             if (form == null || form.IsDisposed)
@@ -112,7 +180,6 @@ namespace DoAn_NT106.Client.Class
                 return;
             }
 
-            // Hiển thị cursor chờ
             form.Cursor = Cursors.WaitCursor;
 
             try
@@ -130,29 +197,30 @@ namespace DoAn_NT106.Client.Class
                 if (connected)
                 {
                     Console.WriteLine("✅ Reconnection successful!");
-
-                    // flag TRƯỚC khi hiện thông báo thành công
                     ResetDialogFlag();
 
                     MessageBox.Show(
+                        form,
                         "✅ Reconnected successfully!",
                         "Notification",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Information
                     );
 
-                    // Thực hiện action khi retry thành công
+                    // Gọi callback riêng của form gốc (nếu có)
                     onSuccess?.Invoke();
+
+                    // Broadcast để tất cả forms tự reconnect services
+                    Console.WriteLine("[ConnectionHelper] 📢 Broadcasting OnReconnected...");
+                    OnReconnected?.Invoke();
                 }
                 else
                 {
                     Console.WriteLine("❌ Reconnection failed!");
-
-                    // Reset flag TRƯỚC khi gọi lại HandleDisconnect
                     ResetDialogFlag();
 
-                    // Gọi lại HandleDisconnect để hiện dialog retry/cancel
-                    HandleDisconnect(form, "Unable to reconnect to the server.", onSuccess, onCancel);
+                    Form activeForm = GetActiveVisibleForm() ?? form;
+                    HandleDisconnect(activeForm, "Unable to reconnect to the server.", onSuccess, onCancel);
                 }
             }
             catch (Exception ex)
@@ -174,9 +242,6 @@ namespace DoAn_NT106.Client.Class
             }
         }
 
-        /// <summary>
-        /// Kiểm tra kết nối khi form load
-        /// </summary>
         public static async Task CheckConnectionOnLoadAsync(
             Form form,
             Action onSuccess = null,
@@ -235,9 +300,6 @@ namespace DoAn_NT106.Client.Class
             }
         }
 
-        /// <summary>
-        /// Reset trạng thái khi cần (ví dụ khi đóng app)
-        /// </summary>
         public static void Reset()
         {
             ResetDialogFlag();
