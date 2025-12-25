@@ -6,8 +6,9 @@ using System.Text;
 using System.Linq;
 using Microsoft.Data.SqlClient;
 using System.Data;
+using DoAn_NT106.Server;
 
-namespace DoAn_NT106.Server
+namespace DoAn_NT106.Services
 {
     public class DatabaseService
     {
@@ -1164,7 +1165,7 @@ namespace DoAn_NT106.Server
                     currentXp += gainedXp;
 
                     // 3. Tính level mới dựa trên TOTAL_XP (mỗi level 1000 XP)
-                    int newLevel = (currentXp / 1000) + 1;
+                    int newLevel = currentXp / 1000 + 1;
                     if (newLevel <= 0) newLevel = 1;
 
                     // 4. Cập nhật DB
