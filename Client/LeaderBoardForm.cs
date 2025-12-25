@@ -5,9 +5,7 @@ using System.Drawing;
 using System.Linq;
 using System.IO;
 using System.Threading.Tasks;
-using System.Windows.Forms;
-using DoAn_NT106.Services;
-using DoAn_NT106.Server;
+using System.Windows.Forms;using DoAn_NT106.Client.Class;
 
 namespace DoAn_NT106
 {
@@ -24,30 +22,42 @@ namespace DoAn_NT106
             await LoadTopPlayersAsync();
         }
 
-        private Task<List<(string Username,int Level,int Xp)>> FetchTopPlayersAsync()
+        // Fetch top players via server request instead of direct DB access
+        private async Task<List<(string Username,int Level,int Xp)>> FetchTopPlayersAsync()
         {
-            return Task.Run(() =>
+            try
             {
-                try
+                var resp = await PersistentTcpClient.Instance.SendRequestAsync("GET_LEADERBOARD", null, 8000);
+                var list = new List<(string Username, int Level, int Xp)>();
+
+                if (resp != null && resp.Success && resp.RawData.ValueKind != System.Text.Json.JsonValueKind.Undefined)
                 {
-                    var db = new DatabaseService();
-                    var res = db.GetTopPlayers(10);
-                    var list = new List<(string Username, int Level, int Xp)>();
-                    if (res != null)
+                    if (resp.RawData.TryGetProperty("players", out var playersEl) && playersEl.ValueKind == System.Text.Json.JsonValueKind.Array)
                     {
-                        foreach (var item in res)
+                        foreach (var p in playersEl.EnumerateArray())
                         {
-                            list.Add((item.Username ?? "?", item.UserLevel, item.Xp));
+                            try
+                            {
+                                string name = p.TryGetProperty("username", out var n) ? n.GetString() ?? "?" : "?";
+                                int level = 1;
+                                int xp = 0;
+                                if (p.TryGetProperty("level", out var lv) && lv.ValueKind == System.Text.Json.JsonValueKind.Number) level = lv.GetInt32();
+                                if (p.TryGetProperty("xp", out var xpEl) && xpEl.ValueKind == System.Text.Json.JsonValueKind.Number) xp = xpEl.GetInt32();
+
+                                list.Add((name, level, xp));
+                            }
+                            catch { }
                         }
                     }
-                    return list;
                 }
-                catch (Exception ex)
-                {
-                    Console.WriteLine("Leaderboard fetch error: " + ex.Message);
-                    return new List<(string Username, int Level, int Xp)>();
-                }
-            });
+
+                return list;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Leaderboard fetch error: " + ex.Message);
+                return new List<(string Username, int Level, int Xp)>();
+            }
         }
 
         private async Task LoadTopPlayersAsync()

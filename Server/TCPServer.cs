@@ -515,6 +515,9 @@ namespace DoAn_NT106.Server
                     case "LEAVE_ROOM":
                         return HandleLeaveRoom(request);
 
+                    case "GET_LEADERBOARD":
+                        return HandleGetLeaderboard(request);
+
                     //Các action global chat
                     case "GLOBAL_CHAT_JOIN":
                         return HandleGlobalChatJoin(request);
@@ -1380,7 +1383,29 @@ namespace DoAn_NT106.Server
                 return CreateResponse(false, $"Error: {ex.Message}");
             }
         }
+        private string HandleGetLeaderboard(Request request)
+        {
+            try
+            {
+                var top = dbService.GetTopPlayers(10) ?? new List<DatabaseService.PlayerRank>();
+                var players = top.Select(p => new Dictionary<string, object>
+        {
+            { "username", p.Username },
+            { "level", p.UserLevel },
+            { "xp", p.Xp }
+        }).ToList<object>();
 
+                return CreateResponseWithData(true, "OK", new Dictionary<string, object>
+        {
+            { "players", players }
+        });
+            }
+            catch (Exception ex)
+            {
+                server.Log($"❌ HandleGetLeaderboard error: {ex.Message}");
+                return CreateResponse(false, "Server error");
+            }
+        }
         private string HandleGlobalChatSend(Request request)
         {
             try
