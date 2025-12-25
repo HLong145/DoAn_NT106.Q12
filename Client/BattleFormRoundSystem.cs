@@ -1069,7 +1069,7 @@ namespace DoAn_NT106.Client
                 // ✅ TÍNH TOÁN XP LOCAL VỚI DATABASE
                 try
                 {
-                    var dbService = new DoAn_NT106.Services.DatabaseService();
+                    var dbService = new DoAn_NT106.Server.DatabaseService();
                     
                     // 1. Lấy XP hiện tại từ database
                     int oldXp = 0, oldTotalXp = 1000, oldLevel = 1;
