@@ -431,17 +431,24 @@ namespace DoAn_NT106.Client
                                     Xp = gainedXp
                                 };
 
-                                // ✅ SỬA: Mở form TinhXP với constructor #2 (nhận XP từ server trực tiếp)
+                                // Mở form TinhXP với constructor #2 (nhận XP từ server trực tiếp)
                                 Console.WriteLine($"[BattleForm] Opening TinhXP with SERVER data: Gained={gainedXp}, Old={oldXp}, New={newXp}");
                                 using (var xpForm = new DoAn_NT106.Client.TinhXP(result, gainedXp, oldXp, newXp, oldLevel, newLevel, totalXp))
                                 {
                                     xpForm.StartPosition = FormStartPosition.CenterScreen;
                                     xpForm.ShowDialog(this);
                                 }
+                                
+                                // SAU KHI TinhXP form đóng → Đóng BattleForm
+                                Console.WriteLine($"[BattleForm] TinhXP closed, closing BattleForm now");
+                                try { SoundManager.PlayMusic(BackgroundMusic.ThemeMusic, loop: true); } catch { }
+                                try { this.Close(); } catch { }
                             }
                             catch (Exception ex)
                             {
                                 Console.WriteLine($"[BattleForm] Error showing TinhXP: {ex.Message}");
+                                // Nếu lỗi thì vẫn đóng BattleForm
+                                try { this.Close(); } catch { }
                             }
                         }));
                     }
