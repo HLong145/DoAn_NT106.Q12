@@ -1055,17 +1055,29 @@ namespace DoAn_NT106.Client
 
                     // Gửi lên server - server sẽ tính XP và broadcast XP_RESULT
                     var _ = PersistentTcpClient.Instance.SendRequestAsync("MATCH_RESULT", matchResultData, 10000);
+                    
+                    Console.WriteLine($"[BattleForm] ⏳ WAITING for XP_RESULT broadcast from server...");
+                    // KHÔNG ĐÓNG FORM Ở ĐÂY - Đợi XP_RESULT broadcast từ server
+                    // TinhXP form sẽ tự động hiện khi nhận được XP_RESULT trong Persistent_OnBroadcast
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"[BattleForm] ❌ Failed to send MATCH_RESULT: {ex.Message}");
+                    
+                    // Nếu gửi MATCH_RESULT thất bại, đóng form ngay
+                    if (_requestReturnToLobby)
+                    {
+                        try { this.Close(); } catch { }
+                    }
                 }
             }
-
-            // Close BattleForm only if user requested return earlier
-            if (_requestReturnToLobby)
+            else
             {
-                try { this.Close(); } catch { }
+                // Offline mode: Close immediately if requested
+                if (_requestReturnToLobby)
+                {
+                    try { this.Close(); } catch { }
+                }
             }
 
             try { SoundManager.PlayMusic(BackgroundMusic.ThemeMusic, loop: true); } catch { }

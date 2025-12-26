@@ -438,10 +438,17 @@ namespace DoAn_NT106.Client
                                     xpForm.StartPosition = FormStartPosition.CenterScreen;
                                     xpForm.ShowDialog(this);
                                 }
+                                
+                                // SAU KHI TinhXP form đóng → Đóng BattleForm
+                                Console.WriteLine($"[BattleForm] TinhXP closed, closing BattleForm now");
+                                try { SoundManager.PlayMusic(BackgroundMusic.ThemeMusic, loop: true); } catch { }
+                                try { this.Close(); } catch { }
                             }
                             catch (Exception ex)
                             {
                                 Console.WriteLine($"[BattleForm] Error showing TinhXP: {ex.Message}");
+                                // Nếu lỗi thì vẫn đóng BattleForm
+                                try { this.Close(); } catch { }
                             }
                         }));
                     }
