@@ -288,7 +288,7 @@ namespace DoAn_NT106.Server
         /// - TOTAL_XP là ngưỡng cần đạt cho level đó (level 1 = 1000, level 2 = 2000, ...)
         /// - Khi XP >= 1000 thì level++, XP -= 1000, TOTAL_XP += 1000
         /// </summary>
-        // ✅ SỬA: Method UpdatePlayerXpAndLevel - RETURN EXACT VALUES FROM DATABASE
+        //  Method UpdatePlayerXpAndLevel - RETURN EXACT VALUES FROM DATABASE
         public bool UpdatePlayerXpAndLevel(string username, int gainedXp, out int newXp, out int newTotalXp, out int newLevel)
         {
             newXp = 0;
@@ -364,7 +364,7 @@ namespace DoAn_NT106.Server
 
                     Console.WriteLine($"📊 AFTER CALCULATION: {username} - XP={newXp}, Level={newLevel}, TotalXP={newTotalXp}");
 
-                    // 4. ✅ UPDATE with OUTPUT clause to get EXACT values from database
+                    // 4.  UPDATE with OUTPUT clause to get EXACT values from database
                     using (var updateCmd = new SqlCommand(
                         @"UPDATE PLAYERS 
                   SET XP = @Xp,
@@ -379,12 +379,12 @@ namespace DoAn_NT106.Server
                         updateCmd.Parameters.AddWithValue("@Level", newLevel);
                         updateCmd.Parameters.AddWithValue("@Username", username);
 
-                        // ✅ Read OUTPUT values directly from database
+                        // Read OUTPUT values directly from database
                         using (var reader = updateCmd.ExecuteReader())
                         {
                             if (reader.Read())
                             {
-                                // ✅ Get EXACT values that were written to database
+                                // Get EXACT values that were written to database
                                 newXp = Convert.ToInt32(reader[0]);
                                 newTotalXp = Convert.ToInt32(reader[1]);
                                 newLevel = Convert.ToInt32(reader[2]);

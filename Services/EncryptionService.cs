@@ -56,7 +56,7 @@ namespace DoAn_NT106.Services
                                 swEncrypt.Write(plainText);
                             }
                         }
-                        // ✅ THÊM NEWLINE DELIMITER để phân tách messages
+                        // THÊM NEWLINE DELIMITER để phân tách messages
                         return Convert.ToBase64String(msEncrypt.ToArray()) + "\n";
                     }
                 }
@@ -78,7 +78,7 @@ namespace DoAn_NT106.Services
 
             try
             {
-                // ✅ Loại bỏ newline nếu có
+                // Loại bỏ newline nếu có
                 cipherText = cipherText.Trim('\n', '\r');
 
                 using (Aes aes = Aes.Create())

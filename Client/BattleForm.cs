@@ -431,7 +431,7 @@ namespace DoAn_NT106.Client
                                     Xp = gainedXp
                                 };
 
-                                // ✅ SỬA: Mở form TinhXP với constructor #2 (nhận XP từ server trực tiếp)
+                                // Mở form TinhXP với constructor #2 (nhận XP từ server trực tiếp)
                                 Console.WriteLine($"[BattleForm] Opening TinhXP with SERVER data: Gained={gainedXp}, Old={oldXp}, New={newXp}");
                                 using (var xpForm = new DoAn_NT106.Client.TinhXP(result, gainedXp, oldXp, newXp, oldLevel, newLevel, totalXp))
                                 {

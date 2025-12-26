@@ -70,7 +70,7 @@ namespace DoAn_NT106.Server
             udpGameServer = new UDPGameServer(UDP_PORT);
             udpGameServer.OnLog += LogMessage;
 
-            // ✅ FIX: Ensure RoomManager has valid references to LobbyManager and UDP server
+            //  Ensure RoomManager has valid references to LobbyManager and UDP server
             roomManager.UdpGameServer = udpGameServer;
             roomManager.LobbyManager = lobbyManager;
         }
@@ -284,7 +284,7 @@ namespace DoAn_NT106.Server
             GlobalChatManager globalChatManager,
             LobbyManager lobbyManager,
             RoomListBroadcaster roomListBroadcaster,
-            UDPGameServer udpGameServer)  // ✅ THÊM parameter
+            UDPGameServer udpGameServer)  
         {
             tcpClient = client;
             this.server = server;
@@ -297,7 +297,7 @@ namespace DoAn_NT106.Server
             this.globalChatManager = globalChatManager;
             this.lobbyManager = lobbyManager;
             this.roomListBroadcaster = roomListBroadcaster;
-            this.udpGameServer = udpGameServer;  // ✅ THÊM
+            this.udpGameServer = udpGameServer; 
         }
         #endregion 
         public void SetNormalLogout()
@@ -669,14 +669,14 @@ namespace DoAn_NT106.Server
                 var lobby = lobbyManager.GetLobby(roomCode);
                 if (lobby != null)
                 {
-                    // ✅ Reset lobby state: Clear character selections
+                    // Reset lobby state: Clear character selections
                     var resetResult = lobbyManager.ResetLobbyForRematch(roomCode);
                     if (resetResult.Success)
                     {
                         server.Log($"✅ Lobby {roomCode} reset after character select back");
                     }
 
-                    // ✅ Broadcast RETURN_TO_LOBBY cho CẢ 2 PLAYER
+                    // Broadcast RETURN_TO_LOBBY cho CẢ 2 PLAYER
                     var returnPayload = new
                     {
                         Action = "RETURN_TO_LOBBY",
@@ -1340,7 +1340,7 @@ namespace DoAn_NT106.Server
 
                     string response = CreateResponseWithData(true, result.Message, responseData);
 
-                    // ✅ Log response để debug
+                    // Log response để debug
                     server.Log($"📤 GlobalChatJoin response: onlineCount={result.OnlineCount}, historyCount={historyData.Count}");
 
                     return response;
@@ -1793,7 +1793,7 @@ catch (Exception ex)
                     server.Log($"⚠️ Failed to end UDP match: {udpResult.Message}");
                 }
 
-                // ✅ RESET LOBBY: Reset ready status và character selections
+                // RESET LOBBY: Reset ready status và character selections
                 var resetResult = lobbyManager.ResetLobbyForRematch(roomCode);
                 if (resetResult.Success)
                 {
@@ -2090,7 +2090,7 @@ catch (Exception ex)
         }
 
 
-        // ✅ SỬA: HandleMatchResult trong TCPServer.cs
+        //  HandleMatchResult trong TCPServer.cs
         private string HandleMatchResult(Request request)
         {
             try
@@ -2180,7 +2180,7 @@ catch (Exception ex)
 
                 server.Log($"📊 XP Calculated: Winner({winnerUsername})=+{winnerGainedXp}, Loser({loserUsername})=+{loserGainedXp}");
 
-                // ✅ Update XP for WINNER and get EXACT values from database
+                // Update XP for WINNER and get EXACT values from database
                 int winnerNewXp = 0, winnerNewTotalXp = 1000, winnerNewLevel = 1;
                 int winnerOldXp = 0, winnerOldLevel = 1, winnerOldTotalXp = 1000;
 
@@ -2189,7 +2189,7 @@ catch (Exception ex)
                     // Get OLD values before update
                     dbService.GetPlayerXpAndLevel(winnerUsername, out winnerOldXp, out winnerOldTotalXp, out winnerOldLevel);
 
-                    // ✅ UPDATE and get NEW values from database OUTPUT
+                    // UPDATE and get NEW values from database OUTPUT
                     bool updateSuccess = dbService.UpdatePlayerXpAndLevel(winnerUsername, winnerGainedXp,
                         out winnerNewXp, out winnerNewTotalXp, out winnerNewLevel);
 
@@ -2203,7 +2203,7 @@ catch (Exception ex)
                     }
                 }
 
-                // ✅ Update XP for LOSER and get EXACT values from database
+                // Update XP for LOSER and get EXACT values from database
                 int loserNewXp = 0, loserNewTotalXp = 1000, loserNewLevel = 1;
                 int loserOldXp = 0, loserOldLevel = 1, loserOldTotalXp = 1000;
 
@@ -2212,7 +2212,7 @@ catch (Exception ex)
                     // Get OLD values before update
                     dbService.GetPlayerXpAndLevel(loserUsername, out loserOldXp, out loserOldTotalXp, out loserOldLevel);
 
-                    // ✅ UPDATE and get NEW values from database OUTPUT
+                    // UPDATE and get NEW values from database OUTPUT
                     bool updateSuccess = dbService.UpdatePlayerXpAndLevel(loserUsername, loserGainedXp,
                         out loserNewXp, out loserNewTotalXp, out loserNewLevel);
 
@@ -2226,7 +2226,7 @@ catch (Exception ex)
                     }
                 }
 
-                // ✅ Broadcast XP_RESULT with EXACT DATABASE VALUES
+                // Broadcast XP_RESULT with EXACT DATABASE VALUES
                 var room = roomManager.GetRoom(roomCode);
                 if (room != null)
                 {
@@ -2241,10 +2241,10 @@ catch (Exception ex)
                             isWinner = true,
                             gainedXp = winnerGainedXp,
                             oldXp = winnerOldXp,
-                            newXp = winnerNewXp,  // ✅ EXACT VALUE FROM DATABASE
+                            newXp = winnerNewXp,  // EXACT VALUE FROM DATABASE
                             oldLevel = winnerOldLevel,
-                            newLevel = winnerNewLevel,  // ✅ EXACT VALUE FROM DATABASE
-                            totalXp = winnerNewTotalXp,  // ✅ EXACT VALUE FROM DATABASE
+                            newLevel = winnerNewLevel,  // EXACT VALUE FROM DATABASE
+                            totalXp = winnerNewTotalXp,  // EXACT VALUE FROM DATABASE
                             matchDuration = matchDurationSeconds
                         }
                     };
@@ -2260,10 +2260,10 @@ catch (Exception ex)
                             isWinner = false,
                             gainedXp = loserGainedXp,
                             oldXp = loserOldXp,
-                            newXp = loserNewXp,  // ✅ EXACT VALUE FROM DATABASE
+                            newXp = loserNewXp,  // EXACT VALUE FROM DATABASE
                             oldLevel = loserOldLevel,
-                            newLevel = loserNewLevel,  // ✅ EXACT VALUE FROM DATABASE
-                            totalXp = loserNewTotalXp,  // ✅ EXACT VALUE FROM DATABASE
+                            newLevel = loserNewLevel,  // EXACT VALUE FROM DATABASE
+                            totalXp = loserNewTotalXp,  // EXACT VALUE FROM DATABASE
                             matchDuration = matchDurationSeconds
                         }
                     };
@@ -2334,7 +2334,7 @@ catch (Exception ex)
         {
             try
             {
-                // ✅ Rời phòng nếu đang trong phòng
+                // Rời phòng nếu đang trong phòng
                 if (!string.IsNullOrEmpty(currentRoomCode) && !string.IsNullOrEmpty(currentUsername))
                 {
                     roomManager.LeaveRoom(currentRoomCode, currentUsername);

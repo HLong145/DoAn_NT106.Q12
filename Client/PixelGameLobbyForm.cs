@@ -196,7 +196,7 @@ namespace DoAn_NT106.Client
             startGameButton.Enabled = false;
             startGameButton.BackColor = Color.Gray;
 
-            // ✅ CHOOSE MAP BUTTON - DISABLED BY DEFAULT (ONLY HOST CAN USE)
+            // CHOOSE MAP BUTTON - DISABLED BY DEFAULT (ONLY HOST CAN USE)
             chooseMapButton.Enabled = false;
             chooseMapButton.BackColor = Color.Gray;
 
@@ -406,7 +406,7 @@ namespace DoAn_NT106.Client
                 // Xác định xem user hiện tại có phải host không
                 isHost = (player1 == username);
 
-                // ✅ ENABLE CHOOSE MAP BUTTON ONLY FOR HOST
+                // ENABLE CHOOSE MAP BUTTON ONLY FOR HOST
                 chooseMapButton.Enabled = isHost;
                 chooseMapButton.BackColor = isHost ? Color.FromArgb(139, 69, 19) : Color.Gray;
 
@@ -423,7 +423,7 @@ namespace DoAn_NT106.Client
                     {
                         startGameButton.Enabled = true;
                         startGameButton.BackColor = Color.Green;
-                        // ✅ RESET BUTTON TEXT
+                        // RESET BUTTON TEXT
                         startGameButton.Text = "START GAME";
                     }
                     else
@@ -436,7 +436,7 @@ namespace DoAn_NT106.Client
                     bothPlayersReady = false;
                     startGameButton.Enabled = false;
                     startGameButton.BackColor = Color.Gray;
-                    // ✅ RESET BUTTON TEXT WHEN NOT READY
+                    // RESET BUTTON TEXT WHEN NOT READY
                     startGameButton.Text = "START GAME";
                 }
 
@@ -475,7 +475,7 @@ namespace DoAn_NT106.Client
                     return;
                 }
 
-                // ✅ Cập nhật Player 1
+                // Cập nhật Player 1
                 if (!string.IsNullOrEmpty(player1))
                 {
                     players[0].Name = player1 + (player1 == username ? " (You)" : "");
@@ -487,7 +487,7 @@ namespace DoAn_NT106.Client
                     players[0].Status = "Not Ready";
                 }
 
-                // ✅ Cập nhật Player 2
+                // Cập nhật Player 2
                 if (!string.IsNullOrEmpty(player2))
                 {
                     players[1].Name = player2 + (player2 == username ? " (You)" : "");
@@ -559,7 +559,7 @@ namespace DoAn_NT106.Client
                 Console.WriteLine("[GameLobby] Both players are ready!");
                 AddSystemMessage("✅ Both players are ready!");
 
-                // ✅ RESET BUTTON TEXT
+                // RESET BUTTON TEXT
                 startGameButton.Text = "START GAME";
 
                 // Chỉ enable nút Start cho host (Player 1)

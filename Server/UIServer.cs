@@ -2,7 +2,7 @@
 using System;
 using System.Windows.Forms;
 
-namespace ServerApp
+namespace DoAn_NT106.Server
 {
     public partial class ServerForm : Form
     {
@@ -82,7 +82,7 @@ namespace ServerApp
 
                 if (result == DialogResult.Yes)
                 {
-                    // ✅ ASYNC STOP TO PREVENT HANGING
+                    // ASYNC STOP TO PREVENT HANGING
                     try
                     {
                         var stopTask = server.Stop();
@@ -100,18 +100,17 @@ namespace ServerApp
                 }
             }
             
-            // ✅ CLEANUP SERVER RESOURCES
+            // CLEANUP SERVER RESOURCES
             CleanupServerResources();
         }
 
-        // ✅ CLEANUP FUNCTION
         private void CleanupServerResources()
         {
             try
             {
                 Console.WriteLine("🧹 Cleaning up server resources...");
 
-                // ✅ Force stop server if still running
+                // Force stop server if still running
                 if (server?.IsRunning == true)
                 {
                     var stopTask = server.Stop();

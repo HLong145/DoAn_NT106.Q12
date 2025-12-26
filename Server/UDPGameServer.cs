@@ -353,7 +353,7 @@ namespace DoAn_NT106.Server
                             udpSocket.Send(data, data.Length, opponentEndpoint);
                         }
                         
-                        // ✅ SPARSE LOG - mỗi 50 packets (roughly 2 seconds at 25 FPS)
+                        // SPARSE LOG - mỗi 50 packets (roughly 2 seconds at 25 FPS)
                         if (DateTime.Now.Millisecond % 2000 < 100)
                         {
                             Log($"📤 Relayed P{playerNum}→P{(playerNum == 1 ? 2 : 1)} to {opponentEndpoint}");
@@ -366,7 +366,7 @@ namespace DoAn_NT106.Server
                 }
                 else
                 {
-                    // ⚠️ Opponent not connected yet - just log sparingly
+                    // Opponent not connected yet - just log sparingly
                     if (DateTime.Now.Millisecond % 3000 < 100)
                     {
                         Log($"⏳ P{playerNum} sent packet but opponent not registered yet");

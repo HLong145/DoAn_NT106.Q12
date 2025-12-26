@@ -1,5 +1,4 @@
-﻿using ServerApp;
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Windows.Forms;
 
@@ -126,7 +125,8 @@ namespace DoAn_NT106.Client
             try
             {
                 //  MỞ SERVER FORM
-                ServerForm serverForm = new ServerForm();
+
+                DoAn_NT106.Server.ServerForm serverForm = new DoAn_NT106.Server.ServerForm();
                 serverForm.Show();
 
                 MessageBox.Show("Server window opened!\n\nClick 'Start' to begin listening for connections on port 8080.",

@@ -667,8 +667,8 @@ namespace DoAn_NT106.Server
                             roomCode = lobby.RoomCode,
                             player1 = lobby.Player1Username,
                             player2 = lobby.Player2Username,
-                            player1Number = 1,  // ✅ THÊM: Explicit player number
-                            player2Number = 2,  // ✅ THÊM: Explicit player number
+                            player1Number = 1,  //  Explicit player number
+                            player2Number = 2,  //  Explicit player number
                             player1Character = state.Player1Character,
                             player2Character = state.Player2Character
                             ,
@@ -693,7 +693,7 @@ namespace DoAn_NT106.Server
             }
         }
 
-        // ✅ THÊM: Reset lobby sau khi game kết thúc (rematch hoặc return to lobby)
+        // Reset lobby sau khi game kết thúc (rematch hoặc return to lobby)
         public (bool Success, string Message) ResetLobbyForRematch(string roomCode)
         {
             try

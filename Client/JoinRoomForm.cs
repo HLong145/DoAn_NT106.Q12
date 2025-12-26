@@ -697,7 +697,7 @@ namespace DoAn_NT106.Client
                     globalChatClient = null;
 
                     // Open BattleForm in offline mode with selected map
-                    // ✅ QUAN TRỌNG: Set myPlayerNumber = 1 để offline mode hoạt động
+                    //Set myPlayerNumber = 1 để offline mode hoạt động
                     var battleForm = new BattleForm(
                         username,        // Player 1 name
                         token,           // Token (not used in offline)
@@ -706,7 +706,7 @@ namespace DoAn_NT106.Client
                         player2Character, // Player 2 character
                         selectedMap,     // selected map (battleground1..4)
                         "000000",        // roomCode = "000000" cho offline
-                        myPlayerNumber: 1 // ✅ SET: Player 1 (local control)
+                        myPlayerNumber: 1 // Player 1 (local control)
                     );
 
                     // Ensure BattleForm knows its owner so we can return to this instance

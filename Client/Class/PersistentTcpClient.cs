@@ -236,7 +236,7 @@ namespace DoAn_NT106.Client.Class
         #region Send broadcast
 
         /// <summary>
-        /// ✅  Send broadcast to server
+        ///  Send broadcast to server
         /// </summary>
         public void SendBroadcast(string action, string jsonData)
         {

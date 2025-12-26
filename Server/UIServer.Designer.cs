@@ -1,5 +1,5 @@
-﻿namespace ServerApp
-{
+﻿namespace DoAn_NT106.Server
+{ 
     partial class ServerForm
     {
         private System.ComponentModel.IContainer components = null;
