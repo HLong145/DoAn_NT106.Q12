@@ -1061,7 +1061,6 @@ namespace DoAn_NT106.Client
                     Console.WriteLine($"[BattleForm] ❌ Failed to send MATCH_RESULT: {ex.Message}");
                 }
             }
-            // Offline mode: Không tính XP nữa
 
             // Close BattleForm only if user requested return earlier
             if (_requestReturnToLobby)
