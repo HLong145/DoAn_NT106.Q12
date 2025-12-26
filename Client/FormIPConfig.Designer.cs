@@ -122,7 +122,7 @@
             txtServerIP.Name = "txtServerIP";
             txtServerIP.Size = new System.Drawing.Size(320, 30);
             txtServerIP.TabIndex = 0;
-            txtServerIP.Text = "103.188.244.112";
+            txtServerIP.Text = "192.168.0.1";
             txtServerIP.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             txtServerIP.KeyDown += txtServerIP_KeyDown;
 
