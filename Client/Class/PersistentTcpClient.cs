@@ -94,6 +94,29 @@ namespace DoAn_NT106.Client.Class
             }
         }
 
+        public static void ResetInstance()
+        {
+            lock (_lock)
+            {
+                if (_instance != null)
+                {
+                    try
+                    {
+                        // Disconnect và dispose instance cũ
+                        _instance.Disconnect();
+                        Console.WriteLine("[PersistentTcpClient] 🔄 Old instance disconnected");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[PersistentTcpClient] ⚠️ Disconnect error: {ex.Message}");
+                    }
+
+                    _instance = null;
+                    Console.WriteLine("[PersistentTcpClient] Instance reset - next access will create new connection");
+                }
+            }
+        }
+
         #endregion
 
         #region Constructor

@@ -5,17 +5,12 @@ using System.Windows.Forms;
 using DoAn_NT106.Client;
 using DoAn_NT106.Client.Class;
 
-
 namespace DoAn_NT106
 {
     internal static class Program
     {
-
-        // FLAG ĐỂ TRÁNH SHUTDOWN NHIỀU LẦN
         private static bool isShuttingDown = false;
         private static readonly object shutdownLock = new object();
-
-        // TIMER ĐỂ DELAY KIỂM TRA (tránh shutdown khi đang chuyển form)
         private static System.Windows.Forms.Timer shutdownCheckTimer;
         private static int pendingCloseCount = 0;
 
@@ -30,6 +25,7 @@ namespace DoAn_NT106
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             ConnectionHelper.Initialize();
+
             try
             {
                 // Initialize Sound Manager and UI Audio Wiring at startup
@@ -42,25 +38,45 @@ namespace DoAn_NT106
 
                 // KHỞI TẠO TIMER KIỂM TRA SHUTDOWN (delay 500ms)
                 shutdownCheckTimer = new System.Windows.Forms.Timer();
-                shutdownCheckTimer.Interval = 500; // 500ms delay
+                shutdownCheckTimer.Interval = 500;
                 shutdownCheckTimer.Tick += ShutdownCheckTimer_Tick;
 
                 // HOOK VÀO TẤT CẢ FORMS ĐƯỢC TẠO
                 Application.Idle += Application_Idle;
 
-                // CHẠY THẲNG LOGIN FORM
+                Console.WriteLine("🌐 Opening IP Configuration...");
+
+
+                // Xoá khi build với Internet
+                using (var ipForm = new FormIPConfig())
+                {
+                    DialogResult result = ipForm.ShowDialog();
+
+                    if (result != DialogResult.OK || !ipForm.IsConfirmed)
+                    {
+                        // User đã cancel → thoát app
+                        Console.WriteLine("❌ User cancelled IP configuration. Exiting...");
+                        return;
+                    }
+
+                    Console.WriteLine($"IP configured: {AppConfig.SERVER_IP}");
+                }
+                //
+
                 Console.WriteLine("🚀 Starting Login Form...");
                 Application.Run(new Dashboard());
+
+                // Cmt dòng trên và bỏ cmt dòng dưới khi build với Internet
+                //Application.Run(new FormDangNhao()); 
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Fatal error: {ex}");
-                MessageBox.Show($"Fatal error: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Console.WriteLine($"❌ Fatal error: {ex.Message}");
+                MessageBox.Show($"Fatal error: {ex.Message}", "Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-
-            // KHI APPLICATION.RUN KẾT THÚC → FORCE SHUTDOWN
-            ForceShutdown();
         }
+
 
         // THEO DÕI TẤT CẢ FORMS - HOOK EVENTS
         private static void Application_Idle(object sender, EventArgs e)

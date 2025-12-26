@@ -44,7 +44,7 @@ namespace DoAn_NT106.Client
 
                 //  KILL CHILD PROCESS NẾU CÓ
                 KillChildProcess();
-                
+
                 //  FORCE SHUTDOWN
                 ForceShutdown();
             }
@@ -77,7 +77,7 @@ namespace DoAn_NT106.Client
         private void ForceShutdown()
         {
             Console.WriteLine("🛑 Force shutdown initiated...");
-            
+
             //  Tìm và kill tất cả child processes
             try
             {
@@ -147,109 +147,95 @@ namespace DoAn_NT106.Client
         }
 
         /// <summary>
-        /// Khi rời khỏi textbox IP - cập nhật AppConfig
+        /// Controller quản lý Client flow (Login/Register)
         /// </summary>
-        private void txtServerIP_Leave(object sender, EventArgs e)
+        public class ClientApplicationController
         {
-            string ip = txtServerIP.Text.Trim();
+            private FormDangNhap loginForm;
+            private FormDangKy registerForm;
+            private Dashboard dashboardForm;
 
-            if (!string.IsNullOrEmpty(ip))
+            public ClientApplicationController(Dashboard dashboard)
             {
-                AppConfig.SERVER_IP = ip;
-                Console.WriteLine($"[Dashboard] ✅ Server IP set to: {ip}");
+                dashboardForm = dashboard;
+                dashboard.Hide();
+
+                Console.WriteLine("🎯 Initializing ClientApplicationController...");
+
+                //  TẠO VÀ KẾT NỐI FORM NGAY LẬP TỨC
+                InitializeAndConnectForms();
+
+                // Hiển thị form đăng nhập
+                ShowLoginForm();
             }
-        }
-    }
 
-    /// <summary>
-    /// Controller quản lý Client flow (Login/Register)
-    /// </summary>
-    public class ClientApplicationController
-    {
-        private FormDangNhap loginForm;
-        private FormDangKy registerForm;
-        private Dashboard dashboardForm;
-
-        public ClientApplicationController(Dashboard dashboard)
-        {
-            dashboardForm = dashboard;
-            dashboard.Hide();
-
-            Console.WriteLine("🎯 Initializing ClientApplicationController...");
-
-            //  TẠO VÀ KẾT NỐI FORM NGAY LẬP TỨC
-            InitializeAndConnectForms();
-
-            // Hiển thị form đăng nhập
-            ShowLoginForm();
-        }
-
-        //  PHƯƠNG THỨC: KHỞI TẠO VÀ KẾT NỐI FORM
-        private void InitializeAndConnectForms()
-        {
-            // Tạo form đăng nhập
-            loginForm = new FormDangNhap();
-            loginForm.StartPosition = FormStartPosition.CenterScreen;
-
-            // Tạo form đăng ký
-            registerForm = new FormDangKy();
-            registerForm.StartPosition = FormStartPosition.CenterScreen;
-
-            Console.WriteLine("🔗 Connecting events...");
-
-            //  KẾT NỐI SỰ KIỆN: Login → Register
-            loginForm.SwitchToRegister += (s, e) =>
+            //  PHƯƠNG THỨC: KHỞI TẠO VÀ KẾT NỐI FORM
+            private void InitializeAndConnectForms()
             {
-                Console.WriteLine("🔄 Switching to Register form from Login...");
-                loginForm.Hide();
+                // Tạo form đăng nhập
+                loginForm = new FormDangNhap();
+                loginForm.StartPosition = FormStartPosition.CenterScreen;
+
+                // Tạo form đăng ký
+                registerForm = new FormDangKy();
+                registerForm.StartPosition = FormStartPosition.CenterScreen;
+
+                Console.WriteLine("🔗 Connecting events...");
+
+                //  KẾT NỐI SỰ KIỆN: Login → Register
+                loginForm.SwitchToRegister += (s, e) =>
+                {
+                    Console.WriteLine("🔄 Switching to Register form from Login...");
+                    loginForm.Hide();
+                    registerForm.ResetForm();
+                    registerForm.Show();
+                    registerForm.BringToFront();
+                };
+
+                //  KẾT NỐI SỰ KIỆN: Register → Login  
+                registerForm.SwitchToLogin += (s, e) =>
+                {
+                    Console.WriteLine("🔄 Switching to Login form from Register...");
+                    registerForm.Hide();
+                    loginForm.Show();
+                    loginForm.BringToFront();
+                };
+
+                // Kết nối sự kiện đóng form
+                loginForm.FormClosed += (s, e) =>
+                {
+                    Console.WriteLine("🚪 Login form closed");
+                    registerForm?.Close();
+                    dashboardForm?.Show();
+                    dashboardForm?.BringToFront();
+                };
+
+                registerForm.FormClosed += (s, e) =>
+                {
+                    Console.WriteLine("🚪 Register form closed");
+                    if (!loginForm.Visible)
+                    {
+                        loginForm.Show();
+                    }
+                };
+
+                Console.WriteLine(" Events connected successfully!");
+            }
+
+            private void ShowLoginForm()
+            {
+                Console.WriteLine("👤 Showing Login form...");
+                loginForm.Show();
+                loginForm.BringToFront();
+            }
+
+            private void ShowRegisterForm()
+            {
+                Console.WriteLine("📝 Showing Register form...");
                 registerForm.ResetForm();
                 registerForm.Show();
                 registerForm.BringToFront();
-            };
-
-            //  KẾT NỐI SỰ KIỆN: Register → Login  
-            registerForm.SwitchToLogin += (s, e) =>
-            {
-                Console.WriteLine("🔄 Switching to Login form from Register...");
-                registerForm.Hide();
-                loginForm.Show();
-                loginForm.BringToFront();
-            };
-
-            // Kết nối sự kiện đóng form
-            loginForm.FormClosed += (s, e) =>
-            {
-                Console.WriteLine("🚪 Login form closed");
-                registerForm?.Close();
-                dashboardForm?.Show();
-                dashboardForm?.BringToFront();
-            };
-
-            registerForm.FormClosed += (s, e) =>
-            {
-                Console.WriteLine("🚪 Register form closed");
-                if (!loginForm.Visible)
-                {
-                    loginForm.Show();
-                }
-            };
-
-            Console.WriteLine(" Events connected successfully!");
-        }
-
-        private void ShowLoginForm()
-        {
-            Console.WriteLine("👤 Showing Login form...");
-            loginForm.Show();
-            loginForm.BringToFront();
-        }
-
-        private void ShowRegisterForm()
-        {
-            Console.WriteLine("📝 Showing Register form...");
-            registerForm.ResetForm();
-            registerForm.Show();
-            registerForm.BringToFront();
+            }
         }
     }
 }
