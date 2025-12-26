@@ -108,5 +108,11 @@ Mục tiêu của dự án là xây dựng một **game hoàn chỉnh có khả 
 Dự án được thực hiện với mục đích **học tập**, nghiên cứu và áp dụng các kiến thức về **lập trình mạng**, **đồng bộ thời gian thực** và **phát triển game PvP**.
 
 ---
+## 🔽 Download
+
+- 🌐 [Download Fighter X Fighter (Phiên bản Internet)](https://github.com/HLong145/DoAn_NT106.Q12/releases/tag/Internet_v1.0.0)
+- 🏠 [Download Fighter X Fighter (Phiên bản LAN)](https://github.com/HLong145/DoAn_NT106.Q12/releases/tag/v1.0.0)
+
+
 
 ✨ *Cảm ơn bạn đã quan tâm đến dự án FIGHTER X FIGHTER!* ✨
