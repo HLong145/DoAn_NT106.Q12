@@ -64,7 +64,7 @@ namespace DoAn_NT106
                 //
 
                 Console.WriteLine("🚀 Starting Login Form...");
-                Application.Run(new Dashboard());
+                Application.Run(new FormDangNhap());
 
                 // Cmt dòng trên và bỏ cmt dòng dưới khi build với Internet
                 //Application.Run(new FormDangNhao()); 
